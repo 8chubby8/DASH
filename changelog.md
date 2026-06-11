@@ -180,4 +180,28 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.1.6
+
+**Status:** Complete
+
+**Implemented:**
+- `readCurrentSystemDpi()` rewritten to read from `context.applicationContext.resources.displayMetrics.densityDpi` instead of `Settings.Global.display_density_forced`
+- `tryWriteSystemDpi()` removed — it was an unexposed investigation path from v1.1.5 with no UI entry point
+
+**Regressions:**
+- None
+
+**Fixes:**
+- Consumer path density label ("Current: X dpi") was stuck showing "Compact (160 dpi)" regardless of actual system density. Root cause: `display_density_forced` in Settings.Global had been written directly to 160 by the ADB test in v1.1.5, and Android's Display Size setting does not reliably update this key. Reading from `applicationContext.resources.displayMetrics.densityDpi` bypasses Settings.Global entirely and returns the actual live system density. The ON_RESUME observer was working correctly throughout — only the read source was wrong
+
+**Outstanding:**
+- None
+
+**Notes:**
+- `applicationContext` is not affected by DASH's activity-level `attachBaseContext` density isolation — it reflects real system density
+- Shizuku is parked indefinitely. The consumer deep-link path is adequate for now. Shizuku may be revisited in version 2 if consumer density control becomes a priority
+- 1.1.x is now complete
+
+---
+
 *This document is maintained throughout development. Every version increment — including third number refinements — requires an entry here before the version is considered complete.*
