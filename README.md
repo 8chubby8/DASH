@@ -128,6 +128,8 @@ Fine. I'll do it myself. And then let everyone else do it themselves too.
 
 ## License
 
+Copyright © 2026 Roger Davies
+
 DASH is released under the GNU General Public License v3.0. See [LICENSE](LICENSE) for details.
 
 The short version — you can use it, modify it, and distribute it. If you build something on it you share your changes back. Nobody gets to take this and lock it down.
