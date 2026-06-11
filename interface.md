@@ -75,14 +75,7 @@ Density is configured in Appearance → Density.
 
 DASH UI scale controls the size of DASH's own interface elements — the system bar, panels, zones, and elements — independently of system density. Changing density does not affect DASH chrome. Changing DASH scale does not affect third party apps.
 
-DASH UI scale is also presented as named presets:
-
-| Preset | Character |
-|--------|-----------|
-| Minimal | Smallest chrome footprint, maximum viewport space |
-| Compact | Lean interface, good for smaller screens |
-| Balanced | Comfortable default |
-| Spacious | Larger chrome, good for dashboard viewing distance |
+DASH UI scale is a fluid, stepwise system. The user adjusts it with plus and minus controls in increments of 0.1x — for example 0.8x, 0.9x, 1.0x, 1.1x, 1.2x. There is no fixed set of named presets. The user dials the scale to exactly what works for their screen size and viewing distance. 1.0x is the default balanced starting point.
 
 DASH overrides Android's density system for its own windows, ensuring the two controls remain cleanly separated and predictable. The user changes density — only apps respond. The user changes DASH scale — only DASH chrome responds.
 
