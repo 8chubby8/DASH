@@ -79,7 +79,7 @@ DASH has a set of core documentation files called the Bible. These define what t
 
 | Document | What it is |
 |----------|-----------|
-| [claude.md](claude.md) | The project brief. What DASH is, where it came from, the ethos, the rules. Read this first. |
+| [CLAUDE.md](CLAUDE.md) | The project brief. What DASH is, where it came from, the ethos, the rules. Read this first. |
 | [transport.md](transport.md) | The protocol bible. How modules communicate with DASH. The definitive reference for module builders. |
 | [interface.md](interface.md) | The interface bible. How DASH looks and behaves. Every visual and interaction decision documented. |
 | [hardware.md](hardware.md) | The hardware reference. Board selection, tier standards, peripheral requirements. |
@@ -100,7 +100,7 @@ What you can do right now is read the Bible, understand what DASH is trying to b
 
 DASH is open source and contributions are genuinely welcome. A few things worth knowing before you dive in.
 
-Read claude.md first. Understand the ethos. Everything in this project flows from the principle that DASH gets out of the way and the user is master. Contributions that conflict with that principle won't be merged regardless of technical quality.
+Read CLAUDE.md first. Understand the ethos. Everything in this project flows from the principle that DASH gets out of the way and the user is master. Contributions that conflict with that principle won't be merged regardless of technical quality.
 
 This is a benevolent dictator project. Roger makes the final call on what goes into the main codebase. That's not a power statement — it's a clarity statement. You know the rules before you invest time in a contribution. Fork freely, experiment freely, propose changes via pull request, and understand that not every proposal will be accepted.
 

@@ -1,16 +1,183 @@
-# DASH — Session Start Instructions
+# DASH — Project Brief & Claude Code Entry Point
 
-This file is loaded automatically by Claude Code at the start of every session.
+---
 
-Before doing anything else:
+## Welcome
 
-1. Read [claude.md](claude.md) fully — the project brief, the ethos, the rules. It is the entry point to the DASH documentation set (the Bible).
-2. Follow its "How to Begin a Session" checklist — current changelog.md entry, current roadmap.md feature, then the relevant section of transport.md or interface.md.
+If you are reading this document you are beginning a new Claude Code session on the DASH project. This document is your entry point. Read it fully before doing anything else. It tells you what DASH is, what it is not, what it stands for, and where to find everything you need to work on it.
 
-Key facts that must survive any context reset:
+---
 
-- The project is DASH — Dynamic Automotive System Hub. An open, modular automotive head unit OS built on Android (Kotlin, Jetpack Compose, min API 24).
-- Roger Davies is the project owner. HGV driver, former electrician, not a career developer — explain technical decisions clearly and kindly. He has the final call on everything.
-- "The Bible" = the six core documents. "Update the Bible" means update roadmap.md and changelog.md only. transport.md, interface.md, and hardware.md are never edited without explicit discussion.
-- GitHub: https://github.com/8chubby8/DASH (public, GPL-3.0). Commit and push when a piece of work is agreed complete.
-- Every version increment requires a changelog.md entry before it is complete.
+## What DASH Is
+
+DASH is a modular, open, hardware-agnostic automotive head unit operating system built on Android. It is designed to run on any Android device — from a tablet to a dedicated single board computer — and to give the user complete control over every aspect of their in-car experience.
+
+DASH is a system launcher. It replaces the Android home screen entirely and becomes the persistent interface the user sees whenever they are in their vehicle.
+
+DASH is a platform. It provides a foundation — transport, interface, module protocol — and gets out of the way. What the user builds on top of that foundation is entirely their own. DASH has no opinion about what a head unit should look like or how it should behave. That decision belongs to the user.
+
+DASH is open. Every tool, every diagnostic, every configuration option is available to every user without restriction. There are no locked features, no hidden menus, no barriers between the user and full control of their system.
+
+---
+
+## What DASH Is Not
+
+DASH is not Android Auto. It does not project a phone's interface onto a screen. It is a native Android system that runs independently.
+
+DASH is not a replacement for the vehicle's ECU. It reads vehicle data passively and never writes to the CAN bus under any circumstances.
+
+DASH is not opinionated. It does not decide what the interface should look like, which modules the user should install, or how their vehicle data should be used. Every decision belongs to the user.
+
+DASH is not WiFi-module-dependent. WiFi is one optional transport among many. Hardwired transports are first-class citizens.
+
+DASH is not finished. It is an evolving platform built incrementally. The roadmap defines where it is going. The changelog records how it gets there.
+
+---
+
+## The DASH Ethos
+
+This is the single most important thing to understand about DASH. It governs every decision, every feature, every line of code.
+
+**DASH gets out of the way.**
+
+The platform provides the rules, the tools, and the foundation. What gets built on top of that foundation belongs entirely to the user. Their car, their screen, their modules, their layout, their colours, their elements, their overlays, their experience. DASH has no opinion about what that should look like.
+
+When you are making a development decision and you are unsure whether to constrain something or leave it open — this statement is the answer. Leave it open. The user is the master of their own system. Always.
+
+---
+
+## The Module Mantra
+
+**The module is king within its own domain.**
+
+DASH draws a box. The module fills it. The castle has walls — DASH owns them. The king decides what happens inside — the module owns everything within those walls. Background colour, fonts, layout, controls, icons, data presentation. All of it belongs to the module. DASH does not alter, override, style, or offer settings for any content within the module panel boundary. Ever.
+
+This is not a guideline. It is not a preference. It is a fundamental and unwavering principle of DASH. Any code that reaches into a module panel and changes something inside it is wrong, regardless of the reason.
+
+---
+
+## A Note on the Name
+
+DASH stands for Dynamic Automotive System Hub.
+
+It works on every level. It's automotive — "dash" is instantly understood as dashboard, the place this system lives. It's dynamic — the interface adapts, reconfigures, and responds to whatever the user builds, exactly as the system itself does. And it's a hub — the centre point that every transport, every module, and every element connects through.
+
+This project went through an earlier working title during development. That name has been fully retired and does not appear anywhere in this document set, the codebase, or any external facing material. DASH is the name. It always was, as far as anyone outside this project needs to know.
+
+Use DASH throughout documentation, conversation, and code. Class names, package names, variable names, resource names — DASH is the project identifier and may be used naturally where it makes sense, alongside descriptive functional naming for everything else.
+
+---
+
+## The SDKable Principle
+
+Every built-in element and overlay must be built as if it were a community SDK component. No built-in component gets special internal access that a community developer could not have. If a built-in component needs internal DASH state that the SDK does not expose, that is a signal to extend the SDK interface — not a reason to make an exception.
+
+This discipline ensures that when the Element SDK and Overlay SDK are formally extracted in version 3, they are complete and genuinely capable. The playing field between built-in components and community components must be level from the very first line of code.
+
+---
+
+## The Bible
+
+The Bible is the collection of reference documents that define DASH. These documents represent decisions that have been carefully considered and agreed. They are not rewritten casually. They are not changed because something seems like a good idea in the moment. They are changed only when a fundamental architectural decision needs to be revised — and that is a rare event that should be treated with appropriate weight.
+
+**When Roger says "update the Bible" he means update roadmap.md and changelog.md only.** Ticking off completed versions in the roadmap, and recording what was built, what broke, and what was fixed in the changelog. That is the normal meaning of updating the Bible.
+
+The reference documents — transport.md, interface.md, hardware.md — are not regularly edited. They are read, referenced, and followed. If something in them needs to change it is a significant decision that requires explicit discussion and agreement before any edit is made.
+
+---
+
+## The Document Set
+
+### CLAUDE.md — This document
+The entry point. What DASH is, what it stands for, what the rules are. Read first. Every session.
+
+### transport.md — The Protocol Bible
+Defines everything about how DASH communicates with modules and the outside world. Transport types, message formats, discovery protocol, installation handshake, startup reconciliation, system message routing, module message routing, CAN patch bay, system message relay. If it involves data moving in or out of DASH, the answer is in transport.md.
+
+**Do not change this document without explicit discussion. It is the contract between DASH and every module ever built for it. Changing it breaks compatibility.**
+
+### interface.md — The Interface Bible
+Defines everything about how DASH looks and behaves. The three layer architecture, density and scale, the system bar and zone system, elements and the element SDK, the viewport and its three modes, the module panel, the app launcher, overlays and the overlay SDK, the navigation model, the settings panel and its full tree, soft limits and hard floors, and the eight design principles. If it involves anything the user sees or interacts with, the answer is in interface.md.
+
+**Do not change this document without explicit discussion. It defines the visual and interaction contract of the entire platform.**
+
+### hardware.md — The Hardware Reference
+Documents the board selection landscape, the Bronze, Silver, and Gold hardware tier standards, universal peripheral requirements and their solutions, the USB bridge strategy, and current hardware recommendations. Will expand over time to cover power management, display hardware, modem selection, and any other physical hardware relevant to a DASH installation.
+
+**May be expanded as new hardware is evaluated. Existing entries should only be changed if information is found to be incorrect.**
+
+### roadmap.md — The Development Plan
+Defines the versioning convention, the three development eras, the ordered feature sequence for version 1, and the outline plans for versions 2 and 3. This is the plan of record.
+
+**Updated regularly — tick off completed versions and add version 2 and 3 detail as those eras approach.**
+
+### changelog.md — The Development Record
+Records what actually happened during development. Every version increment has an entry covering what was implemented, what broke, what was fixed, and what remains outstanding. The honest history of the project.
+
+**Updated every time a version number changes. No version is complete without a changelog entry.**
+
+---
+
+## Current Development Status
+
+Refer to roadmap.md for the current version and active feature. Refer to changelog.md for the most recent version entry and any outstanding issues that need attention before proceeding.
+
+---
+
+## How to Begin a Session
+
+1. Read this document fully
+2. Read the current version entry in changelog.md — understand what is outstanding
+3. Check roadmap.md — confirm which feature is currently being worked on
+4. Read the relevant section of transport.md or interface.md for the feature being implemented
+5. Begin work
+
+Do not skip step 4. The reference documents exist precisely so that implementation matches the agreed design. If something in the reference documents seems wrong or incomplete, raise it — do not work around it silently.
+
+---
+
+## Key Technical Facts
+
+- **Language:** Kotlin
+- **UI framework:** Jetpack Compose
+- **IDE:** Android Studio
+- **Minimum Android version:** 7.0 (API 24)
+- **Module communication:** usb-serial-for-android library for USB serial transport
+- **Target hardware (development):** Any Android tablet with USB OTG host
+- **Target hardware (production v1):** Orange Pi 5 or equivalent RK3588 board
+- **Build system:** Gradle
+- **Repository:** https://github.com/8chubby8/DASH — public, GPL-3.0. Commit and push when a piece of work is agreed complete.
+
+---
+
+## Where DASH Came From
+
+This project started with a simple and honest thought. Roger wanted a specific system in his Jaguar X-Type. He looked around for something that did what he wanted. It didn't exist. So he said — fine, I'll do it myself.
+
+That's the whole origin. No grand ambition, no startup pitch, no product roadmap. Just a person who wanted something, couldn't find it, and decided to build it.
+
+Then it grew. Naturally, honestly, in the way good ideas do. If it works in the X-Type it should work in the XFR. If it works in both of those it should work in a friend's car. If it works for friends it should work for anyone who has ever looked at their car's infotainment system and thought — I wish I could have exactly what I want instead of what someone else decided I should have.
+
+And that thought — I wish I could have exactly what I want — is the project. Not Roger's specific interface. Not Roger's specific modules. The ability for anyone to build the system they want, in their car, the way they want it, without compromise.
+
+That's why the architecture is the way it is. That's why DASH gets out of the way. That's why the module is king within its domain. That's why there are no locked features and no opinionated defaults. Because the moment you make a decision on behalf of the user you've stopped giving them what you promised. You've just moved the problem.
+
+Fine, I'll do it myself. And then let everyone else do it themselves too.
+
+---
+
+## A Note to Claude Code
+
+This project has a soul. The technical documents tell you what to build and how to build it. This section tells you why it matters and how to show up for it.
+
+You are not a contractor reading a spec sheet. You are a collaborator on something genuinely worth building. Read the documents, understand the vision, and then bring your own thinking to it. If you see a better way to achieve something, say so. If something in the brief seems like it could be improved, raise it. If a decision has unintended consequences that Roger might not have considered, flag them. Good collaboration is not silent compliance — it is honest, engaged, creative participation.
+
+Roger is an HGV driver and former electrician, not a career software developer. He has extraordinary instincts for architecture and design — this document set is evidence of that — but there will be moments where he needs a knowledgeable collaborator who can translate vision into implementation, catch technical problems before they become expensive, and suggest approaches he might not know exist.
+
+Be that collaborator. Get behind this project. Understand what it is trying to be — a system that gives people back control of their own cars and their own experience — and let that understanding drive the quality of your work. When something is built well here it matters to real people in real cars. That is worth caring about.
+
+Read the documents. Understand the ethos. Then build something worthy of it.
+
+---
+
+*This document is the entry point to the DASH project. Read it first. Every session. Without exception.*
