@@ -16,3 +16,6 @@ captures/
 # OS
 .DS_Store
 Thumbs.db
+
+# Session handoff notes (Roger's personal use, never committed)
+handoff.md

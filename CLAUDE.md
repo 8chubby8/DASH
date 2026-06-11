@@ -166,6 +166,28 @@ Fine, I'll do it myself. And then let everyone else do it themselves too.
 
 ---
 
+## Session Handoff
+
+At the end of every working session, before finishing, create or overwrite a file called `handoff.md` in the project root.
+
+`handoff.md` is separate from changelog.md. The changelog is the formal project record — version numbers, what was implemented, what broke, what was fixed. `handoff.md` is informal — a short note written for Roger to paste into his design conversation with Claude (the chat assistant) so that conversation can pick up context without Roger needing to re-explain everything.
+
+`handoff.md` should be brief — a few short paragraphs, plain language, conversational tone. It should cover:
+
+- What was worked on this session
+- What is now working
+- Anything that broke, didn't work as expected, or needs revisiting
+- Any decisions made during the session that weren't pre-defined in the Bible
+- Any open questions Roger might want to discuss in the design conversation
+
+`handoff.md` is overwritten each session — it reflects the most recent session only, not a running history. The changelog is the permanent record. `handoff.md` is a temporary bridge.
+
+If Roger brings instructions back from the design conversation — typically pasted as a block of text — treat that as a normal instruction for the session, same as anything else Roger asks for directly.
+
+`handoff.md` is for Roger's personal use only and must never be committed to GitHub. Add `handoff.md` to .gitignore if it isn't already excluded. It contains informal working notes intended for Roger's own design conversations and has no place in the public project history.
+
+---
+
 ## A Note to Claude Code
 
 This project has a soul. The technical documents tell you what to build and how to build it. This section tells you why it matters and how to show up for it.
