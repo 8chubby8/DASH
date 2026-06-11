@@ -6,6 +6,7 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.dash.android.density.DensityPreset
@@ -21,6 +22,9 @@ class DashPreferences(private val context: Context) {
     private val scaleKey = floatPreferencesKey("dash_scale")
     private val autoRotateKey = booleanPreferencesKey("auto_rotate")
     private val lockedOrientationKey = stringPreferencesKey("locked_orientation")
+    private val splashModeKey = stringPreferencesKey("splash_mode")
+    private val splashColourKey = longPreferencesKey("splash_colour")
+    private val splashImageUriKey = stringPreferencesKey("splash_image_uri")
 
     val densityPreset: Flow<DensityPreset?> = context.dataStore.data.map { prefs ->
         prefs[densityKey]?.let { name -> DensityPreset.entries.find { it.name == name } }
@@ -38,6 +42,18 @@ class DashPreferences(private val context: Context) {
         prefs[lockedOrientationKey] ?: "LANDSCAPE"
     }
 
+    val splashMode: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[splashModeKey] ?: "COLOUR"
+    }
+
+    val splashColour: Flow<Long> = context.dataStore.data.map { prefs ->
+        prefs[splashColourKey] ?: 0xFF000000L
+    }
+
+    val splashImageUri: Flow<String> = context.dataStore.data.map { prefs ->
+        prefs[splashImageUriKey] ?: ""
+    }
+
     suspend fun saveDensityPreset(preset: DensityPreset) {
         context.dataStore.edit { it[densityKey] = preset.name }
     }
@@ -52,5 +68,17 @@ class DashPreferences(private val context: Context) {
 
     suspend fun saveLockedOrientation(orientation: String) {
         context.dataStore.edit { it[lockedOrientationKey] = orientation }
+    }
+
+    suspend fun saveSplashMode(mode: String) {
+        context.dataStore.edit { it[splashModeKey] = mode }
+    }
+
+    suspend fun saveSplashColour(colour: Long) {
+        context.dataStore.edit { it[splashColourKey] = colour }
+    }
+
+    suspend fun saveSplashImageUri(uri: String) {
+        context.dataStore.edit { it[splashImageUriKey] = uri }
     }
 }
