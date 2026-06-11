@@ -1,5 +1,9 @@
 package com.dash.android.ui.screen
 
+import android.content.ComponentName
+import android.content.Intent
+import android.content.pm.ActivityInfo
+import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
@@ -18,10 +22,14 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.DisposableEffect
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -29,6 +37,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
 import com.dash.android.density.DensityManager
 import com.dash.android.density.DensityPreset
 import com.dash.android.prefs.DashPreferences
@@ -52,8 +62,32 @@ fun MainScreen(activity: ComponentActivity) {
     val prefs = remember { DashPreferences(context) }
     val scope = rememberCoroutineScope()
 
+    var densityAvailable by remember { mutableStateOf<Boolean?>(null) }
+    LaunchedEffect(Unit) { densityAvailable = densityManager.checkCapability() }
+
+    var currentDpi by remember { mutableStateOf(densityManager.readCurrentSystemDpi()) }
+
+    DisposableEffect(activity.lifecycle) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) currentDpi = densityManager.readCurrentSystemDpi()
+        }
+        activity.lifecycle.addObserver(observer)
+        onDispose { activity.lifecycle.removeObserver(observer) }
+    }
+
     val selectedPreset by prefs.densityPreset.collectAsState(initial = null)
     val dashScale by prefs.dashScale.collectAsState(initial = DASH_SCALE_DEFAULT)
+    val autoRotate by prefs.autoRotate.collectAsState(initial = true)
+    val lockedOrientation by prefs.lockedOrientation.collectAsState(initial = "LANDSCAPE")
+
+    LaunchedEffect(autoRotate, lockedOrientation) {
+        activity.requestedOrientation = if (autoRotate) {
+            ActivityInfo.SCREEN_ORIENTATION_SENSOR
+        } else when (lockedOrientation) {
+            "PORTRAIT" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
+            else -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+        }
+    }
 
     val barHeight = BAR_BASE_HEIGHT * dashScale
 
@@ -88,20 +122,93 @@ fun MainScreen(activity: ComponentActivity) {
                         fontFamily = FontFamily.Monospace,
                         letterSpacing = 2.sp
                     )
+                    if (densityAvailable == true) {
+                        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                            DensityPreset.entries.forEach { preset ->
+                                Button(
+                                    onClick = {
+                                        densityManager.setDensity(preset)
+                                        scope.launch { prefs.saveDensityPreset(preset) }
+                                    },
+                                    colors = ButtonDefaults.buttonColors(
+                                        containerColor = if (selectedPreset == preset) Color(0xFF2E7D32) else Color(0xFF2A2A2A),
+                                        contentColor = Color.White
+                                    ),
+                                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                                ) {
+                                    Text(preset.label, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                                }
+                            }
+                        }
+                    } else if (densityAvailable == false) {
+                        Text(
+                            text = "Current: ${densityManager.formatDpi(currentDpi)}",
+                            color = Color(0xFF888888),
+                            fontSize = 12.sp,
+                            fontFamily = FontFamily.Monospace
+                        )
+                        Button(
+                            onClick = {
+                                val direct = runCatching {
+                                    context.startActivity(Intent().apply {
+                                        component = ComponentName(
+                                            "com.android.settings",
+                                            "com.android.settings.Settings\$TextReadingPreferenceActivity"
+                                        )
+                                        addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    })
+                                }
+                                if (direct.isFailure) {
+                                    context.startActivity(Intent(Settings.ACTION_DISPLAY_SETTINGS))
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2A2A2A),
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                        ) {
+                            Text("Open Display Size Settings →", fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                        }
+                    }
+                }
+
+                // Rotation
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                ) {
+                    Text(
+                        text = "ROTATION",
+                        color = Color(0xFF666666),
+                        fontSize = 11.sp,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 2.sp
+                    )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        DensityPreset.entries.forEach { preset ->
+                        listOf("AUTO", "PORTRAIT", "LANDSCAPE").forEach { mode ->
+                            val active = when (mode) {
+                                "AUTO" -> autoRotate
+                                else -> !autoRotate && lockedOrientation == mode
+                            }
                             Button(
                                 onClick = {
-                                    densityManager.setDensity(preset)
-                                    scope.launch { prefs.saveDensityPreset(preset) }
+                                    scope.launch {
+                                        if (mode == "AUTO") {
+                                            prefs.saveAutoRotate(true)
+                                        } else {
+                                            prefs.saveAutoRotate(false)
+                                            prefs.saveLockedOrientation(mode)
+                                        }
+                                    }
                                 },
                                 colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (selectedPreset == preset) Color(0xFF2E7D32) else Color(0xFF2A2A2A),
+                                    containerColor = if (active) Color(0xFF2E7D32) else Color(0xFF2A2A2A),
                                     contentColor = Color.White
                                 ),
                                 contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                             ) {
-                                Text(preset.label, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                                Text(mode, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                             }
                         }
                     }

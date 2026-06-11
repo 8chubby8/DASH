@@ -76,6 +76,20 @@ This discipline ensures that when the Element SDK and Overlay SDK are formally e
 
 ---
 
+## The No-Root Constraint
+
+**DASH must never require root access on any installation, under any circumstances.**
+
+Rooting a device breaks Play Integrity. Play Integrity is what Spotify, Google Maps, banking apps, and other native Android applications use to verify the device is unmodified. Breaking it breaks them — and breaking them directly undermines the reason DASH runs on native Android in the first place. A platform that forces users to choose between DASH and their essential apps is not a platform. It is a wall.
+
+Any feature that would require elevated system access must have a non-root path. Shizuku is the preferred mechanism for features that need elevated permissions on consumer hardware. System app status on dedicated hardware (such as the Orange Pi 5 in production) is an acceptable alternative on known deployments. Graceful degradation is mandatory when neither is available — the feature does not appear or does not function, but the system continues without error or complaint.
+
+If a feature cannot be made to work without root, it must degrade gracefully rather than prompt the user toward rooting. DASH never asks a user to root their device. Not as a recommendation. Not as an optional enhancement. Not at all.
+
+This is not a guideline. It is not a preference. It is a hard architectural constraint with direct consequences for every user who installs DASH on a real device.
+
+---
+
 ## The Bible
 
 The Bible is the collection of reference documents that define DASH. These documents represent decisions that have been carefully considered and agreed. They are not rewritten casually. They are not changed because something seems like a good idea in the moment. They are changed only when a fundamental architectural decision needs to be revised — and that is a rare event that should be treated with appropriate weight.

@@ -2,10 +2,40 @@ package com.dash.android.density
 
 import android.content.Context
 import android.os.Process
+import android.provider.Settings
+import android.util.DisplayMetrics
 
 class DensityManager(private val context: Context) {
 
     private val userId: Int get() = Process.myUid() / 100000
+
+    fun readCurrentSystemDpi(): Int {
+        val forced = Settings.Global.getInt(context.contentResolver, "display_density_forced", -1)
+        return if (forced > 0) forced else DisplayMetrics.DENSITY_DEVICE_STABLE
+    }
+
+    fun tryWriteSystemDpi(dpi: Int): Boolean = try {
+        Settings.Global.putInt(context.contentResolver, "display_density_forced", dpi)
+        true
+    } catch (_: Exception) {
+        false
+    }
+
+    fun formatDpi(dpi: Int): String {
+        val match = DensityPreset.entries.firstOrNull { it.dpi == dpi }
+        return if (match != null) "${match.label} (${dpi} dpi)" else "Custom (${dpi} dpi)"
+    }
+
+    fun checkCapability(): Boolean = try {
+        val wms = windowManagerService() ?: return false
+        // Probe by setting native density — visually a no-op, but exercises the full call path.
+        wms.javaClass
+            .getMethod("setForcedDisplayDensityForUser", Int::class.java, Int::class.java, Int::class.java)
+            .invoke(wms, 0, DisplayMetrics.DENSITY_DEVICE_STABLE, userId)
+        true
+    } catch (_: Exception) {
+        false
+    }
 
     fun setDensity(preset: DensityPreset) {
         callSetForcedDisplayDensity(preset.dpi)
