@@ -17,6 +17,8 @@ import com.dash.android.ui.screen.MainScreen
 
 class MainActivity : ComponentActivity() {
 
+    var pendingWakeSplash = false
+
     override fun attachBaseContext(newBase: Context) {
         val config = Configuration(newBase.resources.configuration)
         config.densityDpi = DisplayMetrics.DENSITY_DEVICE_STABLE

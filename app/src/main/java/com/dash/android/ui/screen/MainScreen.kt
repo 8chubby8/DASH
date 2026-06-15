@@ -1,8 +1,12 @@
 package com.dash.android.ui.screen
 
+import android.content.BroadcastReceiver
 import android.content.ComponentName
+import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.ActivityInfo
+import androidx.core.content.ContextCompat
 import android.provider.Settings
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -82,15 +86,33 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
 
     var isDefaultLauncher by remember { mutableStateOf(mainActivity.isDefaultLauncher()) }
 
+    var showSplash by remember { mutableStateOf(isColdBoot) }
+
     DisposableEffect(activity.lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 currentDpi = densityManager.readCurrentSystemDpi()
                 isDefaultLauncher = mainActivity.isDefaultLauncher()
+                if (mainActivity.pendingWakeSplash) {
+                    mainActivity.pendingWakeSplash = false
+                    showSplash = true
+                }
             }
         }
         activity.lifecycle.addObserver(observer)
         onDispose { activity.lifecycle.removeObserver(observer) }
+    }
+
+    DisposableEffect(activity) {
+        val receiver = object : BroadcastReceiver() {
+            override fun onReceive(context: Context, intent: Intent) {
+                if (intent.action == Intent.ACTION_SCREEN_ON && mainActivity.isDefaultLauncher()) {
+                    mainActivity.pendingWakeSplash = true
+                }
+            }
+        }
+        ContextCompat.registerReceiver(activity, receiver, IntentFilter(Intent.ACTION_SCREEN_ON), ContextCompat.RECEIVER_NOT_EXPORTED)
+        onDispose { activity.unregisterReceiver(receiver) }
     }
 
     val selectedPreset by prefs.densityPreset.collectAsState(initial = null)
@@ -100,8 +122,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val splashMode by prefs.splashMode.collectAsState(initial = "COLOUR")
     val splashColour by prefs.splashColour.collectAsState(initial = 0xFF000000L)
     val splashImageUri by prefs.splashImageUri.collectAsState(initial = "")
-
-    var showSplash by remember { mutableStateOf(isColdBoot) }
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
