@@ -6,6 +6,7 @@
 # Android / Gradle (for when development begins)
 build/
 .gradle/
+.kotlin/
 local.properties
 captures/
 *.apk

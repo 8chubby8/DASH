@@ -11,12 +11,20 @@ import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.dash.android.density.DensityPreset
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
+import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
+import kotlinx.serialization.decodeFromString
+import kotlinx.serialization.encodeToString
+import kotlinx.serialization.json.Json
 
 private val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "dash_prefs")
 
 class DashPreferences(private val context: Context) {
+
+    // Lenient on purpose: unknown keys are ignored and defaults are written, so a config saved by
+    // an older or newer DASH build still decodes rather than throwing.
+    private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private val densityKey = stringPreferencesKey("density_preset")
     private val scaleKey = floatPreferencesKey("dash_scale")
@@ -25,6 +33,7 @@ class DashPreferences(private val context: Context) {
     private val splashModeKey = stringPreferencesKey("splash_mode")
     private val splashColourKey = longPreferencesKey("splash_colour")
     private val splashImageUriKey = stringPreferencesKey("splash_image_uri")
+    private val systemBarKey = stringPreferencesKey("system_bar_config")
 
     val densityPreset: Flow<DensityPreset?> = context.dataStore.data.map { prefs ->
         prefs[densityKey]?.let { name -> DensityPreset.entries.find { it.name == name } }
@@ -54,6 +63,12 @@ class DashPreferences(private val context: Context) {
         prefs[splashImageUriKey] ?: ""
     }
 
+    val systemBarConfig: Flow<SystemBarConfig> = context.dataStore.data.map { prefs ->
+        prefs[systemBarKey]
+            ?.let { runCatching { json.decodeFromString<SystemBarConfig>(it) }.getOrNull() }
+            ?: SystemBarConfig.default()
+    }
+
     suspend fun saveDensityPreset(preset: DensityPreset) {
         context.dataStore.edit { it[densityKey] = preset.name }
     }
@@ -80,5 +95,14 @@ class DashPreferences(private val context: Context) {
 
     suspend fun saveSplashImageUri(uri: String) {
         context.dataStore.edit { it[splashImageUriKey] = uri }
+    }
+
+    suspend fun saveSystemBarConfig(config: SystemBarConfig) {
+        context.dataStore.edit { it[systemBarKey] = json.encodeToString(config) }
+    }
+
+    /** Clears the stored bar config so it falls back to [SystemBarConfig.default]. */
+    suspend fun resetSystemBar() {
+        context.dataStore.edit { it.remove(systemBarKey) }
     }
 }
