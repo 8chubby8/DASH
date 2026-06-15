@@ -90,6 +90,18 @@ This is not a guideline. It is not a preference. It is a hard architectural cons
 
 ---
 
+## The Capability Detection Principle
+
+**Whenever a feature requires system app privileges, the correct implementation is capability detection first — always.**
+
+Attempt the privileged operation. If it succeeds, the full feature is available. If it fails, degrade gracefully — the feature is absent or limited, the system continues without error, and the user is shown an appropriate alternative or nothing at all. A hard failure or an error that blocks the feature entirely on Bronze hardware is always wrong.
+
+This is not a workaround. It is the architectural pattern that makes one codebase run correctly across all three hardware tiers. The App Density implementation in version 1.1.x established this pattern: `checkCapability()` probes `IWindowManager.setForcedDisplayDensityForUser()` via reflection — success gives the system app path with native density control, failure gives the consumer path with a settings deep link. The result is a feature that works correctly on every device DASH runs on, at every tier, with no special cases in the build system.
+
+Every privileged feature in DASH must follow this pattern. No exceptions.
+
+---
+
 ## The Bible
 
 The Bible is the collection of reference documents that define DASH. These documents represent decisions that have been carefully considered and agreed. They are not rewritten casually. They are not changed because something seems like a good idea in the moment. They are changed only when a fundamental architectural decision needs to be revised — and that is a rare event that should be treated with appropriate weight.
@@ -135,6 +147,8 @@ Records what actually happened during development. Every version increment has a
 ## Current Development Status
 
 Refer to roadmap.md for the current version and active feature. Refer to changelog.md for the most recent version entry and any outstanding issues that need attention before proceeding.
+
+**Version 1.x.x targets Bronze tier hardware.** DASH runs as a standard sideloaded Android app with no system app privileges. Features that require elevated Android permissions are built with capability detection and graceful degradation — they probe for access at runtime, succeed silently on Silver and Gold hardware where DASH is a privileged system app, and degrade cleanly on Bronze where it is not. There is one DASH codebase. There are no tier-specific builds. Capability gates at runtime determine what is available on any given installation. Features built correctly in version 1 unlock automatically in version 2 on the appropriate hardware — no rework required.
 
 ---
 

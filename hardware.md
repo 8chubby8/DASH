@@ -23,6 +23,8 @@ These standards define the hardware requirements for a device or board to run DA
 - USB host (OTG) support
 - Sufficient GPU and RAM to render the DASH Compose UI smoothly (minimum 4GB RAM recommended)
 
+**Android system access:** DASH runs as a standard sideloaded Android app. No system app privileges. Features that require elevated Android permissions are capability-detected and degrade gracefully — the feature is absent or limited, but DASH continues without error or complaint. This is not a deficiency of Bronze — it is the correct and expected behaviour of a capability-aware codebase on consumer hardware.
+
 **How interfaces are provided:**
 - All vehicle interfaces (CAN, RS485, UART) via USB adapters or bridge devices
 - CAN sniffing via USB CAN adapter (e.g. CANable 2.0 Pro)
@@ -51,6 +53,8 @@ These standards define the hardware requirements for a device or board to run DA
 - At least one native interface (CAN, RS485, or UART) exposed and confirmed working in the Android BSP — not just the Linux BSP
 - M.2 slot for cellular modem (preferred) or USB cellular as acceptable fallback
 - Reliable thermal management for sustained automotive use
+
+**Android system access:** Silver and Gold require a custom Android firmware build where DASH is included as a privileged system app from the start. This is not an add-on or a post-install configuration — it is a firmware decision made at build time. System app status is what unlocks full Android system-level access for DASH: density control, display management, and any other feature that requires elevated permissions. Features that were capability-detected and gracefully degraded on Bronze unlock automatically on Silver and Gold hardware at runtime. No separate codebase is required — the same DASH binary runs on all tiers and capability gates determine what is available.
 
 **How interfaces are provided:**
 - CAN sniffing via native onboard CAN controller (preferred) — USB CAN adapter remains acceptable
@@ -91,7 +95,7 @@ These standards define the hardware requirements for a device or board to run DA
 - Firefly AIO-3588MQ (automotive-grade RK3588M silicon — the definitive Gold board)
 - Boardcon EM3588 (with 8x AHD camera inputs — exceeds Gold in camera capability)
 
-**Notes:** Gold is the correct tier for a production-quality permanent car installation intended for long-term daily use. The 12V DC input on Firefly boards eliminates the USB-C PD converter from the power chain entirely, improving reliability. USB implementations for audio and cellular are not a deficiency at Gold — they are clean, reliable solutions that require no native BSP support.
+**Notes:** Gold is the correct tier for a production-quality permanent car installation intended for long-term daily use. The 12V DC input on Firefly boards eliminates the USB-C PD converter from the power chain entirely, improving reliability. USB implementations for audio and cellular are not a deficiency at Gold — they are clean, reliable solutions that require no native BSP support. As with Silver, DASH must be included in the firmware build as a privileged system app — this is a build-time firmware decision, not a runtime configuration.
 
 ---
 
@@ -452,6 +456,71 @@ For installs where CAN or RS485 is needed permanently wired rather than via USB 
 **Future production (multi-vehicle/commercial):** Firefly AIO-3588MQ. Automotive-grade silicon, 10-year supply, ADAS camera support.
 
 **Worth investigating further:** Boardcon Idea3588 — Android 14, onboard SIM, confirmed CAN/RS485, quote-based pricing may be competitive. Contact vendor for firm UK price.
+
+---
+
+---
+
+## Device-Specific Notes
+
+Notes on specific devices encountered during development or testing, covering quirks, confirmed working configurations, and anything that would not be obvious from the hardware spec alone.
+
+---
+
+### SVITOO P108 Tablet (Unisoc T606, Android 16)
+
+**Device serial:** `P108V0301626032756`  
+**Build:** `P108_T_EEA_V0.1_20251231`  
+**Android:** 16, security patch 2025-11-05  
+**SoC:** Unisoc T606, ARM64  
+
+**Play Services signing certificate mismatch**
+
+This tablet shipped with Google Play Services signed with a non-standard Google certificate rather than the common certificate used on most Android devices:
+
+| | Cert SHA-1 |
+|---|---|
+| This device (system APK) | `2169eddb5fbb1fdf241c262681024692c4fc1ecb` |
+| Standard Google cert (most devices) | `bd32424203e0fb25f36b57e5aa356f9bdd1da998` |
+
+Android refuses to install an update signed by a different key without a valid v3 key rotation chain. Attempting to sideload a standard Play Services APK from APKMirror — the one defaulting to the `bd32` cert variant — fails with a misleading error:
+
+```
+INSTALL_PARSE_FAILED_NO_CERTIFICATES: Failed to collect certificates from base.apk
+using APK Signature Scheme v3: SHA-512 digest of contents did not verify
+```
+
+This error looks like APK corruption or a download problem. It is not. It is a certificate mismatch. The APK is valid — the device is rejecting it because the signing key does not match and no rotation chain is present. This error occurs regardless of install method (streamed, non-streaming, pushed to `/data/local/tmp/`, after uninstalling user overlay first).
+
+**When updating Play Services on this tablet:**
+
+On APKMirror's Play Services release page, each variant row shows a short signing cert identifier. Always select the variant showing **`2169`**, not the default `bd32`. The correct variant string is **`3891 2169`**.
+
+Confirmed working upgrade: Play Services 26.18.33 (arm64-v8a + armeabi-v7a, Android 15+, nodpi, cert `3891 2169`) — installs cleanly over the factory 25.30.31.
+
+The `bd32` variant will always fail on this device regardless of install method.
+
+**System Play Services location:** `/product/priv-app/GmsCore/GmsCore.apk`
+
+**Useful ADB reference for this device**
+
+```bash
+# Confirm device is connected
+adb devices
+
+# Check installed Play Services version
+adb shell dumpsys package com.google.android.gms | grep versionName
+
+# Check where Play Services is installed (confirms system vs user overlay)
+adb shell pm path com.google.android.gms
+
+# Revert to system Play Services (removes user-installed update, keeps data)
+# Use before a fresh sideload if the upgrade path is causing issues
+adb shell pm uninstall -k --user 0 com.google.android.gms
+
+# Install a Play Services APK (must be the 2169 cert variant for this device)
+adb install -r /path/to/playservices.apk
+```
 
 ---
 
