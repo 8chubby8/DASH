@@ -100,6 +100,8 @@ This is not a workaround. It is the architectural pattern that makes one codebas
 
 Every privileged feature in DASH must follow this pattern. No exceptions.
 
+DASH does not encourage, instruct, or assist users in rooting their device or obtaining system privileges through any method. But DASH does not penalise users who have done so independently. If capability detection finds elevated privileges available — through system app status, Shizuku, root, or any other means — the corresponding features unlock transparently. DASH does not need to know how those capabilities were obtained and does not ask. This keeps the no-root constraint intact: DASH never requires root, never recommends it, and never guides a user toward it. What a user chooses to do with their own hardware is entirely their own business.
+
 ---
 
 ## The Bible
