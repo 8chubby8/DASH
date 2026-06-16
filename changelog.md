@@ -47,6 +47,32 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.2
+
+**Status:** Complete
+
+**Implemented:**
+- Bar height is now controlled by the dp setting alone. `SystemBar` previously computed `barHeight = config.heightDp.dp * LocalDashScale.current`, meaning both the dp height control in System Bar settings and the DASH Scale +/- control affected bar size simultaneously. The scale multiplier has been removed — `barHeight = config.heightDp.dp`. The DASH Scale setting remains in the settings panel and its value is still persisted; it simply has no wired consumer at this stage
+- Unused `LocalDashScale` import removed from `SystemBar.kt`
+
+**Regressions:**
+- None
+
+**Fixes:**
+- Two controls affecting bar height — the dp height setting and the DASH Scale multiplier were both acting on bar size. Removing the multiplier from bar height calculation resolves the conflict
+
+**Outstanding:**
+- Theme token system → 1.3.3
+- Element percentage-of-bar-height sizing, size variants (S/M/L), soft-limit amber warnings → 1.3.4
+- Zone splitting (up to three), inter-element snap packing, Spacer element → 1.3.5
+- Drag-and-drop edit mode → 1.3.6
+
+**Notes:**
+- DASH Scale is intentionally parked rather than removed. It does not have a clear job while the bar is the only chrome element. It will be reintroduced as a multiplier across all chrome elements once there is more than one thing for it to scale uniformly
+- The DASH Scale section remains visible in settings — it is not hidden or greyed out. Its persistence and the +/- controls still work; the value simply has no active consumer until it is properly wired back in a later version
+
+---
+
 ## Version 1.3.1
 
 **Status:** Complete
@@ -68,9 +94,11 @@ Each version entry follows this structure:
 - None
 
 **Outstanding:**
-- Element percentage-of-bar-height sizing, size variants (S/M/L), and soft-limit amber warnings → 1.3.2
-- Zone splitting (up to three), inter-element snap packing, and the Spacer element → 1.3.3
-- Drag-and-drop edit mode (long-press pickup, snap guidelines, draggable zone dividers) → 1.3.4
+- Scale/height conflict in the bar — DASH Scale multiplier applied to bar height alongside the dp control, giving two controls that both affect bar size → 1.3.2
+- Element percentage-of-bar-height sizing, size variants (S/M/L), and soft-limit amber warnings → 1.3.4
+- Zone splitting (up to three), inter-element snap packing, and the Spacer element → 1.3.5
+- Drag-and-drop edit mode (long-press pickup, snap guidelines, draggable zone dividers) → 1.3.6
+- Theme token system — named colour tokens (barBackground, barAccent, barText) as the single source of truth for system bar and element colours; prerequisite for settings panel visual identity inheritance in 1.5.x → 1.3.3
 - On-device confirmation on the Pixel 8 / tablet: bar renders, settings button opens panel, position and height persist across an app kill, reset works
 
 **Notes:**

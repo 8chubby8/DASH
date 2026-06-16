@@ -12,19 +12,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-import com.dash.android.ui.scale.LocalDashScale
-
 private val BAR_COLOR = Color(0xFF1A1A2E)
 
 /**
  * The DASH system bar — the one persistent interface element, always visible and never
  * dismissable. Renders the configured zones and the elements placed within them.
  *
- * The rendered height is the user-defined base height ([SystemBarConfig.heightDp]) multiplied by
- * the live DASH UI scale, keeping the bar consistent with the rest of DASH chrome.
+ * The rendered height is the user-defined base height ([SystemBarConfig.heightDp]) expressed
+ * directly in dp. The DASH UI scale multiplier is intentionally not applied here — bar height
+ * is set by the dp control alone. Scale will be reintroduced as a multiplier across all chrome
+ * elements once there is more than one element for it to scale uniformly (1.3.x later).
  *
  * 1.3.1 lays out a single full-width zone with anchor-based placement (left / centre / right).
- * Multi-zone splitting and inter-element snap packing arrive in 1.3.3; the structure here is
+ * Multi-zone splitting and inter-element snap packing arrive in 1.3.5; the structure here is
  * built to extend to them without rework.
  */
 @Composable
@@ -33,7 +33,7 @@ fun SystemBar(
     onAction: (DashAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val barHeight = config.heightDp.dp * LocalDashScale.current
+    val barHeight = config.heightDp.dp
 
     Row(
         modifier = modifier

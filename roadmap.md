@@ -111,6 +111,7 @@ Every version increment — including third number refinements — must have a c
 - Bar height as master measurement — element sizing as percentage of bar height
 - Soft limit warnings for elements approaching minimum readable size
 - Edit mode for element repositioning
+- Theme token system (1.3.3) — named colour tokens (barBackground, barAccent, barText) exposed through a single source of truth; the system bar and all DashElement implementations read from tokens rather than hardcoded values. One default token set. No user-facing theme switching — that is version 2 scope. Foundational requirement so the settings panel in 1.5.x can inherit its visual identity from the active system bar theme, as interface.md requires
 
 **Why third:** The system bar must exist before settings can live anywhere, before modules have a persistent UI reference, and before the viewport has a boundary to conform to.
 
