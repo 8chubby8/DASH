@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dash.android.ui.theme.LocalDashTheme
 
@@ -44,6 +45,7 @@ fun SystemBar(
             Zone(
                 zone = zone,
                 barHeight = barHeight,
+                elementHeightDp = config.elementHeightDp.dp,
                 onAction = onAction,
                 modifier = Modifier
                     .fillMaxHeight()
@@ -61,7 +63,8 @@ fun SystemBar(
 @Composable
 private fun Zone(
     zone: ZoneConfig,
-    barHeight: androidx.compose.ui.unit.Dp,
+    barHeight: Dp,
+    elementHeightDp: Dp,
     onAction: (DashAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
@@ -78,7 +81,7 @@ private fun Zone(
                 contentAlignment = Alignment.Center
             ) {
                 val scope = ElementScope(
-                    variant = placement.variant,
+                    heightDp = elementHeightDp,
                     barHeight = barHeight,
                     onAction = onAction
                 )

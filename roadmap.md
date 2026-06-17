@@ -108,8 +108,8 @@ Every version increment — including third number refinements — must have a c
 - Mandatory settings button element — 48dp hard touch target floor enforced
 - Basic element rendering within zones — left, centre, right snap positions
 - Element vertical positioning within bar
-- Bar height as master measurement — element sizing as percentage of bar height
-- Soft limit warnings for elements approaching minimum readable size
+- Bar height as master measurement — element sizing as a user-controlled dp value **(Complete — 1.3.4)**
+- Element size control: 4dp steps, 24dp minimum ("min" label, − greyed), ceiling one step below bar height ("max" label, + greyed), auto-clamped when bar shrinks **(Complete — 1.3.4)**
 - Edit mode for element repositioning
 - Theme token system **(Complete — 1.3.3)** — named colour tokens (barBackground, barAccent, barText) exposed via a `CompositionLocal` rather than a plain singleton or object. Components read their theme from the current composition context; version 2 introduces full theming and presets by providing different token values at the top of the composition tree, with no rework to how `SystemBar` or any `DashElement` reads its colours. This matches interface.md's requirement that elements consume theme tokens rather than hardcode values. One default token set. No user-facing theme switching — that is version 2 scope. Foundational requirement so the settings panel in 1.5.x can inherit its visual identity from the active system bar theme
 

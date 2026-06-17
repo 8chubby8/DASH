@@ -137,10 +137,13 @@ fun SettingsPanel(
                         )
                     }
                 }
+                Text("SYSTEM BAR SIZE", color = LABEL_COLOR, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
                 Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
                     SettingButton(label = "−", onClick = {
-                        val next = (barConfig.heightDp - SystemBarConfig.HEIGHT_STEP_DP).coerceAtLeast(SystemBarConfig.MIN_HEIGHT_DP)
-                        scope.launch { prefs.saveSystemBarConfig(barConfig.copy(heightDp = next)) }
+                        val newBarHeight = (barConfig.heightDp - SystemBarConfig.HEIGHT_STEP_DP).coerceAtLeast(SystemBarConfig.MIN_HEIGHT_DP)
+                        val elementCeiling = newBarHeight - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP
+                        val newElementHeight = barConfig.elementHeightDp.coerceAtMost(elementCeiling)
+                        scope.launch { prefs.saveSystemBarConfig(barConfig.copy(heightDp = newBarHeight, elementHeightDp = newElementHeight)) }
                     })
                     Text(
                         text = "${barConfig.heightDp}dp",
@@ -153,6 +156,33 @@ fun SettingsPanel(
                     SettingButton(label = "+", onClick = {
                         val next = (barConfig.heightDp + SystemBarConfig.HEIGHT_STEP_DP).coerceAtMost(SystemBarConfig.MAX_HEIGHT_DP)
                         scope.launch { prefs.saveSystemBarConfig(barConfig.copy(heightDp = next)) }
+                    })
+                }
+                Text("ELEMENT SIZE", color = LABEL_COLOR, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                val elementAtMin = barConfig.elementHeightDp <= SystemBarConfig.MIN_ELEMENT_HEIGHT_DP
+                val elementAtMax = barConfig.elementHeightDp >= barConfig.heightDp - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP
+                val elementLabel = when {
+                    elementAtMin -> "min"
+                    elementAtMax -> "max"
+                    else -> "${barConfig.elementHeightDp}dp"
+                }
+                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
+                    SettingButton(label = "−", enabled = !elementAtMin, onClick = {
+                        val next = (barConfig.elementHeightDp - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP).coerceAtLeast(SystemBarConfig.MIN_ELEMENT_HEIGHT_DP)
+                        scope.launch { prefs.saveSystemBarConfig(barConfig.copy(elementHeightDp = next)) }
+                    })
+                    Text(
+                        text = elementLabel,
+                        color = Color.White,
+                        fontSize = 16.sp,
+                        fontFamily = FontFamily.Monospace,
+                        modifier = Modifier.width(88.dp),
+                        textAlign = TextAlign.Center
+                    )
+                    SettingButton(label = "+", enabled = !elementAtMax, onClick = {
+                        val ceiling = barConfig.heightDp - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP
+                        val next = (barConfig.elementHeightDp + SystemBarConfig.ELEMENT_HEIGHT_STEP_DP).coerceAtMost(ceiling)
+                        scope.launch { prefs.saveSystemBarConfig(barConfig.copy(elementHeightDp = next)) }
                     })
                 }
                 Button(
@@ -308,7 +338,7 @@ fun SettingsPanel(
             title = { Text("Reset bar layout?", color = Color.White, fontFamily = FontFamily.Monospace) },
             text = {
                 Text(
-                    "The system bar returns to its default — bottom position, 56dp tall, with the alerts area and settings button. This cannot be undone.",
+                    "The system bar returns to its default — bottom position, 56dp tall, elements at 36dp, with the alerts area and settings button. This cannot be undone.",
                     color = Color(0xFFAAAAAA),
                     fontFamily = FontFamily.Monospace,
                     fontSize = 13.sp
@@ -341,12 +371,15 @@ private fun Section(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun SettingButton(label: String, active: Boolean = false, onClick: () -> Unit) {
+private fun SettingButton(label: String, active: Boolean = false, enabled: Boolean = true, onClick: () -> Unit) {
     Button(
         onClick = onClick,
+        enabled = enabled,
         colors = ButtonDefaults.buttonColors(
             containerColor = if (active) ACTIVE else INACTIVE,
-            contentColor = Color.White
+            contentColor = Color.White,
+            disabledContainerColor = Color(0xFF1A1A1A),
+            disabledContentColor = Color(0xFF444444)
         ),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
     ) { Text(label, fontSize = 13.sp, fontFamily = FontFamily.Monospace) }

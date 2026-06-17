@@ -47,6 +47,35 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.4
+
+**Status:** Complete
+
+**Implemented:**
+- Element height is now a user-controlled dp value stored in `SystemBarConfig.elementHeightDp` (default 36dp). Elements receive this as `scope.heightDp: Dp` in `ElementScope` and are responsible for rendering sensibly within it — the same contract an SDK element developer will receive
+- `SizeVariant` enum removed entirely. It was a stepped abstraction over the thing users actually care about — a concrete size. The dp system is direct, consistent with the bar height control, and unambiguous for SDK element authors
+- `ElementPlacement.variant` removed. Element height is global for now; per-element sizing arrives with edit mode in 1.3.6
+- Settings panel System Bar section updated — bar height control labelled "SYSTEM BAR SIZE", element height control labelled "ELEMENT SIZE" below it, using the identical +/− stepper pattern
+- Element size boundaries: minimum 24dp (label shows "min", − greyed), maximum one step below bar height (label shows "max", + greyed). When bar height is reduced below the element ceiling, element height is auto-clamped in the same save operation — config is always internally consistent
+- `AlertsAreaElement` and `SettingsButtonElement` render proportionally to `scope.heightDp` — font and icon sizes scale as a fixed fraction of element height so the visual scales smoothly across the full range
+- `SettingButton` composable gains an `enabled` parameter with distinct disabled colours — used for the element size steppers at their limits
+
+**Regressions:**
+- None
+
+**Fixes:**
+- None
+
+**Outstanding:**
+- Zone splitting (up to three), inter-element snap packing, Spacer element → 1.3.5
+- Drag-and-drop edit mode → 1.3.6
+
+**Notes:**
+- Element height proportions: `AlertsAreaElement` font at 30% of height, padding at 28%/11% horizontal/vertical. `SettingsButtonElement` icon at 55% of height. These feel right at the 36dp default and at both limits — adjust per on-device testing
+- The `enabled = false` greyed state on `SettingButton` uses `disabledContainerColor = Color(0xFF1A1A1A)` and `disabledContentColor = Color(0xFF444444)` — visually distinct from the active and inactive states without being harsh
+
+---
+
 ## Version 1.3.3
 
 **Status:** Complete

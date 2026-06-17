@@ -26,9 +26,6 @@ interface DashElement {
      */
     val mandatory: Boolean
 
-    /** The size variants this element supports. Consumed by the sizing system from 1.3.2. */
-    val sizeVariants: List<SizeVariant>
-
     /** Renders the element. [scope] carries everything the element is permitted to know. */
     @Composable
     fun Content(scope: ElementScope)
@@ -45,11 +42,12 @@ sealed interface DashAction {
 }
 
 /**
- * The render context handed to an element. Holds the chosen size variant, the resolved bar
- * height it must fit within, and the action channel back to DASH. Nothing here is built-in-only.
+ * The render context handed to an element. [heightDp] is the user-defined element height the
+ * element must render within. [barHeight] is the full bar height — available if an element needs
+ * to know its ceiling. Nothing here is built-in-only.
  */
 class ElementScope(
-    val variant: SizeVariant,
+    val heightDp: Dp,
     val barHeight: Dp,
     val onAction: (DashAction) -> Unit
 )

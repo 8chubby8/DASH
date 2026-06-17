@@ -2,6 +2,7 @@ package com.dash.android.ui.systembar.elements
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -16,7 +17,6 @@ import com.dash.android.ui.systembar.DashElement
 import com.dash.android.ui.systembar.ElementKind
 import com.dash.android.ui.systembar.ElementScope
 import com.dash.android.ui.systembar.ElementType
-import com.dash.android.ui.systembar.SizeVariant
 
 /**
  * The Alerts Area — a mandatory, always-present element. Vehicle and module alerts must always be
@@ -30,23 +30,25 @@ object AlertsAreaElement : DashElement {
     override val displayName = "Alerts Area"
     override val kind = ElementKind.INFORMATIONAL
     override val mandatory = true
-    override val sizeVariants = listOf(SizeVariant.SMALL, SizeVariant.MEDIUM, SizeVariant.LARGE)
 
     @Composable
     override fun Content(scope: ElementScope) {
         val theme = LocalDashTheme.current
+        val h = scope.heightDp.value
         Box(
             modifier = Modifier
+                .height(scope.heightDp)
                 .clip(RoundedCornerShape(4.dp))
                 .background(theme.barAccent)
-                .padding(horizontal = 10.dp, vertical = 4.dp)
+                .padding(horizontal = (h * 0.28f).dp, vertical = (h * 0.11f).dp),
+            contentAlignment = androidx.compose.ui.Alignment.Center
         ) {
             Text(
                 text = "ALERTS",
                 color = theme.barText.copy(alpha = 0.55f),
-                fontSize = 11.sp,
+                fontSize = (h * 0.30f).sp,
                 fontFamily = FontFamily.Monospace,
-                letterSpacing = 2.sp
+                letterSpacing = (h * 0.06f).sp
             )
         }
     }

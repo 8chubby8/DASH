@@ -29,10 +29,6 @@ enum class ElementType { ALERTS_AREA, SETTINGS_BUTTON }
 @Serializable
 enum class ElementAnchor { LEFT, CENTRE, RIGHT }
 
-/** Size variant an element renders at. Carried now; consumed by the sizing system in 1.3.2. */
-@Serializable
-enum class SizeVariant { SMALL, MEDIUM, LARGE }
-
 /** Whether an element displays information, accepts interaction, or both. */
 @Serializable
 enum class ElementKind { INFORMATIONAL, INTERACTIVE, BOTH }
@@ -43,7 +39,6 @@ data class ElementPlacement(
     val id: String,
     val type: ElementType,
     val anchor: ElementAnchor,
-    val variant: SizeVariant = SizeVariant.MEDIUM
 )
 
 /**
@@ -58,14 +53,15 @@ data class ZoneConfig(
 )
 
 /**
- * The complete system bar configuration. [heightDp] is the user-defined base height — the master
- * measurement from which element sizing derives — and is further multiplied by the live DASH UI
- * scale at render time.
+ * The complete system bar configuration. [heightDp] is the user-defined bar height — the master
+ * measurement. [elementHeightDp] is the global element height; elements render at this size and
+ * are capped at [heightDp] minus one step so they always fit inside the bar.
  */
 @Serializable
 data class SystemBarConfig(
     val position: BarPosition = BarPosition.BOTTOM,
     val heightDp: Int = DEFAULT_HEIGHT_DP,
+    val elementHeightDp: Int = DEFAULT_ELEMENT_HEIGHT_DP,
     val zones: List<ZoneConfig> = emptyList()
 ) {
     companion object {
@@ -73,6 +69,10 @@ data class SystemBarConfig(
         const val MIN_HEIGHT_DP = 40
         const val MAX_HEIGHT_DP = 120
         const val HEIGHT_STEP_DP = 4
+
+        const val DEFAULT_ELEMENT_HEIGHT_DP = 36
+        const val MIN_ELEMENT_HEIGHT_DP = 24
+        const val ELEMENT_HEIGHT_STEP_DP = 4
 
         /**
          * The factory default: one full-width zone carrying the two mandatory elements — Alerts

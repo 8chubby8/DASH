@@ -16,7 +16,6 @@ import com.dash.android.ui.systembar.DashElement
 import com.dash.android.ui.systembar.ElementKind
 import com.dash.android.ui.systembar.ElementScope
 import com.dash.android.ui.systembar.ElementType
-import com.dash.android.ui.systembar.SizeVariant
 
 /**
  * The Settings Button — a mandatory, always-present element and the only route into DASH
@@ -32,7 +31,6 @@ object SettingsButtonElement : DashElement {
     override val displayName = "Settings Button"
     override val kind = ElementKind.INTERACTIVE
     override val mandatory = true
-    override val sizeVariants = listOf(SizeVariant.SMALL, SizeVariant.MEDIUM, SizeVariant.LARGE)
 
     private const val MIN_TOUCH_TARGET_DP = 48
 
@@ -44,11 +42,11 @@ object SettingsButtonElement : DashElement {
                 .clickable { scope.onAction(DashAction.OpenSettings) },
             contentAlignment = Alignment.Center
         ) {
-            // Gear glyph stands in until a vector asset lands; touch target is the 48dp box above.
+            // Gear glyph scales with element height; touch target floor is the 48dp sizeIn above.
             Text(
                 text = "⚙",
                 color = LocalDashTheme.current.barText,
-                fontSize = 22.sp,
+                fontSize = (scope.heightDp.value * 0.55f).sp,
                 fontFamily = FontFamily.Monospace
             )
         }
