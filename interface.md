@@ -107,6 +107,8 @@ The system bar has a user-defined height. Height is the master measurement from 
 - Element size is independent of bar scale. Making the bar taller does not automatically make elements bigger. The user sets element size separately within the new ceiling.
 - Elements can never exceed the bar height vertically. This is a hard ceiling enforced silently.
 
+> **Design decision — v1.3.4:** The percentage model above was reconsidered during implementation and replaced with a direct dp control. The reason is that percentages structurally contradict the independence rule stated above. If an element is set to 80% of bar height and the bar grows from 56dp to 80dp, the element grows from 45dp to 64dp — even though the user only changed the bar. That is not independence. A dp value is genuinely independent: the bar changes, the element stays exactly where the user put it, the ceiling simply moves. The user's two decisions — how tall is the bar, how tall are the elements — remain cleanly separate. There is a second reason: SDK element authors need to know concretely what size they are drawing into. A dp value in `ElementScope` is unambiguous. A percentage relative to a runtime bar height is not something a developer can design against meaningfully. The dp model is honest about what the element is receiving. The ceiling rule remains intact: element height is capped at one dp step below bar height, enforced through the control itself.
+
 ### Zone System
 
 The system bar is divided into between one and three user-defined zones. Zones are the structural containers within which elements are placed.
@@ -563,6 +565,8 @@ DASH enforces sizing constraints through two mechanisms.
 **Hard floors** apply only to safety-critical elements. The settings button touch target has a hard minimum of 48dp. It cannot be configured below this value. DASH enforces it silently — the user never needs to know it exists. The visible icon may scale with the bar but the interactive area never goes below 48dp.
 
 Soft limits appear contextually in real time during adjustment — as the user drags a size control toward the threshold the indicator appears immediately. Not as a post-save validation, not as a modal warning. Just a gentle signal visible while the decision is being made.
+
+> **Design decision — v1.3.4:** The amber soft limit model above was reconsidered during implementation for element sizing and replaced with boundary labels integrated directly into the control. When element height reaches its minimum, the value display changes to "min" and the decrease button greys out. When it reaches the ceiling, the display changes to "max" and the increase button greys out. The reason for this change is that a separate amber indicator is a more complex mechanism than the situation requires. The original model describes a warning that appears *near* a threshold, implying the user can proceed past it — soft limit as advisory. But the element size floor and ceiling are not advisories; they are the actual boundaries of the control. Communicating the boundary through the control itself — changing the label, disabling the button — is simpler, more honest, and requires no separate warning infrastructure. The information the user needs is in the thing they are interacting with, at the moment they need it. The hard floor on the settings button touch target (48dp) is unchanged and continues to be enforced silently.
 
 ---
 
