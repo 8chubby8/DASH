@@ -73,6 +73,8 @@ Each version entry follows this structure:
 **Notes:**
 - Element height proportions: `AlertsAreaElement` font at 30% of height, padding at 28%/11% horizontal/vertical. `SettingsButtonElement` icon at 55% of height. These feel right at the 36dp default and at both limits — adjust per on-device testing
 - The `enabled = false` greyed state on `SettingButton` uses `disabledContainerColor = Color(0xFF1A1A1A)` and `disabledContentColor = Color(0xFF444444)` — visually distinct from the active and inactive states without being harsh
+- **Departure from interface.md — element sizing model:** interface.md specifies element sizing as a percentage of bar height. This version implements a direct dp control instead. The dp model keeps bar height and element height as fully independent decisions, which is cleaner for the user and unambiguous for SDK element authors. interface.md should be updated to reflect this decision
+- **Departure from interface.md — soft limit behaviour:** interface.md specifies amber soft limit warnings at the lower size boundary. This version instead shows a "min" label and greys the − button at 24dp, and a "max" label with greyed + button at the ceiling. The boundary is communicated through the control itself rather than a separate warning indicator. interface.md should be updated to reflect this decision
 
 ---
 
