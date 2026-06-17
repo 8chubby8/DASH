@@ -46,6 +46,8 @@ import com.dash.android.ui.scale.DASH_SCALE_MIN
 import com.dash.android.ui.scale.DASH_SCALE_STEP
 import com.dash.android.ui.systembar.BarPosition
 import com.dash.android.ui.systembar.SystemBarConfig
+import com.dash.android.ui.systembar.ZoneConfig
+import java.util.UUID
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
 
@@ -58,6 +60,54 @@ private val SPLASH_COLOURS = listOf(
 private val LABEL_COLOR = Color(0xFF666666)
 private val INACTIVE = Color(0xFF2A2A2A)
 private val ACTIVE = Color(0xFF2E7D32)
+
+private data class ZoneDistribution(val label: String, val fractions: List<Float>)
+
+private val ZONE_DISTRIBUTIONS_2 = listOf(
+    ZoneDistribution("1:1", listOf(0.5f, 0.5f)),
+    ZoneDistribution("1:2", listOf(1f / 3f, 2f / 3f)),
+    ZoneDistribution("2:1", listOf(2f / 3f, 1f / 3f)),
+)
+
+private val ZONE_DISTRIBUTIONS_3 = listOf(
+    ZoneDistribution("1:1:1", listOf(1f / 3f, 1f / 3f, 1f / 3f)),
+    ZoneDistribution("1:2:1", listOf(0.25f, 0.5f, 0.25f)),
+    ZoneDistribution("2:1:1", listOf(0.5f, 0.25f, 0.25f)),
+    ZoneDistribution("1:1:2", listOf(0.25f, 0.25f, 0.5f)),
+)
+
+private fun distributionActive(config: SystemBarConfig, dist: ZoneDistribution): Boolean =
+    config.zones.size == dist.fractions.size &&
+        config.zones.zip(dist.fractions).all { (z, f) -> kotlin.math.abs(z.widthFraction - f) < 0.01f }
+
+private fun SystemBarConfig.withZoneCount(count: Int): SystemBarConfig {
+    val current = zones.size
+    return when {
+        count == current -> this
+        count > current -> {
+            val fractions = List(count) { 1f / count }
+            val expanded = zones.mapIndexed { i, z -> z.copy(widthFraction = fractions[i]) } +
+                (current until count).map { i ->
+                    ZoneConfig(id = UUID.randomUUID().toString(), widthFraction = fractions[i])
+                }
+            copy(zones = expanded)
+        }
+        else -> {
+            val kept = zones.take(count)
+            val orphaned = zones.drop(count).flatMap { it.elements }
+            val fractions = List(count) { 1f / count }
+            copy(zones = kept.mapIndexed { i, z ->
+                z.copy(
+                    widthFraction = fractions[i],
+                    elements = if (i == 0) z.elements + orphaned else z.elements
+                )
+            })
+        }
+    }
+}
+
+private fun SystemBarConfig.withDistribution(dist: ZoneDistribution): SystemBarConfig =
+    copy(zones = zones.mapIndexed { i, z -> z.copy(widthFraction = dist.fractions[i]) })
 
 /**
  * The DASH settings panel — opened from the system bar's settings button, which is the only route
@@ -184,6 +234,29 @@ fun SettingsPanel(
                         val next = (barConfig.elementHeightDp + SystemBarConfig.ELEMENT_HEIGHT_STEP_DP).coerceAtMost(ceiling)
                         scope.launch { prefs.saveSystemBarConfig(barConfig.copy(elementHeightDp = next)) }
                     })
+                }
+                Text("ZONES", color = LABEL_COLOR, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    listOf(1, 2, 3).forEach { count ->
+                        SettingButton(
+                            label = count.toString(),
+                            active = barConfig.zones.size == count,
+                            onClick = { scope.launch { prefs.saveSystemBarConfig(barConfig.withZoneCount(count)) } }
+                        )
+                    }
+                }
+                if (barConfig.zones.size >= 2) {
+                    Text("DISTRIBUTION", color = LABEL_COLOR, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                    val distributions = if (barConfig.zones.size == 2) ZONE_DISTRIBUTIONS_2 else ZONE_DISTRIBUTIONS_3
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        distributions.forEach { dist ->
+                            SettingButton(
+                                label = dist.label,
+                                active = distributionActive(barConfig, dist),
+                                onClick = { scope.launch { prefs.saveSystemBarConfig(barConfig.withDistribution(dist)) } }
+                            )
+                        }
+                    }
                 }
                 Button(
                     onClick = { showResetConfirm = true },

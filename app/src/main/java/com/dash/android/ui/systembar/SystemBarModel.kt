@@ -23,7 +23,7 @@ enum class BarPosition { TOP, BOTTOM }
 
 /** The built-in element catalogue. Extended as new elements are added in later versions. */
 @Serializable
-enum class ElementType { ALERTS_AREA, SETTINGS_BUTTON }
+enum class ElementType { ALERTS_AREA, SETTINGS_BUTTON, SPACER }
 
 /** Snap anchor of an element within its zone. The only valid horizontal positions in 1.3.1. */
 @Serializable
@@ -33,12 +33,13 @@ enum class ElementAnchor { LEFT, CENTRE, RIGHT }
 @Serializable
 enum class ElementKind { INFORMATIONAL, INTERACTIVE, BOTH }
 
-/** A single placed element instance within a zone. */
+/** A single placed element instance within a zone. [spacerWidthDp] is only used when type == SPACER. */
 @Serializable
 data class ElementPlacement(
     val id: String,
     val type: ElementType,
     val anchor: ElementAnchor,
+    val spacerWidthDp: Int? = null,
 )
 
 /**
@@ -73,6 +74,11 @@ data class SystemBarConfig(
         const val DEFAULT_ELEMENT_HEIGHT_DP = 36
         const val MIN_ELEMENT_HEIGHT_DP = 24
         const val ELEMENT_HEIGHT_STEP_DP = 4
+
+        const val DEFAULT_SPACER_WIDTH_DP = 16
+        const val MIN_SPACER_WIDTH_DP = 4
+        const val MAX_SPACER_WIDTH_DP = 120
+        const val SPACER_WIDTH_STEP_DP = 4
 
         /**
          * The factory default: one full-width zone carrying the two mandatory elements — Alerts

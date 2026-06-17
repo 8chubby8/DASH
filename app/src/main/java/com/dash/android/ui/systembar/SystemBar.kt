@@ -3,13 +3,15 @@ package com.dash.android.ui.systembar
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.width
 import androidx.compose.runtime.Composable
-import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.layout.Layout
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dash.android.ui.theme.LocalDashTheme
@@ -18,14 +20,8 @@ import com.dash.android.ui.theme.LocalDashTheme
  * The DASH system bar — the one persistent interface element, always visible and never
  * dismissable. Renders the configured zones and the elements placed within them.
  *
- * The rendered height is the user-defined base height ([SystemBarConfig.heightDp]) expressed
- * directly in dp. The DASH UI scale multiplier is intentionally not applied here — bar height
- * is set by the dp control alone. Scale will be reintroduced as a multiplier across all chrome
- * elements once there is more than one element for it to scale uniformly (1.3.x later).
- *
- * 1.3.1 lays out a single full-width zone with anchor-based placement (left / centre / right).
- * Multi-zone splitting and inter-element snap packing arrive in 1.3.5; the structure here is
- * built to extend to them without rework.
+ * Zone dividers are drawn between zones as a 1dp vertical line. In 1.3.6 edit mode these
+ * dividers become draggable handles; for now they are purely visual.
  */
 @Composable
 fun SystemBar(
@@ -33,15 +29,24 @@ fun SystemBar(
     onAction: (DashAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
+    val theme = LocalDashTheme.current
     val barHeight = config.heightDp.dp
 
     Row(
         modifier = modifier
             .fillMaxWidth()
             .height(barHeight)
-            .background(LocalDashTheme.current.barBackground)
+            .background(theme.barBackground)
     ) {
-        config.zones.forEach { zone ->
+        config.zones.forEachIndexed { index, zone ->
+            if (index > 0) {
+                Spacer(
+                    Modifier
+                        .fillMaxHeight()
+                        .width(1.dp)
+                        .background(theme.barAccent.copy(alpha = 0.3f))
+                )
+            }
             Zone(
                 zone = zone,
                 barHeight = barHeight,
@@ -56,9 +61,13 @@ fun SystemBar(
 }
 
 /**
- * A single zone. Each placed element is positioned by its [ElementAnchor] within the zone. With
- * two mandatory elements (alerts left, settings right) this resolves to a clean left/right split;
- * the same Box-per-anchor approach generalises to packed multi-element zones later.
+ * A single zone. Elements are packed by anchor group using a custom Layout:
+ * - LEFT anchored elements pack left-to-right from the left edge, in list order
+ * - RIGHT anchored elements pack left-to-right as a group, flush against the right edge
+ * - CENTRE anchored elements pack as a group centred within the zone
+ *
+ * This layout is the foundation 1.3.6 drag-and-drop edit mode builds on — dragging offsets
+ * positions from this base rather than replacing the layout entirely.
  */
 @Composable
 private fun Zone(
@@ -68,24 +77,67 @@ private fun Zone(
     onAction: (DashAction) -> Unit,
     modifier: Modifier = Modifier
 ) {
-    Box(modifier = modifier.padding(horizontal = 8.dp)) {
-        zone.elements.forEach { placement ->
-            val element = ElementRegistry.get(placement.type) ?: return@forEach
-            val alignment = when (placement.anchor) {
-                ElementAnchor.LEFT -> Alignment.CenterStart
-                ElementAnchor.CENTRE -> Alignment.Center
-                ElementAnchor.RIGHT -> Alignment.CenterEnd
+    Layout(
+        modifier = modifier.padding(horizontal = 8.dp),
+        content = {
+            zone.elements.forEach { placement ->
+                when (placement.type) {
+                    ElementType.SPACER -> Box(
+                        Modifier
+                            .width((placement.spacerWidthDp ?: SystemBarConfig.DEFAULT_SPACER_WIDTH_DP).dp)
+                            .height(elementHeightDp)
+                    ) {}
+                    else -> {
+                        val element = ElementRegistry.get(placement.type)
+                        if (element != null) {
+                            Box { element.Content(ElementScope(elementHeightDp, barHeight, onAction)) }
+                        } else {
+                            Box {}
+                        }
+                    }
+                }
             }
-            Box(
-                modifier = Modifier.fillMaxHeight().align(alignment),
-                contentAlignment = Alignment.Center
-            ) {
-                val scope = ElementScope(
-                    heightDp = elementHeightDp,
-                    barHeight = barHeight,
-                    onAction = onAction
-                )
-                element.Content(scope)
+        }
+    ) { measurables, constraints ->
+        val elementConstraints = constraints.copy(
+            minWidth = 0,
+            minHeight = 0,
+            maxHeight = elementHeightDp.roundToPx()
+        )
+        val placeables = measurables.map { it.measure(elementConstraints) }
+
+        val leftIndices = zone.elements.indices.filter { zone.elements[it].anchor == ElementAnchor.LEFT }
+        val centreIndices = zone.elements.indices.filter { zone.elements[it].anchor == ElementAnchor.CENTRE }
+        val rightIndices = zone.elements.indices.filter { zone.elements[it].anchor == ElementAnchor.RIGHT }
+
+        val zoneWidth = constraints.maxWidth
+        val zoneHeight = constraints.maxHeight
+        val xPositions = IntArray(zone.elements.size)
+
+        var x = 0
+        leftIndices.forEach { i ->
+            xPositions[i] = x
+            x += placeables[i].width
+        }
+
+        val rightTotal = rightIndices.sumOf { placeables[it].width }
+        x = zoneWidth - rightTotal
+        rightIndices.forEach { i ->
+            xPositions[i] = x
+            x += placeables[i].width
+        }
+
+        val centreTotal = centreIndices.sumOf { placeables[it].width }
+        x = (zoneWidth - centreTotal) / 2
+        centreIndices.forEach { i ->
+            xPositions[i] = x
+            x += placeables[i].width
+        }
+
+        layout(zoneWidth, zoneHeight) {
+            placeables.forEachIndexed { i, placeable ->
+                val y = (zoneHeight - placeable.height) / 2
+                placeable.placeRelative(xPositions[i], y)
             }
         }
     }

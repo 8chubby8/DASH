@@ -47,6 +47,35 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.5
+
+**Status:** Complete
+
+**Implemented:**
+- Zone splitting: the user can split the system bar into 1, 2, or 3 zones via a zone count control in settings (ZONES: 1 / 2 / 3 buttons). Default state is one zone spanning the full width
+- Zone width distribution: when 2 or 3 zones are active, preset distribution buttons appear (DISTRIBUTION). 2-zone presets: 1:1, 1:2, 2:1. 3-zone presets: 1:1:1, 1:2:1, 2:1:1, 1:1:2. The active preset is highlighted. Draggable dividers arrive with edit mode in 1.3.6
+- Zone dividers: a 1dp vertical line is drawn between zones at 30% accent opacity. In 1.3.6 these become the draggable edit-mode handles
+- Element packing layout: the `Zone` composable is rewritten as a custom Compose `Layout`. Elements are grouped by anchor (LEFT, CENTRE, RIGHT) and packed without overlap — LEFT group packs left-to-right from the left edge; RIGHT group packs left-to-right as a unit flush against the right edge; CENTRE group packs as a unit centred in the zone. All elements are centred vertically within the bar. This layout is the foundation 1.3.6 drag-and-drop builds on
+- `ElementType.SPACER` added to the catalogue. `ElementPlacement` gains `spacerWidthDp: Int?` (null for all non-spacer types). Spacer constants added to `SystemBarConfig`: default 16dp, min 4dp, max 120dp, step 4dp. Spacer elements are rendered as invisible sized boxes by the Zone layout. No UI for placing spacers yet — that arrives with edit mode in 1.3.6
+- Zone management on count reduction: elements in removed zones are migrated to zone 0 before the zone is dropped
+
+**Regressions:**
+- None
+
+**Fixes:**
+- None
+
+**Outstanding:**
+- Drag-and-drop edit mode (element placement, zone divider dragging, snap guidelines) → 1.3.6
+
+**Notes:**
+- `withZoneCount()` and `withDistribution()` are private extension functions on `SystemBarConfig` inside `SettingsPanel.kt` — they are settings-panel concerns and don't need to live in the model
+- The packing layout assumes measurables correspond 1:1 with `zone.elements` in list order — this invariant must be maintained when adding new element types. Each element type in the `when` branch must emit exactly one composable node
+- Spacer is handled directly in the Zone Layout rather than registered in `ElementRegistry`. The registry is for content elements. Spacer is structural and carries no content or SDK surface
+- Zone distribution fractions use float comparison with 0.01f tolerance for preset active-state detection
+
+---
+
 ## Version 1.3.4
 
 **Status:** Complete
