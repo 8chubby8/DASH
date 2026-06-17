@@ -73,7 +73,7 @@ Each version entry follows this structure:
 
 **Notes:**
 - `compositionLocalOf` chosen over `staticCompositionLocalOf` — the former only recomposes readers when the value changes, which is the correct behaviour for version 2 live theme switching. Static would recompose the entire subtree
-- Adding a token in future versions is one field with a default value on `DashColors`. All existing call sites continue to compile unchanged. Stored presets that predate a new token will decode fine via the existing `ignoreUnknownKeys = true` JSON config
+- **How to add a token to the system:** (1) Add a field with a default value to `DashColors` in `ui/theme/DashTheme.kt` — e.g. `val barHighlight: Color = Color(0xFF4A4AFF)`. (2) Update `DashColors.dark()` (and any future preset factories) with a considered value. (3) Read it anywhere in the composition with `LocalDashTheme.current.barHighlight`. That is the entire change. No call sites break, no provider changes needed, no migration required for stored data
 
 ---
 
