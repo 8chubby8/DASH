@@ -121,6 +121,7 @@ fun SettingsPanel(
     prefs: DashPreferences,
     densityManager: DensityManager,
     onPreviewSplash: () -> Unit,
+    onEnterEditMode: () -> Unit,
     onExit: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -258,6 +259,11 @@ fun SettingsPanel(
                         }
                     }
                 }
+                Button(
+                    onClick = { onEnterEditMode() },
+                    colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
+                ) { Text("EDIT BAR LAYOUT", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
                 Button(
                     onClick = { showResetConfirm = true },
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D1A1A), contentColor = Color.White),

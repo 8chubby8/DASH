@@ -47,6 +47,36 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.6
+
+**Status:** Complete
+
+**Implemented:**
+- Edit mode state — `editMode: Boolean` and `editConfig: SystemBarConfig?` hoisted in `MainScreen`. Edit mode is runtime-only, never persisted. `editConfig` is a live shadow of the bar config during editing; it is initialised from prefs when edit mode is entered and written back to DataStore only when DONE is tapped
+- Entry point — "EDIT BAR LAYOUT" button added to the System Bar section of the settings panel. Tapping it closes settings and activates edit mode immediately. Placed in the System Bar section for now; will relocate to a dedicated Appearance section when the full settings tree is built in a later version
+- Visual state change — the bar gains a 2dp border (barText at 35% opacity) when edit mode is active. Zone dividers thicken to 2dp at 60% opacity — visually distinct from the normal 1dp at 30% accent
+- Draggable zone dividers — in edit mode each divider is replaced by a 16dp touch target containing the 2dp visual line. `pointerInput(Unit)` with `detectDragGestures` drives the drag; `rememberUpdatedState` ensures the gesture handler always reads the latest config without restarting mid-drag. Drag delta is converted to a zone fraction delta and applied to the two adjacent zones, keeping their combined fraction constant
+- Detent snap — snap points at 1/4, 1/3, 1/2, 2/3, 3/4 of bar width. Within 12dp of a snap point the divider pulls to it; drag past the threshold and it releases. All positions between snap points are valid — snap assists alignment, it does not constrain placement
+- Minimum zone width — 48dp per zone. The clamp prevents either adjacent zone from collapsing below a usable size; fractions are adjusted conservatively so the combined fraction is always conserved
+- DONE button — a green "DONE" button overlays the left end of the bar during edit mode (opposite the settings button, which is right-anchored by default). Tapping it saves `editConfig` to DataStore and exits edit mode. Config is written once on exit — not on every drag frame
+- Settings button in edit mode — `DashAction.OpenSettings` is ignored while `editMode` is true. DONE is the only exit path
+
+**Regressions:**
+- None
+
+**Fixes:**
+- None
+
+**Outstanding:**
+- Element drag-and-drop repositioning → 1.3.7
+
+**Notes:**
+- Edit mode was originally planned as a single version. It was split into 1.3.6 (infrastructure + zone divider dragging) and 1.3.7 (element drag-and-drop) because Compose drag-and-drop for production-quality element repositioning — ghost element, anchor snapping, snap guidelines, per-element sizing — is a substantial undertaking on its own. The split keeps each version completable cleanly and allows divider dragging to be tested and confirmed before element repositioning is layered on top
+- `BoxWithConstraints` wraps the `SystemBar` Row to provide `barWidthPx` synchronously for drag fraction calculations. `barWidthPx` is passed to `DraggableDivider` via `rememberUpdatedState` so the gesture handler stays consistent if the bar is ever resized while edit mode is active
+- The "EDIT BAR LAYOUT" entry point will move to a dedicated Appearance section of settings when the full settings tree is built. It is deliberately a simple callback — relocation will be trivial
+
+---
+
 ## Version 1.3.5
 
 **Status:** Complete
