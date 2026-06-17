@@ -10,9 +10,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.unit.dp
-private val BAR_COLOR = Color(0xFF1A1A2E)
+import com.dash.android.ui.theme.LocalDashTheme
 
 /**
  * The DASH system bar — the one persistent interface element, always visible and never
@@ -39,7 +38,7 @@ fun SystemBar(
         modifier = modifier
             .fillMaxWidth()
             .height(barHeight)
-            .background(BAR_COLOR)
+            .background(LocalDashTheme.current.barBackground)
     ) {
         config.zones.forEach { zone ->
             Zone(

@@ -40,6 +40,8 @@ import com.dash.android.ui.debug.DiagnosticOverlay
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.LocalDashScale
 import com.dash.android.ui.settings.SettingsPanel
+import com.dash.android.ui.theme.DashColors
+import com.dash.android.ui.theme.LocalDashTheme
 import com.dash.android.ui.splash.SplashScreen
 import com.dash.android.ui.systembar.BarPosition
 import com.dash.android.ui.systembar.DashAction
@@ -102,7 +104,10 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         }
     }
 
-    CompositionLocalProvider(LocalDashScale provides dashScale) {
+    CompositionLocalProvider(
+        LocalDashScale provides dashScale,
+        LocalDashTheme provides DashColors.dark(),
+    ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
             // Not-default-launcher banner — anchored opposite the bar so the two never collide

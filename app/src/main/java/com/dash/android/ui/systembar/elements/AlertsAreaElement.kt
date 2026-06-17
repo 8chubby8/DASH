@@ -8,8 +8,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.ui.systembar.DashElement
@@ -34,15 +34,16 @@ object AlertsAreaElement : DashElement {
 
     @Composable
     override fun Content(scope: ElementScope) {
+        val theme = LocalDashTheme.current
         Box(
             modifier = Modifier
                 .clip(RoundedCornerShape(4.dp))
-                .background(Color(0xFF26263F))
+                .background(theme.barAccent)
                 .padding(horizontal = 10.dp, vertical = 4.dp)
         ) {
             Text(
                 text = "ALERTS",
-                color = Color(0xFF6E6E8A),
+                color = theme.barText.copy(alpha = 0.55f),
                 fontSize = 11.sp,
                 fontFamily = FontFamily.Monospace,
                 letterSpacing = 2.sp

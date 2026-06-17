@@ -7,8 +7,8 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
+import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.ui.systembar.DashAction
@@ -47,7 +47,7 @@ object SettingsButtonElement : DashElement {
             // Gear glyph stands in until a vector asset lands; touch target is the 48dp box above.
             Text(
                 text = "⚙",
-                color = Color(0xFFB0B0C8),
+                color = LocalDashTheme.current.barText,
                 fontSize = 22.sp,
                 fontFamily = FontFamily.Monospace
             )

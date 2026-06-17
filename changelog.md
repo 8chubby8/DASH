@@ -47,6 +47,36 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.3
+
+**Status:** Complete
+
+**Implemented:**
+- Theme token system — `DashColors` data class carrying three named colour tokens: `barBackground`, `barAccent`, `barText`. Exposed via `LocalDashTheme`, a `compositionLocalOf` that any composable in the DASH tree can read without being wired through function parameters
+- `DashColors.dark()` factory provides the default token set, carrying the colour values previously hardcoded across three files. Visually identical to 1.3.2 — the change is architectural only
+- `MainScreen` provides `LocalDashTheme` at the top of the composition tree alongside the existing `LocalDashScale` provider. Version 2 introduces user-facing presets and theme switching by providing a different `DashColors` instance here — no component below changes
+- `SystemBar` — hardcoded `BAR_COLOR` private val removed; bar background now reads `LocalDashTheme.current.barBackground`
+- `AlertsAreaElement` — pill background reads `LocalDashTheme.current.barAccent`; ALERTS label reads `LocalDashTheme.current.barText.copy(alpha = 0.55f)`. Subdued text is a semantic derivation of `barText`, not a separate token
+- `SettingsButtonElement` — gear icon reads `LocalDashTheme.current.barText`
+- New file `ui/theme/DashTheme.kt` — `DashColors`, `LocalDashTheme`. Clean home for all theme infrastructure as the token set grows
+
+**Regressions:**
+- None
+
+**Fixes:**
+- None
+
+**Outstanding:**
+- Element percentage-of-bar-height sizing, size variants (S/M/L), soft-limit amber warnings → 1.3.4
+- Zone splitting (up to three), inter-element snap packing, Spacer element → 1.3.5
+- Drag-and-drop edit mode → 1.3.6
+
+**Notes:**
+- `compositionLocalOf` chosen over `staticCompositionLocalOf` — the former only recomposes readers when the value changes, which is the correct behaviour for version 2 live theme switching. Static would recompose the entire subtree
+- Adding a token in future versions is one field with a default value on `DashColors`. All existing call sites continue to compile unchanged. Stored presets that predate a new token will decode fine via the existing `ignoreUnknownKeys = true` JSON config
+
+---
+
 ## Version 1.3.2
 
 **Status:** Complete
