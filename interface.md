@@ -152,6 +152,18 @@ In edit mode:
 - Zone dividers become draggable
 - Elements animate to show the result of placement before the user commits
 
+> **Design decision — v1.3.7:** The direct-bar-drag model described above was reconsidered in a design review before implementation and replaced with a ruler-based interaction model. The principles of the new approach are as follows.
+>
+> **The bar is never touched during editing.** All interaction is relocated to a ruler strip that appears adjacent to the bar when edit mode is active — below the bar if it is top-docked, above it if it is bottom-docked, always separated by a finger-width gap. The user's hand never occludes the thing they are adjusting. This is the core structural departure from the original model.
+>
+> **The ruler has a fixed, predictable position.** It is always on the inner side of the bar — between the bar and the main content area — at a consistent gap regardless of bar position or height. The user always knows where it is without looking for it.
+>
+> **The ruler has a consistent visual language.** Zone dividers are represented as arrow markers pointing back toward their position on the bar. Elements are represented as footprint-sized boxes matching each element's actual physical width in the bar — these boxes are visible only in edit mode and have no persistent visual boundary in normal operation. There is one colour convention throughout the ruler: red tint means bound or settled. An element box shows red on whichever edge is currently bound to a zone edge or an adjacent element's edge. A divider arrow turns red when settled exactly at a snap point — not merely near one. No text-based position labelling is used; the colour is the signal.
+>
+> **Edit-mode signalling is unambiguous but not duplicated.** The ruler's presence is itself a clear, unambiguous signal that edit mode is active. A second signal — the whole-bar border and tint introduced in 1.3.6 — would be repeating the same information across two different channels. It is removed. Colour in the ruler is reserved for meaningful per-marker state (bound, settled) rather than general mode indication.
+>
+> **The main content area becomes the edit workspace.** Save and Cancel actions occupy the main content area during editing — the same area normally occupied by the running app. This reuses the existing pattern where a focused task takes over the full screen, as already established by the settings panel. On entering edit mode, the current bar configuration is snapshotted. Save commits the edited state to DataStore. Cancel discards all changes and restores the snapshot exactly, with no write.
+
 ---
 
 ## Elements
@@ -211,6 +223,18 @@ DASH provides an Element SDK allowing developers and users to build their own el
 Elements that do not conform to the specification are skipped on load with a log entry. They do not crash DASH or affect other elements.
 
 **Architectural principle:** New DASH interface features do not require modifying the core platform. They are written as elements and dropped into the elements folder. The core platform remains stable while the interface evolves through the element system.
+
+> **Design decision — v1.3.13:** The element sizing contract was finalised before more elements were built against an earlier, looser model. The settled contract works as follows.
+>
+> **Height is invisible to element authors.** It is not passed as a parameter, not queryable, not declarable, and not present anywhere in the API surface an element author interacts with. DASH determines height from the global element height setting and applies it by constraining the space given to the element before that element's own composable code runs. The element sees "here is a box" — the box happens to be a specific size, but the element neither knows nor cares what that size is.
+>
+> **Width derives from natural aspect ratio, not from negotiation.** Each element has a natural aspect ratio, defined purely by how its author designed its appearance — the same way a photograph has its own shape. Given the imposed height, DASH computes the corresponding width automatically by scaling the design proportionally. The element does not express a preferred width, request available space, or participate in the calculation. The width is a consequence of the height and the design, nothing more.
+>
+> **Elements are rigid by default.** At any given height an element has exactly one natural size. It either fits in the remaining zone space or it does not. If it does not fit, DASH refuses placement and shows the zone-overflow soft warning already specified in the Zone System section. DASH never compresses, distorts, clips, or overlaps elements to force a fit — that outcome is always a layout error, not an acceptable fallback. Making room is the user's responsibility, by resizing the bar, rearranging elements, or removing something. As a documented future direction, not part of the current contract: an element author may later opt into making their element compressible, defining multiple distinct presentations for different amounts of available space. This is deferred until a real element complex enough to warrant it is built, which aligns with the additional elements planned for version 2.
+>
+> **Bar height and element height are single global values.** Bar height is the height of the one bar. Element height applies uniformly to every element on the bar, regardless of which zone they occupy or who built them. There is no per-element height setting, by design. Visual consistency across the bar is structural and cannot be violated by individual elements, because height is not something an element can influence.
+>
+> **Only two elements are native to DASH.** The Alerts Area and the Settings Button are the only elements that exist outside the SDK pathway — they are mandatory, they are built into the platform, and they are the reason the system bar is useful as a safety and access mechanism. Every other element, including the Spacer when it is built, is an SDK element by design: it uses the same contract any third-party developer would use, it goes through the same ElementRegistry, and it receives no special access to DASH internals. DASH shipping an element by default does not make that element native. Only the mandatory two are native.
 
 ---
 
