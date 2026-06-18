@@ -47,6 +47,32 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.9
+
+**Status:** Complete
+
+**Implemented:**
+- Zone count control (1/2/3 buttons) moved from the Settings panel into the edit workspace. Zone count is now part of the edit session — buttons update `editConfig` in memory, committed on SAVE or discarded on CANCEL
+- `withZoneCount()` moved from a private extension function in `SettingsPanel.kt` to a method on `SystemBarConfig` in `SystemBarModel.kt`, where it belongs as a pure model transformation
+- Zone distribution preset buttons (`DISTRIBUTION` row) removed entirely from Settings. The `ZoneDistribution` data class, both preset lists (`ZONE_DISTRIBUTIONS_2`, `ZONE_DISTRIBUTIONS_3`), `distributionActive()`, and `withDistribution()` are all deleted
+- Edit workspace is now a `Column` — ZONES label and 1/2/3 buttons above, SAVE/CANCEL row below
+- Settings System Bar section now contains only: position toggle, bar height stepper, element height stepper, EDIT BAR LAYOUT button, RESET button
+
+**Regressions:**
+- None
+
+**Fixes:**
+- N/A
+
+**Outstanding:**
+- None
+
+**Notes:**
+- **Zone count moved to edit workspace — deliberate design decision.** Previously, changing zone count wrote directly to DataStore with no way to undo. Moving it into the edit session means the user can experiment with zone count, see the result on the bar in real time, and commit or discard it alongside any divider positions they have changed. The edit session is the correct scope for all layout decisions
+- **Distribution presets removed — deliberate design decision.** The preset buttons (`1:1`, `1:2`, `2:1`, etc.) existed to give the user a way to set zone widths before divider dragging existed. They predate 1.3.6/1.3.7. Now that the user can drag a divider to any position they want, the presets are redundant. Removing them simplifies the Settings panel and eliminates a UI element that was already superseded by a better mechanism
+
+---
+
 ## Version 1.3.8
 
 **Status:** Complete
