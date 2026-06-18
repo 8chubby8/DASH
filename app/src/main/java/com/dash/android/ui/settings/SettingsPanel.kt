@@ -44,7 +44,6 @@ import com.dash.android.prefs.DashPreferences
 import com.dash.android.ui.scale.DASH_SCALE_MAX
 import com.dash.android.ui.scale.DASH_SCALE_MIN
 import com.dash.android.ui.scale.DASH_SCALE_STEP
-import com.dash.android.ui.systembar.BarPosition
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
@@ -130,15 +129,6 @@ fun SettingsPanel(
 
             // System Bar
             Section("SYSTEM BAR") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    BarPosition.entries.forEach { pos ->
-                        SettingButton(
-                            label = pos.name,
-                            active = barConfig.position == pos,
-                            onClick = { scope.launch { prefs.saveSystemBarConfig(barConfig.copy(position = pos)) } }
-                        )
-                    }
-                }
                 Button(
                     onClick = { onEnterEditMode() },
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),

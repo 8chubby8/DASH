@@ -248,6 +248,28 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     modifier = Modifier.align(Alignment.Center)
                 ) {
                     Text(
+                        "POSITION",
+                        color = Color(0xFF666666),
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        BarPosition.entries.forEach { pos ->
+                            val active = editConfig?.position == pos
+                            Button(
+                                onClick = { editConfig = editConfig?.copy(position = pos) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (active) Color(0xFF2E7D32) else Color(0xFF2A2A2A),
+                                    contentColor = Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
+                            ) {
+                                Text(pos.name, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                            }
+                        }
+                    }
+                    Text(
                         "ZONES",
                         color = Color(0xFF666666),
                         fontSize = 10.sp,
