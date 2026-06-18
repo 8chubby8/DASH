@@ -5,7 +5,8 @@ import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.background
-import androidx.compose.foundation.gestures.detectDragGestures
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -27,6 +28,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Path
 import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.input.pointer.positionChanged
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -179,32 +182,43 @@ private fun DividerArrow(
             .width(ARROW_TOUCH_WIDTH)
             .fillMaxHeight()
             .pointerInput(Unit) {
-                detectDragGestures { change, dragAmount ->
-                    change.consume()
-                    val zones = currentConfig.zones.toMutableList()
-                    val leftZone = zones[dividerIndex]
-                    val rightZone = zones[dividerIndex + 1]
-                    val combinedFraction = leftZone.widthFraction + rightZone.widthFraction
-                    val minFraction = minZonePx / currentRulerWidthPx
+                awaitEachGesture {
+                    // Claim the gesture on first touch — no slop wait, no competition
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) break
+                        if (change.positionChanged()) {
+                            change.consume()
+                            val dx = change.positionChange().x
+                            val zones = currentConfig.zones.toMutableList()
+                            val leftZone = zones[dividerIndex]
+                            val rightZone = zones[dividerIndex + 1]
+                            val combinedFraction = leftZone.widthFraction + rightZone.widthFraction
+                            val minFraction = minZonePx / currentRulerWidthPx
 
-                    val rawLeft = leftZone.widthFraction + dragAmount.x / currentRulerWidthPx
-                    val clampedLeft = rawLeft.coerceIn(minFraction, combinedFraction - minFraction)
+                            val rawLeft = leftZone.widthFraction + dx / currentRulerWidthPx
+                            val clampedLeft = rawLeft.coerceIn(minFraction, combinedFraction - minFraction)
 
-                    val cumulativeBefore = zones.take(dividerIndex).sumOf { it.widthFraction.toDouble() }.toFloat()
-                    val cumulativeAtDivider = cumulativeBefore + clampedLeft
+                            val cumulativeBefore = zones.take(dividerIndex).sumOf { it.widthFraction.toDouble() }.toFloat()
+                            val cumulativeAtDivider = cumulativeBefore + clampedLeft
 
-                    val snapPoints = listOf(0.25f, 1f / 3f, 0.5f, 2f / 3f, 0.75f)
-                    val nearest = snapPoints.minByOrNull { abs(it - cumulativeAtDivider) }!!
-                    val distToSnapPx = abs(nearest - cumulativeAtDivider) * currentRulerWidthPx
-                    val snappedCumulative = if (distToSnapPx < snapThresholdPx) nearest else cumulativeAtDivider
+                            val snapPoints = listOf(0.25f, 1f / 3f, 0.5f, 2f / 3f, 0.75f)
+                            val nearest = snapPoints.minByOrNull { abs(it - cumulativeAtDivider) }!!
+                            val distToSnapPx = abs(nearest - cumulativeAtDivider) * currentRulerWidthPx
+                            val snappedCumulative = if (distToSnapPx < snapThresholdPx) nearest else cumulativeAtDivider
 
-                    val finalLeft = (snappedCumulative - cumulativeBefore)
-                        .coerceIn(minFraction, combinedFraction - minFraction)
-                    val finalRight = combinedFraction - finalLeft
+                            val finalLeft = (snappedCumulative - cumulativeBefore)
+                                .coerceIn(minFraction, combinedFraction - minFraction)
+                            val finalRight = combinedFraction - finalLeft
 
-                    zones[dividerIndex] = leftZone.copy(widthFraction = finalLeft)
-                    zones[dividerIndex + 1] = rightZone.copy(widthFraction = finalRight)
-                    onConfigChange(currentConfig.copy(zones = zones))
+                            zones[dividerIndex] = leftZone.copy(widthFraction = finalLeft)
+                            zones[dividerIndex + 1] = rightZone.copy(widthFraction = finalRight)
+                            onConfigChange(currentConfig.copy(zones = zones))
+                        }
+                    }
                 }
             }
     ) {
@@ -261,15 +275,23 @@ private fun ElementBox(
             .clip(RoundedCornerShape(4.dp))
             .background(theme.barAccent.copy(alpha = alpha))
             .pointerInput(Unit) {
-                detectDragGestures(
-                    onDragStart = { currentOnDragStart() },
-                    onDrag = { change, dragAmount ->
-                        change.consume()
-                        currentOnDrag(dragAmount.x)
-                    },
-                    onDragEnd = { currentOnDragEnd() },
-                    onDragCancel = { currentOnDragEnd() }
-                )
+                awaitEachGesture {
+                    val down = awaitFirstDown(requireUnconsumed = false)
+                    down.consume()
+                    currentOnDragStart()
+                    while (true) {
+                        val event = awaitPointerEvent()
+                        val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        if (!change.pressed) {
+                            currentOnDragEnd()
+                            break
+                        }
+                        if (change.positionChanged()) {
+                            change.consume()
+                            currentOnDrag(change.positionChange().x)
+                        }
+                    }
+                }
             }
     )
 }
