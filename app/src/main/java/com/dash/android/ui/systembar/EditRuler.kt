@@ -172,12 +172,34 @@ fun EditRuler(
                 val widthPx = (elementWidths[placement.id] ?: minBoxWidthPx).coerceAtLeast(minBoxWidthPx)
                 val isDragging = draggedElementId == placement.id
                 val currentXPx = naturalX + if (isDragging) elementDragOffsetPx.roundToInt() else 0
+                // Which element (if any) the dragging box is currently overlapping
+                val dragTargetId: String? = if (isDragging) {
+                    val dragRight = currentXPx + widthPx
+                    config.zones.flatMap { it.elements }.firstOrNull { other ->
+                        if (other.id == placement.id) return@firstOrNull false
+                        val otherLeft = naturalPositions[other.id] ?: return@firstOrNull false
+                        val otherRight = otherLeft + (elementWidths[other.id] ?: minBoxWidthPx)
+                        currentXPx < otherRight && dragRight > otherLeft
+                    }?.id
+                } else null
+
                 val (leftBound, rightBound) = if (isDragging) {
-                    val dragCenterX = currentXPx + widthPx / 2f
-                    when (computeIntendedAnchor(config, dragCenterX, rulerWidthPx.toInt())) {
-                        ElementAnchor.LEFT -> Pair(true, false)
-                        ElementAnchor.RIGHT -> Pair(false, true)
-                        ElementAnchor.CENTRE -> Pair(false, false)
+                    if (dragTargetId != null) {
+                        // Hovering over another element — preview the anchor we'll take on swap
+                        val targetAnchor = config.zones.flatMap { it.elements }
+                            .firstOrNull { it.id == dragTargetId }?.anchor
+                        when (targetAnchor) {
+                            ElementAnchor.LEFT -> Pair(true, false)
+                            ElementAnchor.RIGHT -> Pair(false, true)
+                            else -> Pair(false, false)
+                        }
+                    } else {
+                        val dragCenterX = currentXPx + widthPx / 2f
+                        when (computeIntendedAnchor(config, dragCenterX, rulerWidthPx.toInt())) {
+                            ElementAnchor.LEFT -> Pair(true, false)
+                            ElementAnchor.RIGHT -> Pair(false, true)
+                            ElementAnchor.CENTRE -> Pair(false, false)
+                        }
                     }
                 } else {
                     boundEdges[placement.id] ?: Pair(false, false)
@@ -196,8 +218,20 @@ fun EditRuler(
                         },
                         onDrag = { delta -> elementDragOffsetPx += delta },
                         onDragEnd = {
-                            val finalCenterX = naturalX + elementDragOffsetPx + widthPx / 2f
-                            val newConfig = computeNewConfig(currentConfig, placement.id, finalCenterX, rulerWidthPx.toInt())
+                            val dragLeft = (naturalX + elementDragOffsetPx).roundToInt()
+                            val dragRight = dragLeft + widthPx
+                            val targetId = config.zones.flatMap { it.elements }.firstOrNull { other ->
+                                if (other.id == placement.id) return@firstOrNull false
+                                val otherLeft = naturalPositions[other.id] ?: return@firstOrNull false
+                                val otherRight = otherLeft + (elementWidths[other.id] ?: minBoxWidthPx)
+                                dragLeft < otherRight && dragRight > otherLeft
+                            }?.id
+                            val newConfig = if (targetId != null) {
+                                swapElements(currentConfig, placement.id, targetId)
+                            } else {
+                                val finalCenterX = naturalX + elementDragOffsetPx + widthPx / 2f
+                                computeNewConfig(currentConfig, placement.id, finalCenterX, rulerWidthPx.toInt())
+                            }
                             onConfigChange(newConfig)
                             draggedElementId = null
                             elementDragOffsetPx = 0f
@@ -429,6 +463,27 @@ private fun computeBoundEdges(config: SystemBarConfig): Map<String, Pair<Boolean
         }
     }
     return result
+}
+
+private fun swapElements(config: SystemBarConfig, idA: String, idB: String): SystemBarConfig {
+    data class Loc(val zoneIdx: Int, val elemIdx: Int, val placement: ElementPlacement)
+    var locA: Loc? = null
+    var locB: Loc? = null
+    config.zones.forEachIndexed { zIdx, zone ->
+        zone.elements.forEachIndexed { eIdx, p ->
+            if (p.id == idA) locA = Loc(zIdx, eIdx, p)
+            if (p.id == idB) locB = Loc(zIdx, eIdx, p)
+        }
+    }
+    val a = locA ?: return config
+    val b = locB ?: return config
+    // Each slot keeps its zone, index, and anchor — only the content (id, type) moves
+    return config.copy(zones = config.zones.mapIndexed { zIdx, zone ->
+        val newElements = zone.elements.toMutableList()
+        if (zIdx == a.zoneIdx) newElements[a.elemIdx] = a.placement.copy(id = b.placement.id, type = b.placement.type, spacerWidthDp = b.placement.spacerWidthDp)
+        if (zIdx == b.zoneIdx) newElements[b.elemIdx] = b.placement.copy(id = a.placement.id, type = a.placement.type, spacerWidthDp = a.placement.spacerWidthDp)
+        zone.copy(elements = newElements)
+    })
 }
 
 private fun computeIntendedAnchor(config: SystemBarConfig, centerX: Float, rulerWidthPx: Int): ElementAnchor {
