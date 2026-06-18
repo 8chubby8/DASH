@@ -47,6 +47,34 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.10
+
+**Status:** Complete
+
+**Implemented:**
+- Snap detents reintroduced at 1/4, 1/3, 1/2, 2/3, and 3/4 of bar width with a 4dp pull threshold. At 4dp, snap only activates when the divider is genuinely close to a detent — the pull zone is tight enough to feel assistive rather than obstructive
+- Escape mechanic: if the divider is already settled at a snap point when picked up, it enters free-move immediately. Snap re-engages once the divider has moved more than 4dp from the touch-down position. This eliminates the on-touch-down locking that caused snap to be removed in 1.3.7
+- Detent position markers: short vertical tick marks appear at each snap fraction on the ruler while a divider is being dragged; they fade in on drag start and fade out on release. Gives the user a visible target to aim at
+- Divider arrow turns red (`0xFFE53935`) when settled at a snap point, derived from config on every recomposition so it updates in real time during drag
+- Element box bound edge tinting: a 3dp red strip is drawn on whichever edge of each element box is bound — touching a zone boundary or packed against an adjacent element. Bound state is computed from anchor group membership (LEFT group: left edges always bound; RIGHT group: right edges always bound; CENTRE group: inner edges bound, outer edges free). Strip is clipped by the box's rounded corners
+
+**Regressions:**
+- None
+
+**Fixes:**
+- N/A
+
+**Outstanding:**
+- None
+
+**Notes:**
+- The snap threshold of 4dp is deliberately tight and may need adjustment after on-device testing. The consensus before implementation was to start tight and expand if needed — 6dp is the next step if 4dp disappears into the noise
+- The escape mechanic uses `totalDragPx` (signed net displacement from touch-down) rather than total distance traveled. If the user reverses direction, accumulated displacement decreases — snap stays disabled until they have committed to a clear move away from the starting point. This feels correct on the reasoning that small reversals near the touch-down point should not unlock snap prematurely
+- `isSnapped` is derived from config via `remember(config, dividerIndex, rulerWidthPx)` rather than a separate state variable. Since config updates every drag frame via `onConfigChange`, the arrow colour updates in real time with no additional state management
+- The 1.3.7 note about the 12dp threshold causing "on-touch-down locking" is the problem the escape mechanic solves. Both changes together should produce snap that is usable and unobtrusive. If the escape mechanic proves unnecessary at 4dp, it is still correct behaviour — picking up a free divider that happens to be exactly at a snap point gives immediate movement, which is always the right feel
+
+---
+
 ## Version 1.3.9
 
 **Status:** Complete
