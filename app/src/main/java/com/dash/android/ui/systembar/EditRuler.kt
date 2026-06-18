@@ -172,7 +172,16 @@ fun EditRuler(
                 val widthPx = (elementWidths[placement.id] ?: minBoxWidthPx).coerceAtLeast(minBoxWidthPx)
                 val isDragging = draggedElementId == placement.id
                 val currentXPx = naturalX + if (isDragging) elementDragOffsetPx.roundToInt() else 0
-                val (leftBound, rightBound) = boundEdges[placement.id] ?: Pair(false, false)
+                val (leftBound, rightBound) = if (isDragging) {
+                    val dragCenterX = currentXPx + widthPx / 2f
+                    when (computeIntendedAnchor(config, dragCenterX, rulerWidthPx.toInt())) {
+                        ElementAnchor.LEFT -> Pair(true, false)
+                        ElementAnchor.RIGHT -> Pair(false, true)
+                        ElementAnchor.CENTRE -> Pair(false, false)
+                    }
+                } else {
+                    boundEdges[placement.id] ?: Pair(false, false)
+                }
 
                 key(placement.id) {
                     ElementBox(
@@ -420,6 +429,27 @@ private fun computeBoundEdges(config: SystemBarConfig): Map<String, Pair<Boolean
         }
     }
     return result
+}
+
+private fun computeIntendedAnchor(config: SystemBarConfig, centerX: Float, rulerWidthPx: Int): ElementAnchor {
+    var cumulativePx = 0
+    var targetZoneIdx = config.zones.lastIndex
+    for ((idx, zone) in config.zones.withIndex()) {
+        val zoneWidthPx = (zone.widthFraction * rulerWidthPx).roundToInt()
+        if (centerX < cumulativePx + zoneWidthPx) {
+            targetZoneIdx = idx
+            break
+        }
+        cumulativePx += zoneWidthPx
+    }
+    val targetZoneStartPx = config.zones.take(targetZoneIdx).sumOf { (it.widthFraction * rulerWidthPx).roundToInt() }
+    val targetZoneWidthPx = (config.zones[targetZoneIdx].widthFraction * rulerWidthPx).roundToInt()
+    val posInZone = centerX - targetZoneStartPx
+    return when {
+        posInZone < targetZoneWidthPx / 3f -> ElementAnchor.LEFT
+        posInZone < targetZoneWidthPx * 2f / 3f -> ElementAnchor.CENTRE
+        else -> ElementAnchor.RIGHT
+    }
 }
 
 private fun applySnap(fraction: Float, thresholdFraction: Float): Float {
