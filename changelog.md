@@ -47,6 +47,35 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.11
+
+**Status:** Complete
+
+**Implemented:**
+- Gesture events consumed unconditionally on every pointer event during drag (previously consumed only when `positionChanged()` returned true). This prevents gesture cancellation when the touch point moves outside the original bounds of the marker being dragged — the likely cause of unpredictable cancellation observed during testing
+- Divider arrow pick-up confirmation: `isPressed` state set on DOWN and cleared on release; arrow alpha animates from 0.65 to 1.0 immediately on press, before any movement
+- Element box pick-up confirmation: stroke width animates from 1dp to 2dp and alpha from 0.55 to 1.0 immediately on press, before any movement. The thickening stroke serves as the visual pick-up signal described in the 1.3.11 plan — no separate highlight treatment needed
+- Ruler visual redesign: ruler background removed entirely — ruler area is now transparent, app content visible through it. A single 1dp horizontal centre track line drawn in barAccent2 at 35% alpha replaces the filled bar. Zone divider lines remain 1dp but now use barAccent2 at 30% alpha. Detent markers use barAccent2 at 40% alpha
+- Element boxes redesigned from filled rounded rectangles to stroke-only outlines: 1dp stroke in barAccent2 at 55% alpha at rest, animating to 2dp at 100% alpha when dragging. Bound edge tints (red strips) remain as before, drawn as coloured rect overlays on the outline edges. `clip(RoundedCornerShape)` and `background` removed; replaced with `drawBehind` using `drawRoundRect` with `Stroke` style and `CornerRadius`
+- New `barAccent2` theme token added to `DashColors` — default `Color(0xFF7878A0)`, a mid-tone blue-grey sitting between the invisible-dark `barAccent` and the content-bright `barText`. All ruler structural colours (track line, zone lines, detent markers, element box outlines, arrow resting state) read from this token. Independently themeable in version 2 with no component rework
+
+**Regressions:**
+- None
+
+**Fixes:**
+- None
+
+**Outstanding:**
+- Element box dragged off the left screen edge crashes the app (negative padding). Captured as 1.3.12 — carries forward
+
+**Notes:**
+- The gesture fix (unconditional consume) is a one-line change per gesture loop but addresses the root cause correctly. In Compose, consuming all pointer events while a drag is in progress prevents parent or sibling pointerInput handlers from intercepting mid-gesture
+- The arrow alpha animation uses `spring(stiffness = Spring.StiffnessMedium)` consistent with the existing element box alpha animation — both feel immediate on press and return smoothly on release
+- The ruler's transparent background means any colourful app content visible in the viewport will show through behind the ruler area during edit mode. This is intentional and looks clean in practice — the track line and outlines read clearly over typical dark automotive UI backgrounds. If a future theme has a very light or busy viewport background, adding an optional scrim to the ruler area is a straightforward addition via the theme token set
+- `strokeWidthDp` in `ElementBox` is a Float from `animateFloatAsState` (in dp units); converted to pixels in `drawBehind` via `strokeWidthDp * density.density` where `density` is captured from `LocalDensity.current` in the composable scope
+
+---
+
 ## Version 1.3.10
 
 **Status:** Complete

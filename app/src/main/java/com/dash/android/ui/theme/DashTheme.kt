@@ -12,13 +12,15 @@ import androidx.compose.ui.graphics.Color
 data class DashColors(
     val barBackground: Color,
     val barAccent: Color,
+    val barAccent2: Color,
     val barText: Color,
 ) {
     companion object {
         fun dark() = DashColors(
             barBackground = Color(0xFF1A1A2E),
-            barAccent    = Color(0xFF26263F),
-            barText      = Color(0xFFB0B0C8),
+            barAccent     = Color(0xFF26263F),
+            barAccent2    = Color(0xFF7878A0),
+            barText       = Color(0xFFB0B0C8),
         )
     }
 }

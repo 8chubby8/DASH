@@ -19,7 +19,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.key
@@ -30,12 +29,13 @@ import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.drawBehind
+import androidx.compose.ui.geometry.CornerRadius
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Size
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
+import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.input.pointer.positionChanged
@@ -62,16 +62,21 @@ private val SNAP_FRACTIONS = listOf(0.25f, 1f / 3f, 0.5f, 2f / 3f, 0.75f)
  * The edit mode ruler — a horizontal strip that appears adjacent to the system bar when edit mode
  * is active. The bar itself is never touched during editing; all interaction happens here.
  *
+ * Visually the ruler is transparent — a single 1dp centre line using [barAccent2] floats in the
+ * touch area with element boxes and divider arrows overlaid on top of it. No filled background.
+ *
  * Zone dividers are represented as triangle arrow markers pointing back toward the bar, and are
  * fully draggable, clamped to a minimum zone width of 48dp. Snap detents sit at 1/4, 1/3, 1/2,
  * 2/3, and 3/4 of bar width with a 4dp pull threshold. The escape mechanic ensures that picking
  * up a divider already settled at a snap point gives immediate free movement; snap re-engages once
  * the divider moves past the threshold distance. Detent position markers appear on the ruler while
- * a divider is being dragged and disappear on release. The arrow turns red when settled at a snap.
+ * a divider is being dragged and disappear on release. The arrow turns red when settled at a snap,
+ * and brightens immediately on press as pick-up confirmation.
  *
- * Elements are represented as footprint-sized boxes matching their rendered width in the bar.
- * Edges that are bound to a zone boundary or an adjacent element show a red tint. Dragging an
- * element box across a zone boundary moves the element to that zone.
+ * Elements are represented as footprint-sized outline boxes (stroke only, no fill). Edges that are
+ * bound to a zone boundary or an adjacent element show a red tint. Dragging an element box across
+ * a zone boundary moves the element to that zone. The stroke thickens immediately on press as
+ * pick-up confirmation — before any drag movement — and returns to resting weight on release.
  *
  * [elementWidths] is populated by [SystemBar] via [onSizeChanged] on each element's Box — it
  * carries each element's measured pixel width at the current [SystemBarConfig.elementHeightDp].
@@ -101,13 +106,22 @@ fun EditRuler(
         modifier = modifier
             .fillMaxWidth()
             .height(RULER_HEIGHT)
-            .background(theme.barBackground)
     ) {
         val rulerWidthPx = constraints.maxWidth.toFloat()
         val currentConfig by rememberUpdatedState(config)
 
         val naturalPositions = remember(config, elementWidths, rulerWidthPx, paddingPx) {
             computeElementPositions(config, elementWidths, rulerWidthPx.toInt(), paddingPx)
+        }
+
+        // Centre track line
+        Canvas(modifier = Modifier.fillMaxSize()) {
+            drawLine(
+                color = theme.barAccent2.copy(alpha = 0.35f),
+                start = Offset(0f, size.height / 2f),
+                end = Offset(size.width, size.height / 2f),
+                strokeWidth = 1.dp.toPx()
+            )
         }
 
         // Detent markers — visible only while a divider is being dragged
@@ -123,7 +137,7 @@ fun EditRuler(
                 SNAP_FRACTIONS.forEach { fraction ->
                     val x = fraction * size.width
                     drawRect(
-                        color = theme.barAccent.copy(alpha = 0.4f),
+                        color = theme.barAccent2.copy(alpha = 0.4f),
                         topLeft = Offset(x - markerWidthPx / 2f, markerTop),
                         size = Size(markerWidthPx, markerHeightPx)
                     )
@@ -143,7 +157,7 @@ fun EditRuler(
                             .offset { IntOffset(dividerX, 0) }
                             .width(1.dp)
                             .fillMaxHeight()
-                            .background(theme.barAccent.copy(alpha = 0.25f))
+                            .background(theme.barAccent2.copy(alpha = 0.3f))
                     )
                 }
 
@@ -172,7 +186,6 @@ fun EditRuler(
                 val widthPx = (elementWidths[placement.id] ?: minBoxWidthPx).coerceAtLeast(minBoxWidthPx)
                 val isDragging = draggedElementId == placement.id
                 val currentXPx = naturalX + if (isDragging) elementDragOffsetPx.roundToInt() else 0
-                // Which element (if any) the dragging box is currently overlapping
                 val dragTargetId: String? = if (isDragging) {
                     val dragRight = currentXPx + widthPx
                     config.zones.flatMap { it.elements }.firstOrNull { other ->
@@ -185,7 +198,6 @@ fun EditRuler(
 
                 val (leftBound, rightBound) = if (isDragging) {
                     if (dragTargetId != null) {
-                        // Hovering over another element — preview the anchor we'll take on swap
                         val targetAnchor = config.zones.flatMap { it.elements }
                             .firstOrNull { it.id == dragTargetId }?.anchor
                         when (targetAnchor) {
@@ -264,7 +276,8 @@ private fun DividerArrow(
     val touchWidthPx = remember(density) { with(density) { ARROW_TOUCH_WIDTH.roundToPx() } }
     val snapThresholdPx = remember(density) { with(density) { SNAP_THRESHOLD_DP.toPx() } }
 
-    // Derived from config so it updates every drag frame as config changes
+    var isPressed by remember { mutableStateOf(false) }
+
     val isSnapped = remember(config, dividerIndex, rulerWidthPx) {
         if (rulerWidthPx <= 0f) false
         else {
@@ -275,7 +288,13 @@ private fun DividerArrow(
         }
     }
 
-    val arrowColor = if (isSnapped) SNAP_COLOR else theme.barText.copy(alpha = 0.65f)
+    val arrowAlpha by animateFloatAsState(
+        targetValue = if (isPressed) 1f else 0.65f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "arrow_alpha"
+    )
+
+    val arrowColor = if (isSnapped) SNAP_COLOR else theme.barAccent2.copy(alpha = arrowAlpha)
     val startDp = with(density) { (dividerXPx - touchWidthPx / 2).coerceAtLeast(0).toDp() }
 
     Box(
@@ -288,17 +307,15 @@ private fun DividerArrow(
                 awaitEachGesture {
                     val down = awaitFirstDown(requireUnconsumed = false)
                     down.consume()
+                    isPressed = true
                     onDragStart()
 
-                    // Capture left offset once — zones before this divider don't move during drag
                     val leftOffset = currentConfig.zones.take(dividerIndex)
                         .sumOf { it.widthFraction.toDouble() }.toFloat()
                     val startDividerFraction = leftOffset +
                         (currentConfig.zones.getOrNull(dividerIndex)?.widthFraction ?: 0f)
                     val thresholdFraction = if (currentRulerWidthPx > 0f) snapThresholdPx / currentRulerWidthPx else 0f
 
-                    // Escape mechanic: if already at a snap point on touch-down, start in free-move.
-                    // Snap re-engages once the user has dragged past the threshold distance.
                     val startingAtSnap = SNAP_FRACTIONS.any { abs(startDividerFraction - it) <= thresholdFraction }
                     var snappingEnabled = !startingAtSnap
                     var totalDragPx = 0f
@@ -307,10 +324,10 @@ private fun DividerArrow(
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            change.consume()
                             if (!change.pressed) break
                             if (change.positionChanged()) {
                                 val dx = change.positionChange().x
-                                change.consume()
                                 totalDragPx += dx
 
                                 if (!snappingEnabled && abs(totalDragPx) > snapThresholdPx) {
@@ -342,6 +359,7 @@ private fun DividerArrow(
                             }
                         }
                     } finally {
+                        isPressed = false
                         onDragEnd()
                     }
                 }
@@ -386,29 +404,41 @@ private fun ElementBox(
     val currentOnDrag by rememberUpdatedState(onDrag)
     val currentOnDragEnd by rememberUpdatedState(onDragEnd)
 
-    val alpha by animateFloatAsState(
-        targetValue = if (isDragging) 0.75f else 0.4f,
+    val strokeWidthDp by animateFloatAsState(
+        targetValue = if (isDragging) 2f else 1f,
+        animationSpec = spring(stiffness = Spring.StiffnessMedium),
+        label = "element_box_stroke"
+    )
+    val strokeAlpha by animateFloatAsState(
+        targetValue = if (isDragging) 1f else 0.55f,
         animationSpec = spring(stiffness = Spring.StiffnessMedium),
         label = "element_box_alpha"
     )
+
+    val accent2 = theme.barAccent2
 
     Box(
         modifier = modifier
             .padding(start = with(density) { xPx.toDp() })
             .width(with(density) { widthPx.toDp() })
             .height(ELEMENT_BOX_HEIGHT)
-            .clip(RoundedCornerShape(4.dp))
-            .background(theme.barAccent.copy(alpha = alpha))
-            .drawWithContent {
-                drawContent()
+            .drawBehind {
+                val strokePx = strokeWidthDp * density.density
+                val cornerPx = 4.dp.toPx()
+                drawRoundRect(
+                    color = accent2.copy(alpha = strokeAlpha),
+                    size = Size(size.width, size.height),
+                    cornerRadius = CornerRadius(cornerPx),
+                    style = Stroke(width = strokePx)
+                )
                 val edgePx = BOUND_EDGE_WIDTH.toPx()
                 if (leftEdgeBound) drawRect(
-                    color = SNAP_COLOR.copy(alpha = 0.8f),
+                    color = SNAP_COLOR.copy(alpha = 0.85f),
                     topLeft = Offset.Zero,
                     size = Size(edgePx, size.height)
                 )
                 if (rightEdgeBound) drawRect(
-                    color = SNAP_COLOR.copy(alpha = 0.8f),
+                    color = SNAP_COLOR.copy(alpha = 0.85f),
                     topLeft = Offset(size.width - edgePx, 0f),
                     size = Size(edgePx, size.height)
                 )
@@ -421,14 +451,13 @@ private fun ElementBox(
                     while (true) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                        change.consume()
                         if (!change.pressed) {
                             currentOnDragEnd()
                             break
                         }
                         if (change.positionChanged()) {
-                            val dx = change.positionChange().x
-                            change.consume()
-                            currentOnDrag(dx)
+                            currentOnDrag(change.positionChange().x)
                         }
                     }
                 }
@@ -477,7 +506,6 @@ private fun swapElements(config: SystemBarConfig, idA: String, idB: String): Sys
     }
     val a = locA ?: return config
     val b = locB ?: return config
-    // Each slot keeps its zone, index, and anchor — only the content (id, type) moves
     return config.copy(zones = config.zones.mapIndexed { zIdx, zone ->
         val newElements = zone.elements.toMutableList()
         if (zIdx == a.zoneIdx) newElements[a.elemIdx] = a.placement.copy(id = b.placement.id, type = b.placement.type, spacerWidthDp = b.placement.spacerWidthDp)
