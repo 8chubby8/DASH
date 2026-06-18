@@ -49,7 +49,7 @@ private val ELEMENT_BOX_MIN_WIDTH_DP = 48.dp
  * is active. The bar itself is never touched during editing; all interaction happens here.
  *
  * Zone dividers are represented as triangle arrow markers pointing back toward the bar, and are
- * fully draggable (same snap/clamp logic as the 1.3.6 DraggableDivider, now relocated here).
+ * fully draggable, clamped to a minimum zone width of 48dp.
  * Elements are represented as footprint-sized boxes matching their rendered width in the bar.
  * Dragging an element box across a zone boundary moves the element to that zone; the drop
  * position within the zone infers a new anchor (left/centre/right thirds of zone width).
@@ -68,7 +68,6 @@ fun EditRuler(
 ) {
     val theme = LocalDashTheme.current
     val density = LocalDensity.current
-    val snapThresholdPx = remember(density) { with(density) { 12.dp.toPx() } }
     val minZonePx = remember(density) { with(density) { 48.dp.toPx() } }
     val paddingPx = remember(density) { with(density) { 8.dp.roundToPx() } }
     val minBoxWidthPx = remember(density) { with(density) { ELEMENT_BOX_MIN_WIDTH_DP.roundToPx() } }
@@ -114,7 +113,6 @@ fun EditRuler(
                         dividerXPx = dividerX,
                         barPosition = barPosition,
                         rulerWidthPx = rulerWidthPx,
-                        snapThresholdPx = snapThresholdPx,
                         minZonePx = minZonePx,
                         onConfigChange = onConfigChange,
                         modifier = Modifier.align(Alignment.CenterStart)
@@ -164,7 +162,6 @@ private fun DividerArrow(
     dividerXPx: Int,
     barPosition: BarPosition,
     rulerWidthPx: Float,
-    snapThresholdPx: Float,
     minZonePx: Float,
     onConfigChange: (SystemBarConfig) -> Unit,
     modifier: Modifier = Modifier
@@ -203,18 +200,7 @@ private fun DividerArrow(
                             val minFraction = minZonePx / currentRulerWidthPx
 
                             val rawLeft = leftZone.widthFraction + dx / currentRulerWidthPx
-                            val clampedLeft = rawLeft.coerceIn(minFraction, combinedFraction - minFraction)
-
-                            val cumulativeBefore = zones.take(dividerIndex).sumOf { it.widthFraction.toDouble() }.toFloat()
-                            val cumulativeAtDivider = cumulativeBefore + clampedLeft
-
-                            val snapPoints = listOf(0.25f, 1f / 3f, 0.5f, 2f / 3f, 0.75f)
-                            val nearest = snapPoints.minByOrNull { abs(it - cumulativeAtDivider) }!!
-                            val distToSnapPx = abs(nearest - cumulativeAtDivider) * currentRulerWidthPx
-                            val snappedCumulative = if (distToSnapPx < snapThresholdPx) nearest else cumulativeAtDivider
-
-                            val finalLeft = (snappedCumulative - cumulativeBefore)
-                                .coerceIn(minFraction, combinedFraction - minFraction)
+                            val finalLeft = rawLeft.coerceIn(minFraction, combinedFraction - minFraction)
                             val finalRight = combinedFraction - finalLeft
 
                             zones[dividerIndex] = leftZone.copy(widthFraction = finalLeft)
