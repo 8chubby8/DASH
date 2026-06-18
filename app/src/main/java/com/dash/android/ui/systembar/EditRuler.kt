@@ -324,10 +324,10 @@ private fun DividerArrow(
                         while (true) {
                             val event = awaitPointerEvent()
                             val change = event.changes.firstOrNull { it.id == down.id } ?: break
+                            if (!change.pressed) { change.consume(); break }
+                            val dx = change.positionChange().x
                             change.consume()
-                            if (!change.pressed) break
-                            if (change.positionChanged()) {
-                                val dx = change.positionChange().x
+                            if (dx != 0f) {
                                 totalDragPx += dx
 
                                 if (!snappingEnabled && abs(totalDragPx) > snapThresholdPx) {
@@ -451,14 +451,14 @@ private fun ElementBox(
                     while (true) {
                         val event = awaitPointerEvent()
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
-                        change.consume()
                         if (!change.pressed) {
+                            change.consume()
                             currentOnDragEnd()
                             break
                         }
-                        if (change.positionChanged()) {
-                            currentOnDrag(change.positionChange().x)
-                        }
+                        val dx = change.positionChange().x
+                        change.consume()
+                        if (dx != 0f) currentOnDrag(dx)
                     }
                 }
             }
