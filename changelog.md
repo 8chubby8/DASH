@@ -57,6 +57,8 @@ Each version entry follows this structure:
 - Detent position markers: short vertical tick marks appear at each snap fraction on the ruler while a divider is being dragged; they fade in on drag start and fade out on release. Gives the user a visible target to aim at
 - Divider arrow turns red (`0xFFE53935`) when settled at a snap point, derived from config on every recomposition so it updates in real time during drag
 - Element box bound edge tinting: a 3dp red strip is drawn on whichever edge of each element box is bound — touching a zone boundary or packed against an adjacent element. Bound state is computed from anchor group membership (LEFT group: left edges always bound; RIGHT group: right edges always bound; CENTRE group: inner edges bound, outer edges free). Strip is clipped by the box's rounded corners
+- Live edge highlight during element box drag: while dragging an element box, the relevant edge turns red in real time as a preview of where the element will land. If the dragging box is overlapping another element's footprint, the edge shown reflects the target's anchor (the anchor the dragging element will inherit on swap). If dragging in open space, the edge reflects the intended anchor from the thirds-based position (left third → left edge red, right third → right edge red, centre → neither)
+- Element box swap on overlap: dropping an element box onto another element's footprint swaps their positions — the dragging element takes the target's slot (zone, index in list, anchor), the target takes the dragging element's old slot. Dropping into open space uses the existing thirds model and appends to the anchor group as before. This replaces the previous behaviour where moving an element anywhere near another element in the same anchor group would cause unintended displacement
 
 **Regressions:**
 - None
@@ -65,13 +67,14 @@ Each version entry follows this structure:
 - N/A
 
 **Outstanding:**
-- None
+- Element box dragged off the left screen edge crashes the app (negative padding). Captured as 1.3.12
 
 **Notes:**
 - The snap threshold of 4dp is deliberately tight and may need adjustment after on-device testing. The consensus before implementation was to start tight and expand if needed — 6dp is the next step if 4dp disappears into the noise
-- The escape mechanic uses `totalDragPx` (signed net displacement from touch-down) rather than total distance traveled. If the user reverses direction, accumulated displacement decreases — snap stays disabled until they have committed to a clear move away from the starting point. This feels correct on the reasoning that small reversals near the touch-down point should not unlock snap prematurely
+- The escape mechanic uses `totalDragPx` (signed net displacement from touch-down) rather than total distance traveled. If the user reverses direction, accumulated displacement decreases — snap stays disabled until they have committed to a clear move away from the starting point
 - `isSnapped` is derived from config via `remember(config, dividerIndex, rulerWidthPx)` rather than a separate state variable. Since config updates every drag frame via `onConfigChange`, the arrow colour updates in real time with no additional state management
-- The 1.3.7 note about the 12dp threshold causing "on-touch-down locking" is the problem the escape mechanic solves. Both changes together should produce snap that is usable and unobtrusive. If the escape mechanic proves unnecessary at 4dp, it is still correct behaviour — picking up a free divider that happens to be exactly at a snap point gives immediate movement, which is always the right feel
+- The element swap uses a content-moves-between-slots model: each slot retains its zone, index, and anchor; only the element `id` and `type` move. This preserves the structural integrity of the zone layout
+- Ruler visuals (colours, sizes, overall aesthetic) are acknowledged placeholder — aesthetics are deferred; functionality is the priority for the 1.3.x edit mode sequence
 
 ---
 
