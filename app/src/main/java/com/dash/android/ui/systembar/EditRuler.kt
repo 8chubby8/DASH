@@ -39,7 +39,7 @@ import kotlin.math.abs
 import kotlin.math.roundToInt
 
 private val RULER_HEIGHT = 44.dp
-private val ARROW_TOUCH_WIDTH = 40.dp
+private val ARROW_TOUCH_WIDTH = 80.dp
 private val ARROW_SIZE_DP = 10.dp
 private val ELEMENT_BOX_HEIGHT = 32.dp
 private val ELEMENT_BOX_MIN_WIDTH_DP = 48.dp
