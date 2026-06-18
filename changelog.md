@@ -54,21 +54,22 @@ Each version entry follows this structure:
 **Implemented:**
 - `EditRuler` composable — a 44dp horizontal strip that appears on the bar's inner side when edit mode is active, separated from the bar by an 8dp gap. For a bottom-docked bar it sits above; for a top-docked bar it sits below. The ruler is the complete interaction surface for edit mode; the bar itself is never touched during editing
 - Ruler entry/exit transitions — `AnimatedVisibility` with `expandVertically` (spring, medium bouncy) and `fadeIn`/`fadeOut`. The bar stays pinned to the screen edge; the ruler grows inward from the bar. Exit is a quick tween shrink in the same direction
-- Divider arrow markers — each zone boundary in the ruler is represented by a filled triangle pointing back toward the bar, centred on a 40dp touch target. The complete drag/snap/clamp logic from `DraggableDivider` (1.3.6) is relocated here intact: detent snap at 1/4 / 1/3 / 1/2 / 2/3 / 3/4, 12dp snap threshold, 48dp zone minimum, `rememberUpdatedState` for stable gesture capture. The arrow sits atop a subtle 1dp vertical line that marks the zone boundary in the ruler
+- Divider arrow markers — each zone boundary in the ruler is represented by a filled triangle pointing back toward the bar, centred on an 80dp touch target. Drag is free — position follows touch exactly, clamped only to maintain a 48dp minimum width on each adjacent zone. `rememberUpdatedState` for stable gesture capture. The arrow sits atop a subtle 1dp vertical line that marks the zone boundary in the ruler
 - Element footprint boxes — one box per element per zone, positioned to mirror each element's rendered position in the bar. `SystemBar` now fires `onElementMeasured(id, widthPx)` via `Modifier.onSizeChanged` on each element wrapper; `MainScreen` collects these into `elementWidths: Map<String, Int>`. The ruler's `computeElementPositions()` uses those widths and mirrors the Zone Layout's anchor-group packing (padding-aware, LEFT/CENTRE/RIGHT groups). Boxes are 32dp tall, rounded, `barAccent` fill at 40% opacity; dragging brightens them to 75% with a spring-animated alpha transition
 - Element repositioning — dragging a box left or right moves it continuously; on release `computeNewConfig()` determines the target zone (which zone range the drop centre fell in) and infers a new anchor from the drop position within that zone (left third → LEFT, middle → CENTRE, right → RIGHT). The element is added to the end of the target zone's element list. The config update is immediate; the box reappears at its new natural position in the recomposed ruler
 - `DraggableDivider` removed — the bar now renders plain 1dp dividers in all modes. The bar no longer knows about edit mode at all: `editMode` and `onConfigChange` parameters removed from `SystemBar`. Edit state is held entirely in `MainScreen` and driven through `EditRuler`
 - 1.3.6 bar border/tint removed — the ruler's presence is the sole unambiguous signal that edit mode is active. No duplicate mode indicator
 
 **Regressions:**
-- None
+- Divider arrow markers were completely unresponsive to touch on first build
 
 **Fixes:**
-- None
+- **Hit area bug — `Modifier.offset` does not move the touch target.** `Modifier.offset { IntOffset(x, y) }` is a layout modifier that places the child at the offset position in the parent's coordinate system, but reports its own bounds as `(0, 0)` to `(childWidth, childHeight)` — the size of the child, not the size of the child plus the offset. Compose's hit testing descends the layout tree checking each node's reported bounds. When the touch point is at the drawn position (e.g. dividerX = 600dp) but the node's reported bounds only cover `(0, 0)` to `(40dp, 44dp)`, the hit test fails and the gesture handler is never reached. Fixed by replacing `Modifier.offset(x)` with `Modifier.padding(start = xDp)` throughout `EditRuler`. `padding` is also a layout modifier but it includes the padded space in the node's own reported bounds — a `padding(start = 580dp).width(40dp)` node correctly reports bounds of `(0, 0)` to `(620dp, 44dp)`, and the touch at 590dp passes the hit test and reaches the inner `pointerInput`
+- Touch target enlarged from 40dp to 80dp after on-device testing confirmed that 40dp was registering but felt unreliable
+- **Snapping removed.** Detent snap at 1/4 / 1/3 / 1/2 / 2/3 / 3/4 (carried over from 1.3.6's `DraggableDivider`) was rebuilt into the ruler but removed after on-device testing. With a 12dp snap threshold, the divider would lock to the nearest detent on touch-down, requiring the user to drag significantly before it registered any movement — indistinguishable in feel from the divider not responding. Snap may be reintroduced in a later version if there is a genuine case for it. For now drag is free
 
 **Outstanding:**
 - Element pick-up affordance (scale-up on press, before drag begins) → 1.3.11
-- Binding visual feedback (red edge tint on bound element sides, red arrow at exact snap) → 1.3.10
 - Drag gesture continuation if touch moves outside marker bounds → 1.3.11
 
 **Notes:**
@@ -76,6 +77,7 @@ Each version entry follows this structure:
 - The `computeElementPositions()` function mirrors the Zone Layout's anchor-group math exactly, including the 8dp horizontal padding that the Layout applies to each zone. The ruler's footprint boxes will sit at the same X positions as the real elements in the bar
 - `computeNewConfig()` infers anchor from drop position within the target zone (thirds model). This is intentionally simple for 1.3.7 — fine-grained reordering within an anchor group is a future refinement
 - The `Column` wrapping bar + ruler in `MainScreen` is pinned to the same screen edge as the bar was previously. Because the Column is `BottomCenter`/`TopCenter`-aligned, the bar stays against the screen edge and the ruler expands inward as the Column grows — the DONE button's absolute position (against the same edge) continues to overlay the bar correctly
+- The 1.3.10 roadmap entry references visual feedback when a divider is at a snap point. If snap is not reintroduced, that entry will need revising when 1.3.10 is reached
 
 ---
 
