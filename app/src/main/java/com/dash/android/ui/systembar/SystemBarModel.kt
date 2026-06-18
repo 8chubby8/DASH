@@ -65,6 +65,32 @@ data class SystemBarConfig(
     val elementHeightDp: Int = DEFAULT_ELEMENT_HEIGHT_DP,
     val zones: List<ZoneConfig> = emptyList()
 ) {
+    fun withZoneCount(count: Int): SystemBarConfig {
+        val current = zones.size
+        return when {
+            count == current -> this
+            count > current -> {
+                val fractions = List(count) { 1f / count }
+                val expanded = zones.mapIndexed { i, z -> z.copy(widthFraction = fractions[i]) } +
+                    (current until count).map { i ->
+                        ZoneConfig(id = UUID.randomUUID().toString(), widthFraction = fractions[i])
+                    }
+                copy(zones = expanded)
+            }
+            else -> {
+                val kept = zones.take(count)
+                val orphaned = zones.drop(count).flatMap { it.elements }
+                val fractions = List(count) { 1f / count }
+                copy(zones = kept.mapIndexed { i, z ->
+                    z.copy(
+                        widthFraction = fractions[i],
+                        elements = if (i == 0) z.elements + orphaned else z.elements
+                    )
+                })
+            }
+        }
+    }
+
     companion object {
         const val DEFAULT_HEIGHT_DP = 56
         const val MIN_HEIGHT_DP = 40

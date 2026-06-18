@@ -241,37 +241,64 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // SAVE commits the in-progress config to DataStore.
             // CANCEL discards all changes; barConfig (from DataStore) is the implicit snapshot.
             if (editMode) {
-                Row(
-                    horizontalArrangement = Arrangement.spacedBy(16.dp),
-                    verticalAlignment = Alignment.CenterVertically,
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
                     modifier = Modifier.align(Alignment.Center)
                 ) {
-                    Button(
-                        onClick = {
-                            editConfig = null
-                            editMode = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF424242),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
-                    ) {
-                        Text("CANCEL", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                    Text(
+                        "ZONES",
+                        color = Color(0xFF666666),
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.sp
+                    )
+                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                        listOf(1, 2, 3).forEach { count ->
+                            val active = (editConfig?.zones?.size ?: 0) == count
+                            Button(
+                                onClick = { editConfig = editConfig?.withZoneCount(count) },
+                                colors = ButtonDefaults.buttonColors(
+                                    containerColor = if (active) Color(0xFF2E7D32) else Color(0xFF2A2A2A),
+                                    contentColor = Color.White
+                                ),
+                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
+                            ) {
+                                Text(count.toString(), fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                            }
+                        }
                     }
-                    Button(
-                        onClick = {
-                            editConfig?.let { scope.launch { prefs.saveSystemBarConfig(it) } }
-                            editConfig = null
-                            editMode = false
-                        },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF2E7D32),
-                            contentColor = Color.White
-                        ),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Text("SAVE", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                        Button(
+                            onClick = {
+                                editConfig = null
+                                editMode = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF424242),
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
+                        ) {
+                            Text("CANCEL", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                        }
+                        Button(
+                            onClick = {
+                                editConfig?.let { scope.launch { prefs.saveSystemBarConfig(it) } }
+                                editConfig = null
+                                editMode = false
+                            },
+                            colors = ButtonDefaults.buttonColors(
+                                containerColor = Color(0xFF2E7D32),
+                                contentColor = Color.White
+                            ),
+                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
+                        ) {
+                            Text("SAVE", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                        }
                     }
                 }
             }
