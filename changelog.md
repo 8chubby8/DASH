@@ -47,6 +47,24 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.12
+
+**Status:** Complete
+
+**Implemented:**
+- Element box drag bounds clamped in `EditRuler`. `currentXPx` is now constrained to `[0, rulerWidthPx - widthPx]` so neither edge can be dragged off the ruler. Previously `elementDragOffsetPx` was a raw unconstrained accumulator — a large enough leftward drag produced a negative `xPx` passed to `ElementBox`, which applied it as `Modifier.padding(start = xPx.toDp())`. Compose rejects negative padding and crashes. Right-edge clamping added at the same time for symmetry. The element now feels like it hits an invisible wall at both edges during drag. Drop logic reads `elementDragOffsetPx` directly and is unaffected by the visual clamp
+
+**Regressions:**
+- None
+
+**Fixes:**
+- Crash when element box dragged off the left screen edge
+
+**Outstanding:**
+- None
+
+---
+
 ## Version 1.3.11
 
 **Status:** Complete
