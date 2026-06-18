@@ -7,14 +7,24 @@ import android.content.IntentFilter
 import android.content.pm.ActivityInfo
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.spring
+import androidx.compose.animation.core.tween
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -50,6 +60,7 @@ import com.dash.android.ui.theme.LocalDashTheme
 import com.dash.android.ui.splash.SplashScreen
 import com.dash.android.ui.systembar.BarPosition
 import com.dash.android.ui.systembar.DashAction
+import com.dash.android.ui.systembar.EditRuler
 import com.dash.android.ui.systembar.SystemBar
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.launch
@@ -68,6 +79,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var showSettings by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
     var editConfig by remember { mutableStateOf<SystemBarConfig?>(null) }
+    var elementWidths by remember { mutableStateOf(mapOf<String, Int>()) }
 
     DisposableEffect(activity.lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
@@ -149,22 +161,83 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 selectedPreset = selectedPreset
             )
 
-            // The system bar — always present, top or bottom per config
-            SystemBar(
-                config = editConfig ?: barConfig,
-                editMode = editMode,
-                onConfigChange = { editConfig = it },
-                onAction = { action ->
-                    // Settings button is ignored during edit mode — DONE is the only exit
-                    if (!editMode && action is DashAction.OpenSettings) showSettings = true
-                },
-                modifier = Modifier.align(
-                    if (barConfig.position == BarPosition.TOP) Alignment.TopCenter else Alignment.BottomCenter
-                )
-            )
+            // Bar + ruler column. Anchored to the same edge as the bar; ruler slides in adjacent
+            // to the bar on its inner side (below if top-docked, above if bottom-docked).
+            // The Column grows away from the screen edge as the ruler expands — the bar stays
+            // fixed against the edge and the ruler grows inward.
+            Column(
+                modifier = Modifier
+                    .align(if (barConfig.position == BarPosition.TOP) Alignment.TopCenter else Alignment.BottomCenter)
+                    .fillMaxWidth()
+            ) {
+                val activeConfig = editConfig ?: barConfig
 
-            // DONE button — overlays the bar during edit mode, positioned at the opposite end
-            // from the settings button (which is anchored RIGHT by default)
+                if (barConfig.position == BarPosition.TOP) {
+                    SystemBar(
+                        config = activeConfig,
+                        onAction = { action ->
+                            if (!editMode && action is DashAction.OpenSettings) showSettings = true
+                        },
+                        onElementMeasured = { id, width -> elementWidths = elementWidths + (id to width) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                    AnimatedVisibility(
+                        visible = editMode,
+                        enter = fadeIn(tween(200)) + expandVertically(
+                            expandFrom = Alignment.Top,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                        ),
+                        exit = fadeOut(tween(150)) + shrinkVertically(
+                            shrinkTowards = Alignment.Top,
+                            animationSpec = tween(180)
+                        )
+                    ) {
+                        Column {
+                            Spacer(Modifier.height(8.dp))
+                            EditRuler(
+                                config = activeConfig,
+                                elementWidths = elementWidths,
+                                barPosition = barConfig.position,
+                                onConfigChange = { editConfig = it }
+                            )
+                        }
+                    }
+                } else {
+                    AnimatedVisibility(
+                        visible = editMode,
+                        enter = fadeIn(tween(200)) + expandVertically(
+                            expandFrom = Alignment.Bottom,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMedium)
+                        ),
+                        exit = fadeOut(tween(150)) + shrinkVertically(
+                            shrinkTowards = Alignment.Bottom,
+                            animationSpec = tween(180)
+                        )
+                    ) {
+                        Column {
+                            EditRuler(
+                                config = activeConfig,
+                                elementWidths = elementWidths,
+                                barPosition = barConfig.position,
+                                onConfigChange = { editConfig = it }
+                            )
+                            Spacer(Modifier.height(8.dp))
+                        }
+                    }
+                    SystemBar(
+                        config = activeConfig,
+                        onAction = { action ->
+                            if (!editMode && action is DashAction.OpenSettings) showSettings = true
+                        },
+                        onElementMeasured = { id, width -> elementWidths = elementWidths + (id to width) },
+                        modifier = Modifier.fillMaxWidth()
+                    )
+                }
+            }
+
+            // DONE button — overlays the bar during edit mode, positioned at the left end
+            // (opposite the settings button which is right-anchored by default).
+            // Replaced by Save/Cancel in 1.3.8 when the edit workspace arrives.
             if (editMode) {
                 val barHeight = (editConfig ?: barConfig).heightDp.dp
                 Box(
