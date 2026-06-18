@@ -191,8 +191,8 @@ private fun DividerArrow(
                         val change = event.changes.firstOrNull { it.id == down.id } ?: break
                         if (!change.pressed) break
                         if (change.positionChanged()) {
-                            change.consume()
                             val dx = change.positionChange().x
+                            change.consume()
                             val zones = currentConfig.zones.toMutableList()
                             val leftZone = zones[dividerIndex]
                             val rightZone = zones[dividerIndex + 1]
@@ -287,8 +287,9 @@ private fun ElementBox(
                             break
                         }
                         if (change.positionChanged()) {
+                            val dx = change.positionChange().x
                             change.consume()
-                            currentOnDrag(change.positionChange().x)
+                            currentOnDrag(dx)
                         }
                     }
                 }
