@@ -185,7 +185,8 @@ fun EditRuler(
                 val naturalX = naturalPositions[placement.id] ?: 0
                 val widthPx = (elementWidths[placement.id] ?: minBoxWidthPx).coerceAtLeast(minBoxWidthPx)
                 val isDragging = draggedElementId == placement.id
-                val currentXPx = naturalX + if (isDragging) elementDragOffsetPx.roundToInt() else 0
+                val currentXPx = (naturalX + if (isDragging) elementDragOffsetPx.roundToInt() else 0)
+                    .coerceIn(0, (rulerWidthPx.toInt() - widthPx).coerceAtLeast(0))
                 val dragTargetId: String? = if (isDragging) {
                     val dragRight = currentXPx + widthPx
                     config.zones.flatMap { it.elements }.firstOrNull { other ->
