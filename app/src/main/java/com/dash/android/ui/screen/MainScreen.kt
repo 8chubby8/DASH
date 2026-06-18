@@ -168,14 +168,13 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // to the bar on its inner side (below if top-docked, above if bottom-docked).
             // The Column grows away from the screen edge as the ruler expands — the bar stays
             // fixed against the edge and the ruler grows inward.
+            val activeConfig = editConfig ?: barConfig
             Column(
                 modifier = Modifier
-                    .align(if (barConfig.position == BarPosition.TOP) Alignment.TopCenter else Alignment.BottomCenter)
+                    .align(if (activeConfig.position == BarPosition.TOP) Alignment.TopCenter else Alignment.BottomCenter)
                     .fillMaxWidth()
             ) {
-                val activeConfig = editConfig ?: barConfig
-
-                if (barConfig.position == BarPosition.TOP) {
+                if (activeConfig.position == BarPosition.TOP) {
                     SystemBar(
                         config = activeConfig,
                         onAction = { action ->
@@ -200,7 +199,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             EditRuler(
                                 config = activeConfig,
                                 elementWidths = elementWidths,
-                                barPosition = barConfig.position,
+                                barPosition = activeConfig.position,
                                 onConfigChange = { editConfig = it }
                             )
                         }
@@ -221,7 +220,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             EditRuler(
                                 config = activeConfig,
                                 elementWidths = elementWidths,
-                                barPosition = barConfig.position,
+                                barPosition = activeConfig.position,
                                 onConfigChange = { editConfig = it }
                             )
                             Spacer(Modifier.height(8.dp))
@@ -377,6 +376,16 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
                         ) { Text("+", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
+                    }
+                    Button(
+                        onClick = { editConfig = editConfig?.let { SystemBarConfig.default().copy(position = it.position) } },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF5D1A1A),
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
+                    ) {
+                        Text("RESET BAR LAYOUT", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
                     }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),

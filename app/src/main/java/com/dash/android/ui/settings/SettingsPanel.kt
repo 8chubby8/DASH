@@ -17,7 +17,6 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -90,8 +89,6 @@ fun SettingsPanel(
     val splashImageUri by prefs.splashImageUri.collectAsState(initial = "")
     val barConfig by prefs.systemBarConfig.collectAsState(initial = SystemBarConfig.default())
 
-    var showResetConfirm by remember { mutableStateOf(false) }
-
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
             runCatching {
@@ -134,11 +131,6 @@ fun SettingsPanel(
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
                 ) { Text("EDIT BAR LAYOUT", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
-                Button(
-                    onClick = { showResetConfirm = true },
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF5D1A1A), contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("RESET BAR LAYOUT", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
             }
 
             // App Density
@@ -280,32 +272,6 @@ fun SettingsPanel(
         }
     }
 
-    if (showResetConfirm) {
-        AlertDialog(
-            onDismissRequest = { showResetConfirm = false },
-            containerColor = Color(0xFF1A1A2E),
-            title = { Text("Reset bar layout?", color = Color.White, fontFamily = FontFamily.Monospace) },
-            text = {
-                Text(
-                    "The system bar returns to its default — bottom position, 56dp tall, elements at 36dp, with the alerts area and settings button. This cannot be undone.",
-                    color = Color(0xFFAAAAAA),
-                    fontFamily = FontFamily.Monospace,
-                    fontSize = 13.sp
-                )
-            },
-            confirmButton = {
-                TextButton(onClick = {
-                    scope.launch { prefs.resetSystemBar() }
-                    showResetConfirm = false
-                }) { Text("RESET", color = Color(0xFFE57373), fontFamily = FontFamily.Monospace) }
-            },
-            dismissButton = {
-                TextButton(onClick = { showResetConfirm = false }) {
-                    Text("CANCEL", color = Color(0xFF888888), fontFamily = FontFamily.Monospace)
-                }
-            }
-        )
-    }
 }
 
 @Composable
