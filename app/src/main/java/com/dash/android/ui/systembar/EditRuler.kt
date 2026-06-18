@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.offset
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.runtime.Composable
@@ -175,10 +176,12 @@ private fun DividerArrow(
     val touchWidthPx = remember(density) { with(density) { ARROW_TOUCH_WIDTH.roundToPx() } }
     val arrowColor = theme.barText.copy(alpha = 0.65f)
 
+    val startDp = with(density) { (dividerXPx - touchWidthPx / 2).coerceAtLeast(0).toDp() }
+
     Box(
         contentAlignment = Alignment.Center,
         modifier = modifier
-            .offset { IntOffset(dividerXPx - touchWidthPx / 2, 0) }
+            .padding(start = startDp)
             .width(ARROW_TOUCH_WIDTH)
             .fillMaxHeight()
             .pointerInput(Unit) {
@@ -269,7 +272,7 @@ private fun ElementBox(
 
     Box(
         modifier = modifier
-            .offset(x = with(density) { xPx.toDp() })
+            .padding(start = with(density) { xPx.toDp() })
             .width(with(density) { widthPx.toDp() })
             .height(ELEMENT_BOX_HEIGHT)
             .clip(RoundedCornerShape(4.dp))
