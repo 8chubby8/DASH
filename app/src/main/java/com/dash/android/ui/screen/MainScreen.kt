@@ -27,6 +27,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.width
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
@@ -267,6 +268,93 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                                 Text(count.toString(), fontSize = 13.sp, fontFamily = FontFamily.Monospace)
                             }
                         }
+                    }
+                    Text(
+                        "BAR HEIGHT",
+                        color = Color(0xFF666666),
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.sp
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        Button(
+                            onClick = {
+                                editConfig = editConfig?.let { c ->
+                                    val newH = (c.heightDp - SystemBarConfig.HEIGHT_STEP_DP).coerceAtLeast(SystemBarConfig.MIN_HEIGHT_DP)
+                                    val newE = c.elementHeightDp.coerceAtMost(newH - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP)
+                                    c.copy(heightDp = newH, elementHeightDp = newE)
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+                        ) { Text("−", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
+                        Text(
+                            "${editConfig?.heightDp ?: 0}dp",
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.width(80.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = {
+                                editConfig = editConfig?.let { c ->
+                                    c.copy(heightDp = (c.heightDp + SystemBarConfig.HEIGHT_STEP_DP).coerceAtMost(SystemBarConfig.MAX_HEIGHT_DP))
+                                }
+                            },
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+                        ) { Text("+", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
+                    }
+                    Text(
+                        "ELEMENT SIZE",
+                        color = Color(0xFF666666),
+                        fontSize = 10.sp,
+                        fontFamily = FontFamily.Monospace,
+                        letterSpacing = 1.sp
+                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(0.dp)
+                    ) {
+                        val elementAtMin = (editConfig?.elementHeightDp ?: 0) <= SystemBarConfig.MIN_ELEMENT_HEIGHT_DP
+                        val elementAtMax = (editConfig?.elementHeightDp ?: 0) >= (editConfig?.heightDp ?: 0) - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP
+                        Button(
+                            onClick = {
+                                editConfig = editConfig?.let { c ->
+                                    c.copy(elementHeightDp = (c.elementHeightDp - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP).coerceAtLeast(SystemBarConfig.MIN_ELEMENT_HEIGHT_DP))
+                                }
+                            },
+                            enabled = !elementAtMin,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+                        ) { Text("−", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
+                        Text(
+                            text = when {
+                                elementAtMin -> "min"
+                                elementAtMax -> "max"
+                                else -> "${editConfig?.elementHeightDp ?: 0}dp"
+                            },
+                            color = Color.White,
+                            fontSize = 16.sp,
+                            fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.width(80.dp),
+                            textAlign = TextAlign.Center
+                        )
+                        Button(
+                            onClick = {
+                                editConfig = editConfig?.let { c ->
+                                    val ceiling = c.heightDp - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP
+                                    c.copy(elementHeightDp = (c.elementHeightDp + SystemBarConfig.ELEMENT_HEIGHT_STEP_DP).coerceAtMost(ceiling))
+                                }
+                            },
+                            enabled = !elementAtMax,
+                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
+                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
+                        ) { Text("+", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
                     }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
