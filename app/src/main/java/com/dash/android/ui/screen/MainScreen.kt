@@ -17,9 +17,11 @@ import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -235,20 +237,28 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 }
             }
 
-            // DONE button — overlays the bar during edit mode, positioned at the left end
-            // (opposite the settings button which is right-anchored by default).
-            // Replaced by Save/Cancel in 1.3.8 when the edit workspace arrives.
+            // Edit workspace — centred in the screen while edit mode is active.
+            // SAVE commits the in-progress config to DataStore.
+            // CANCEL discards all changes; barConfig (from DataStore) is the implicit snapshot.
             if (editMode) {
-                val barHeight = (editConfig ?: barConfig).heightDp.dp
-                Box(
-                    contentAlignment = Alignment.Center,
-                    modifier = Modifier
-                        .align(
-                            if (barConfig.position == BarPosition.TOP) Alignment.TopStart else Alignment.BottomStart
-                        )
-                        .height(barHeight)
-                        .padding(start = 8.dp)
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.align(Alignment.Center)
                 ) {
+                    Button(
+                        onClick = {
+                            editConfig = null
+                            editMode = false
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = Color(0xFF424242),
+                            contentColor = Color.White
+                        ),
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
+                    ) {
+                        Text("CANCEL", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                    }
                     Button(
                         onClick = {
                             editConfig?.let { scope.launch { prefs.saveSystemBarConfig(it) } }
@@ -259,9 +269,9 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             containerColor = Color(0xFF2E7D32),
                             contentColor = Color.White
                         ),
-                        contentPadding = PaddingValues(horizontal = 14.dp, vertical = 4.dp)
+                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
                     ) {
-                        Text("DONE", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                        Text("SAVE", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
                     }
                 }
             }

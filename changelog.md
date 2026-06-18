@@ -47,6 +47,31 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.3.8
+
+**Status:** Complete
+
+**Implemented:**
+- DONE button replaced with separate SAVE and CANCEL actions, centred in the screen while edit mode is active
+- CANCEL discards all in-progress edits and exits edit mode with no DataStore write. `barConfig` (the DataStore-backed flow) is the implicit snapshot — it is never written until SAVE is pressed, so nulling `editConfig` restores the bar exactly to its last saved state
+- SAVE commits the in-memory `editConfig` to DataStore then exits edit mode, identical to what DONE did
+- Buttons are side by side in a `Row` centred on screen: CANCEL (grey, `0xFF424242`) on the left, SAVE (green, `0xFF2E7D32`) on the right. Both use the same monospace style as all other DASH text controls
+
+**Regressions:**
+- None
+
+**Fixes:**
+- N/A
+
+**Outstanding:**
+- None
+
+**Notes:**
+- The snapshot mechanism requires no additional state variable. `barConfig` comes from DataStore and is only written on SAVE — it is naturally the restore point for CANCEL
+- Buttons are in the main content area (the empty space between bar/ruler and the opposite screen edge), consistent with the roadmap intent that the content area becomes the edit workspace. Additional controls move into this workspace in 1.3.9 (zone count) and 1.3.12 (height steppers)
+
+---
+
 ## Version 1.3.7
 
 **Status:** Complete
