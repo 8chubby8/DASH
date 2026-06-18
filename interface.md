@@ -238,6 +238,27 @@ Elements that do not conform to the specification are skipped on load with a log
 
 ---
 
+## Theme Tokens
+
+DASH uses a named colour token system. Every component that renders visual DASH chrome — the system bar, the edit mode ruler, elements, overlays, and the settings panel — reads colours from the active token set rather than using hardcoded values. This is the mechanism that makes version 2 theming possible: swapping the token set at the top of the composition tree changes the appearance of everything at once, with no changes to any individual component.
+
+The token set is defined in `DashColors` and provided via `LocalDashTheme`. One default set exists in version 1. Version 2 introduces user-selectable presets and a custom colour editor — both work by providing a different `DashColors` instance; the components themselves do not change.
+
+### Token Reference
+
+| Token | Default | Used For |
+|-------|---------|----------|
+| `barBackground` | `0xFF1A1A2E` | System bar fill. The foundation colour everything else sits on. Also the implied background for the settings panel and any DASH-native surfaces that inherit from the bar. |
+| `barAccent` | `0xFF26263F` | Subtle structural separators within the bar — zone divider lines in the bar itself. Deliberately close to `barBackground` so it reads as a hint rather than a feature. |
+| `barAccent2` | `0xFF7878A0` | Visible interactive structure — edit mode ruler track line, zone divider lines in the ruler, detent markers, element box outlines, and the divider arrow resting state. Sits between the invisible-dark `barAccent` and the content-bright `barText`. Used wherever a structural element needs to be clearly readable against the bar background without competing with content. |
+| `barText` | `0xFFB0B0C8` | Foreground content — text, icons, and any element content that must be readable on `barBackground`. The brightest of the four tokens. |
+
+### Adding Tokens
+
+When a new component requires a colour that does not fit an existing token semantically, add a new token to `DashColors` with a sensible default and a clear name. Do not reuse an existing token for a purpose it was not intended for. Do not hardcode a colour value in a component. The token set is the single source of truth for all DASH chrome colours — keeping it complete and accurate is what makes future theming viable.
+
+---
+
 ## The Viewport
 
 The viewport is the dedicated display area for all Android applications. Every app that runs on DASH — Google Maps, Spotify, YouTube, any installed Android app — opens and displays fully within the viewport boundaries.
