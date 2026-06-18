@@ -54,6 +54,8 @@ Each version entry follows this structure:
 **Implemented:**
 - Bar height stepper and element height stepper removed from the Settings panel and added to the edit-mode workspace in `MainScreen`, alongside the zone count control relocated there in 1.3.9. Both modify `editConfig` directly, so changes take effect immediately in the live bar — the user sees the result while still inside edit mode. Changes commit on SAVE or are discarded on CANCEL with the rest of the edit session. Height constraint logic preserved: when bar height decreases, element height auto-clamps to fit. Element height stepper shows "min"/"max" labels at the floor and ceiling as before
 - Bar position toggle (TOP/BOTTOM) also relocated from the Settings panel into the edit workspace, sitting above the zone count control. Same deferred-commit behaviour — position change takes effect immediately in the live bar but is not persisted until SAVE. Settings panel SYSTEM BAR section now contains only EDIT BAR LAYOUT and RESET BAR LAYOUT
+- RESET BAR LAYOUT relocated from Settings panel into the edit workspace. Resets zones and heights to factory defaults (position preserved). CANCEL discards the reset along with any other unsaved changes — no separate confirm dialog needed. Dead confirm dialog, its state variable, and the AlertDialog import removed from SettingsPanel
+- Fixed: bar position toggle was not live during edit mode. Root cause: `activeConfig` was computed inside the bar Column, so the Column's alignment and TOP/BOTTOM branch both read `barConfig.position` (DataStore) rather than the in-progress `editConfig`. Fixed by hoisting `activeConfig` above the Column so all layout decisions reflect the current edit state immediately
 
 **Regressions:**
 - None
