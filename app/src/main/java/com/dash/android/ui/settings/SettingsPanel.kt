@@ -14,7 +14,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
@@ -33,19 +32,14 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.MainActivity
 import com.dash.android.density.DensityManager
 import com.dash.android.density.DensityPreset
 import com.dash.android.prefs.DashPreferences
-import com.dash.android.ui.scale.DASH_SCALE_MAX
-import com.dash.android.ui.scale.DASH_SCALE_MIN
-import com.dash.android.ui.scale.DASH_SCALE_STEP
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.launch
-import kotlin.math.roundToInt
 
 private val SPLASH_COLOURS = listOf(
     "Black" to 0xFF000000L,
@@ -71,6 +65,7 @@ fun SettingsPanel(
     densityManager: DensityManager,
     onPreviewSplash: () -> Unit,
     onEnterEditMode: () -> Unit,
+    onOpenModules: () -> Unit,
     onOpenSerialMonitor: () -> Unit,
     onExit: () -> Unit,
     onDismiss: () -> Unit
@@ -82,7 +77,6 @@ fun SettingsPanel(
     val currentDpi = remember { densityManager.readCurrentSystemDpi() }
 
     val selectedPreset by prefs.densityPreset.collectAsState(initial = null)
-    val dashScale by prefs.dashScale.collectAsState(initial = 1.0f)
     val autoRotate by prefs.autoRotate.collectAsState(initial = true)
     val lockedOrientation by prefs.lockedOrientation.collectAsState(initial = "LANDSCAPE")
     val splashMode by prefs.splashMode.collectAsState(initial = "COLOUR")
@@ -194,28 +188,6 @@ fun SettingsPanel(
                 }
             }
 
-            // DASH Scale
-            Section("DASH SCALE") {
-                Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(0.dp)) {
-                    SettingButton(label = "−", onClick = {
-                        val next = ((dashScale - DASH_SCALE_STEP).coerceAtLeast(DASH_SCALE_MIN) * 10).roundToInt() / 10f
-                        scope.launch { prefs.saveDashScale(next) }
-                    })
-                    Text(
-                        text = "${"%.1f".format(dashScale)}x",
-                        color = Color.White,
-                        fontSize = 18.sp,
-                        fontFamily = FontFamily.Monospace,
-                        modifier = Modifier.width(72.dp),
-                        textAlign = TextAlign.Center
-                    )
-                    SettingButton(label = "+", onClick = {
-                        val next = ((dashScale + DASH_SCALE_STEP).coerceAtMost(DASH_SCALE_MAX) * 10).roundToInt() / 10f
-                        scope.launch { prefs.saveDashScale(next) }
-                    })
-                }
-            }
-
             // Splash Screen
             Section("SPLASH SCREEN") {
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -264,6 +236,16 @@ fun SettingsPanel(
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
                 ) { Text("CHANGE LAUNCHER →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+            }
+
+            // Modules — discovery and (later) install/enable management. Becomes the Modules tab
+            // when the full settings tree is built in 1.5.x.
+            Section("MODULES") {
+                Button(
+                    onClick = onOpenModules,
+                    colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                ) { Text("MANAGE MODULES →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
             }
 
             // Serial Monitor — persistent transport diagnostic (1.4.x). Migrates into the

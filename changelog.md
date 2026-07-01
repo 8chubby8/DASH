@@ -47,6 +47,50 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.2
+
+**Status:** Complete — bench-verified on the Arduino Uno R4 (Settings → MANAGE MODULES → DISCOVER → the R4 appears in the list by name). Second version of the 1.4.x Transport Layer era.
+
+**Scope note:** Roadmap 1.4.3 (HELLO response parsing) is merged into 1.4.2. As with 1.4.1 combining the transport and the monitor, the two are inseparable for verification: a Module Management screen with a DISCOVER button but a list that can never populate cannot be signed off as working. So the outbound broadcast and the inbound parsing were built together, and the first DISCOVER press produces a real module in the list.
+
+**Two architectural decisions taken here, deliberately ahead of the features that will use them (future-readiness over the easy win):**
+- **Discovery is a user-driven method of installation, not reconnection.** DASH broadcasts `DISCOVER` only when the user presses the button — never on a timer. It is the user's responsibility to ensure a module has booted first. The automatic low-rate re-sweep of *already-installed* modules described in arduino.md §6 is a separate mechanism belonging to reconnection / startup reconciliation (1.4.6). This refines arduino.md's model (which uses DISCOVER at boot for reconciliation too) — the manual install-time sweep and the automatic reconnect sweep are now distinct jobs. arduino.md itself is unchanged; the refinement is recorded here and revisited when 1.4.6 lands.
+- **The message brain is a configurable crossroads, not a funnel.** A new `DashController` is the dispatcher: one inbox (the transport's inbound stream), sort by TYPE word, dispatch to the desk that owns that message type, one outbox. Today exactly one desk is staffed — `Discovery` (`HELLO`); every other TYPE word is ignored for now rather than mishandled (still visible on the wire tap), and adding its desk later is a single new branch in `route()`, never a rewrite. This is the frame for the future *configurable routing* discussed this session: standard signals act by sensible defaults, custom signals fall through to a user-defined desk, and a patch-bay override redirects a signal to Android, to DASH, or back out to another module (Roger's widening of the patch-bay idea beyond CAN to any module input). None of that routing is built now — but the shape here is what lets it plug in without rework.
+
+**Implemented:**
+- `DashController` (`com.dash.android.transport`) — the message brain / dispatcher. Owns its own coroutine scope; `start()` collects the transport's inbound stream and routes each line by TYPE word; `stop()` cancels. Created and owned in `MainScreen` alongside the `TransportManager`, living for the app's life via a `DisposableEffect` (started after / stopped before the transport). Holds the `discovery` desk.
+- `Discovery` — the discovery desk. `discover()` clears the list and broadcasts `DISCOVER` (through `TransportManager.send`, so it shows on the wire tap like any line); `onHello(line)` parses a routed `HELLO` and upserts into an observable `modules: StateFlow<List<DiscoveredModule>>` by module id (a module answering twice appears once). The list is app-lifetime state — it survives closing and reopening the screen; only the next DISCOVER press clears it.
+- `DiscoveredModule` + `parseHello()` — the seed of the `DashMessage` codec (flagged for 1.4.2 in the 1.4.1 outstanding notes). Parses `HELLO|id|type|name|description|version` (arduino.md §2: exactly six pipe-separated fields, one value per field, no embedded delimiters) into a typed value; anything malformed is rejected rather than guessed at, so a corrupt line never becomes a phantom module.
+- `ModuleManagementScreen` (`com.dash.android.ui.modules`) — a full-screen instrument reached from settings, mirroring the Serial Monitor route. A left-aligned DISCOVER button (the first thing you do on the screen) and a live list of discovered modules rendered as cards (name, a colour-coded type chip for SYSTEM / ACCESSORY / LISTENER, description, id, version). Empty-state text guides the user to boot the module and press DISCOVER. The installed-module database (1.4.5) and per-module install/enable actions layer into this same screen later.
+- `TransportManager` made genuinely transport-agnostic (roadmap's "all active transports"). Now holds a `List<DashTransport>` (just USB today; WiFi TCP joins it in 1.4.11 with nothing here to change) rather than a hardwired single transport. `send()` fans out to every *active* (CONNECTED) transport and records each on the wire tap; inbound lines from *all* transports are merged onto the wire tap tagged by origin; `status` aggregates across all transports, reporting the liveliest state present. A new `inbound: SharedFlow<String>` gives the controller a clean one-direction feed distinct from the observation-only `wire` tap (no replay, so a restarted collector never re-processes stale lines as new modules).
+- `SettingsPanel` gains a MODULES section (`MANAGE MODULES →`, wired through a new `onOpenModules` callback exactly like `onOpenSerialMonitor`), placed above the Serial Monitor section. Becomes the Modules tab when the full settings tree is built in 1.5.x.
+- `MainScreen` gains a `showModules` route and renders the `ModuleManagementScreen` overlay, mirroring the existing Serial Monitor overlay.
+- Version bumped: `versionName` 1.4.1 → 1.4.2, `versionCode` 6 → 7.
+
+**Refinements after first bench check:**
+- The single-device status chip was removed from Module Management, and DISCOVER made always-pressable and left-aligned. Reason: DISCOVER broadcasts to *every* module on *every* active transport, so that screen is about the whole bus of modules, not any one device — a "device connected" prompt is the wrong mental model there. Device/connection state belongs to the Serial Monitor and to the Devices view coming in 1.4.10. The Serial Monitor keeps its status chip (honest while there is one device).
+
+**Removed:**
+- The DASH Scale section removed from the Settings panel. It has been parked with no active consumer since 1.3.2 (the scale multiplier was removed from bar height); the control changed a value nothing read. The `dashScale` preference, its persistence, and `LocalDashScale` are all untouched — only the dead UI control is gone. DASH Scale returns as a real control in a later version when there is more than one chrome element for it to scale uniformly.
+
+**Regressions:**
+- None. The transport-manager generalisation is behaviour-preserving with a single USB transport (the Serial Monitor behaves identically); the discovery brain, the Module Management screen, and the MODULES entry point are all additive; the DASH Scale removal touches only dead UI.
+
+**Fixes:**
+- None required.
+
+**Outstanding / deferred (with agreed homes):**
+- **Multi-device support & Devices view → 1.4.10** (just before WiFi TCP, which shifts to 1.4.11). Today the USB transport grabs only the *first* device it finds — DASH cannot see or address multiple physical devices. 1.4.10 adds that, a Devices view of what is physically connected, and device selection in the Serial Monitor (a dropdown). Roger's call to progress the module-lifecycle sequence first; not blocking, since install addresses a module by id and works with one device meanwhile.
+- **USB one-time permission grant → 1.4.x cleanup before 1.5.x.** Currently Android re-prompts for USB permission on every replug (the runtime grant dies on detach). A `USB_DEVICE_ATTACHED` intent-filter + `device_filter.xml` (standard serial VIDs) turns that into a one-time "use by default" grant that survives replug and reboot. Android forbids zero-consent for a sideloaded app, so one-and-done is the floor on Bronze; it is silent anyway on the system-app production board. Deferred deliberately — understood, tolerable for now.
+- **Standard system command vocabulary** — a formal list of known signals a module can send that the brain acts on by default (media keys, voice, volume, alongside the existing headlights/reverse). To be drafted in arduino.md "soon, carefully" — contract-level, so not rushed. Not started.
+- Next feature: **1.4.4 — install handshake** (`INSTALL|id` → declarations → `INSTALL_END|id`), which takes the R4 from *found* to *set up*.
+
+**Notes:**
+- The controller reads the transport's `inbound` stream, not the `wire` tap, on purpose: the wire tap is a read-only observation surface (for the monitor and a future SDK logger element) and carries replay; the brain is the primary consumer and must not re-process replayed history as fresh discoveries.
+- The two architectural decisions, the patch-bay/standard-vocabulary direction, and the "record only after verification" working rule are banked in project memory so future sessions inherit the reasoning rather than reconstructing it.
+
+---
+
 ## Version 1.4.1
 
 **Status:** Complete — bench-verified on real hardware (Arduino Uno R4). First version of the 1.4.x Transport Layer era.
