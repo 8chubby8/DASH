@@ -10,6 +10,37 @@ This document serves two audiences.
 
 ---
 
+## ⚠️ Protocol Grammar Superseded — See `arduino/arduino.md`
+
+*Status note added 2026-07-01.*
+
+**The message grammar and handshake described in this document have been superseded.** Across several design sessions between 2026-06-22 and 2026-06-30 the DASH Module SDK was reworked in detail in the working record **`arduino/arduino.md`**, which is now the authoritative wire format. Both the steering-wheel reference firmware (`x-type_steeringwheel/`) and the DASH transport layer being built in roadmap 1.4.x target `arduino.md` — **not** the older format still written below.
+
+The old grammar is **left in place on purpose.** It is our working — it records how the protocol reached its current shape, and why. Do not implement from it. When you need the wire format, go to `arduino/arduino.md`.
+
+**What changed (old → new):**
+
+| This document (superseded) | `arduino/arduino.md` (authoritative) |
+|---|---|
+| `DASH:DISCOVER` | `DISCOVER` |
+| six-field discovery line `TRANSPORT\|ID\|NAME\|TYPE\|DESC\|VERSION` | `HELLO\|id\|type\|name\|description\|version` — transport field dropped (DASH knows it from the connection); field order changed |
+| `SYSTEM:function:value` | `BROADCAST\|id\|function\|value` |
+| `MODULE:moduleID:variable:value` | `REPORT\|id\|variable\|value` |
+| `MODULE:moduleID:TRIGGER:name` | `TRIGGER\|id\|name` |
+| `DASH:INSTALL:moduleID` | `INSTALL\|id` |
+| `SYSTEM_SIGNALS:sig1,sig2` (comma list) | one `SYSTEM_SIGNAL\|id\|function` line per signal — no comma lists anywhere |
+| `RELAY_SIGNALS:…` + `DASH:RELAY:SYSTEM:function:value` | `SUBSCRIBE\|id\|function\|…` at install + `LISTEN\|id\|function\|value` at runtime |
+| module types `SYSTEM / ACCESSORY / HYBRID` | `SYSTEM / ACCESSORY / LISTENER` — **HYBRID retired** (several jobs = several independent modules) |
+| colon `:` delimiter | pipe `\|` delimiter — positional fields, parsed by one plain split |
+
+**Also changed conceptually:** every message now carries the module `id` in field 2 (only `DISCOVER` is exempt), which retired the RS485 address-prefix special case; acknowledgements are `ROGER`; and a board doing several jobs presents several independent modules rather than one HYBRID.
+
+**What in this document still stands:** the Core Philosophy (transport agnosticism), the Supported Transports catalogue, the CAN Patch Bay, Startup Reconciliation *as a concept* (its message names are superseded), and the Key Principles Summary. Only the concrete **message grammar, discovery response, module-type list, installation handshake, and system-message relay format** below are superseded.
+
+When the SDK is finally locked, the `arduino.md` rules will be promoted into this document on Roger's express instruction, and this note removed.
+
+---
+
 ## Core Philosophy
 
 DASH does not care how a message arrives. It only cares what the message says.

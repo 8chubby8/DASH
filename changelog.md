@@ -47,6 +47,37 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.1
+
+**Status:** Complete — bench-verified on real hardware (Arduino Uno R4). First version of the 1.4.x Transport Layer era.
+
+**Scope note:** The ten-piece transport breakdown from roadmap 1.4.x is being built one piece per version (1.4.1 → 1.4.10). 1.4.1 deliberately combines the first two pieces — the transport interface and the USB serial transport — plus the Serial Monitor, because a transport foundation that cannot be seen working cannot be verified. Every later piece (discovery, handshake, routing…) is verified through the monitor built here.
+
+**Wire format:** Built against the ratified module grammar in `arduino/arduino.md` (pipe-separated `TYPE|id|…`), not the superseded colon grammar still shown in `transport.md` (see the banner note added to `transport.md` on 2026-07-01).
+
+**Implemented:**
+- New `com.dash.android.transport` package. `DashTransport` — the pluggable transport abstraction (roadmap 1.4.1): a dumb pipe that moves whole UTF-8 lines in/out and knows nothing of their meaning, exposing `incoming: Flow<String>`, a `status: StateFlow<TransportStatus>`, and `start`/`send`/`stop`. This is the contract WiFi TCP and every future transport implement.
+- `LineAssembler` — reassembles the inbound byte stream into complete lines, mirroring the firmware framing exactly (arduino.md §1): line ends at `\n`, stray `\r` tolerated and dropped, over-long lines discarded, bytes decoded as UTF-8 only once a full line has arrived so multi-byte chars split across reads survive.
+- `UsbSerialTransport` on the usb-serial-for-android library. Fixed parameters 115200 8N1 (the known module profile — nothing to configure), DTR and RTS asserted on open (see Fixes). Auto-connects when a device is present via a low-rate re-sweep, requests USB permission on demand, and closes on detach. Absence of a device is a normal `NO_DEVICE` state, not a fault; denied permission and open failures degrade to `PERMISSION_REQUIRED`/`ERROR` without crashing — the capability-detection / graceful-degradation pattern. Falls back to treating an attached device as CDC-ACM when the built-in VID/PID table doesn't list it (covers Arduino boards not in the default prober set).
+- `WireEvent` + `TransportManager` — the manager owns the transport(s) and exposes the read-only "wire tap" arduino.md calls for: a `SharedFlow<WireEvent>` of every line in/out, tagged and timestamped, with `replay = 200` so a newly-opened monitor immediately shows recent history. `send()` records the outbound line on the tap and forwards it to the transport.
+- `SerialMonitorScreen` (`com.dash.android.ui.monitor`) — full-screen dev instrument reached from the settings panel, mirroring the system-bar edit-workspace route. Live scrolling log with direction arrows (→ out / ← in), timestamps, and TYPE-word colour-coding; PAUSE (freezes auto-scroll and capture) and CLEAR; a status chip reading the transport state; and a send box to type a line to the module (e.g. `DISCOVER` → watch `HELLO|…` return) before any handshake automation exists. It is a pure *view* onto the wire — it never owns the connection.
+- `TransportManager` is created and owned in `MainScreen` (`start`/`stop` via `DisposableEffect`), so the connection persists for the life of the running app regardless of whether the monitor is open. `SettingsPanel` gains a SERIAL MONITOR section with an OPEN SERIAL MONITOR button, wired through a new `onOpenSerialMonitor` callback exactly like `onEnterEditMode`.
+- Build plumbing: JitPack repository added to `settings.gradle.kts`; `usb-serial-for-android:3.9.0` and `kotlinx-coroutines-android:1.8.1` added to the version catalog and app dependencies; `<uses-feature android:name="android.hardware.usb.host" android:required="false" />` added to the manifest (keeps DASH installable on non-OTG devices — the transport simply reports NO DEVICE). `versionName` corrected from a stale `1.3.5` to `1.4.1`, `versionCode` 5 → 6.
+
+**Regressions:**
+- None. The transport is additive and self-contained; existing screens are untouched except for the new settings section and the monitor overlay.
+
+**Fixes (all found during bench testing against the Arduino Uno R4, and fixed before sign-off):**
+- **No data received despite a CONNECTED status.** `DISCOVER` went out and the board — proven to reply via a Play Store serial monitor — stayed silent. Root cause: DTR and RTS were never asserted on the port. Many USB-CDC bridges (the R4 WiFi's on-board ESP32-S3 among them) gate data flow until the host raises those control lines, so the port opened but the wire stayed dead. Fixed by asserting `setDTR(true)`/`setRTS(true)` immediately after `setParameters`, wrapped in its own `runCatching` so a driver that doesn't support the lines still connects. This was the difference between DASH and the working terminal app, which asserts DTR by default.
+- **Hot-plug never connected; permission was never requested.** Plugging the R4 in while DASH was already running did nothing, yet connecting *before* launch worked. Root cause: the hot-plug path depended on the `ACTION_USB_DEVICE_ATTACHED` broadcast, which is unreliable for runtime-registered receivers, so DASH never noticed the device had arrived and never asked for permission. Fixed by not depending on that broadcast at all: a low-rate re-sweep (`RESWEEP_MS` = 1500) re-scans for a device whenever disconnected — which is exactly the "low-rate re-sweep" arduino.md §6 already specifies, so it also covers slow-booting modules. A per-device guard (`pendingPermissionDevice`) ensures permission is requested only once per device rather than on every sweep tick, and `connectFirstAvailable`/`closeConnection` are `@Synchronized` since the sweep and the USB broadcasts run on different threads. A denied permission is deliberately not re-prompted until the device is physically replugged.
+- **Keyboard hid the Serial Monitor.** Tapping the send box panned the whole screen up and the log (and often the send box itself) disappeared behind the keyboard. Root cause: with edge-to-edge enabled the window pans rather than resizes for the IME. Fixed with `Modifier.imePadding()` on the monitor's root column so the `weight(1f)` log area shrinks and the send box lifts to sit just above the keyboard, plus `android:windowSoftInputMode="adjustResize"` on the activity as a cross-OEM belt-and-braces.
+
+**Outstanding:**
+- `TransportManager` is tied to `MainScreen`'s composition lifetime; an activity recreation (e.g. rotation with auto-rotate on) recreates it and reconnects. Acceptable for a dev instrument; revisit if the transport needs Application/Service scope later.
+- No protocol parsing yet by design — the monitor colour-codes by TYPE word for display only. The `DashMessage` codec and the discovery/handshake state machine begin in 1.4.2.
+
+---
+
 ## Version 1.3.13
 
 **Status:** Complete

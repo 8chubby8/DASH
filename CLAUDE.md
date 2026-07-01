@@ -124,6 +124,11 @@ Defines everything about how DASH communicates with modules and the outside worl
 
 **Do not change this document without explicit discussion. It is the contract between DASH and every module ever built for it. Changing it breaks compatibility.**
 
+### arduino/arduino.md — The Module SDK Working Record
+The living definition of the DASH Module SDK — the complete, plain-language rules any module (built-in or community) follows to talk to DASH. It covers the message grammar, the three module types (SYSTEM / ACCESSORY / LISTENER), the discovery and install handshake, the lifecycle, asset transfer, and the subscribe/deliver (stream) and panel round-trip models. It begins with a cheat-sheet of every message. It matters because it is the concrete contract every module ever built will follow, the conformance spec for the not-yet-built transport layer (roadmap 1.4.x), and the living proof of the SDKable principle — built-in modules get no access a community builder couldn't have. Read it before any module, firmware, or transport work.
+
+**A working record, not a locked Bible — updated freely as the SDK design progresses. Nothing in it changes transport.md; once the SDK is locked the agreed rules are promoted into transport.md (on Roger's express instruction) or a dedicated module-rules document.**
+
 ### interface.md — The Interface Bible
 Defines everything about how DASH looks and behaves. The three layer architecture, density and scale, the system bar and zone system, elements and the element SDK, the viewport and its three modes, the module panel, the app launcher, overlays and the overlay SDK, the navigation model, the settings panel and its full tree, soft limits and hard floors, and the eight design principles. If it involves anything the user sees or interacts with, the answer is in interface.md.
 
@@ -159,7 +164,7 @@ Refer to roadmap.md for the current version and active feature. Refer to changel
 1. Read this document fully
 2. Read the current version entry in changelog.md — understand what is outstanding
 3. Check roadmap.md — confirm which feature is currently being worked on
-4. Read the relevant section of transport.md or interface.md for the feature being implemented
+4. Read the relevant section of transport.md or interface.md for the feature being implemented — and arduino/arduino.md for any module, firmware, or transport work
 5. Begin work
 
 Do not skip step 4. The reference documents exist precisely so that implementation matches the agreed design. If something in the reference documents seems wrong or incomplete, raise it — do not work around it silently.

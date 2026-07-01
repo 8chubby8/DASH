@@ -54,9 +54,11 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.dash.android.MainActivity
 import com.dash.android.density.DensityManager
 import com.dash.android.prefs.DashPreferences
+import com.dash.android.transport.TransportManager
 import com.dash.android.ui.debug.DiagnosticOverlay
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.LocalDashScale
+import com.dash.android.ui.monitor.SerialMonitorScreen
 import com.dash.android.ui.settings.SettingsPanel
 import com.dash.android.ui.theme.DashColors
 import com.dash.android.ui.theme.LocalDashTheme
@@ -77,9 +79,18 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val prefs = remember { DashPreferences(context) }
     val scope = rememberCoroutineScope()
 
+    // Transport layer (1.4.1). Owned here so the connection persists for the life of the running
+    // app, independent of whether the Serial Monitor is open — the monitor only observes the wire.
+    val transport = remember { TransportManager(context) }
+    DisposableEffect(transport) {
+        transport.start()
+        onDispose { transport.stop() }
+    }
+
     var isDefaultLauncher by remember { mutableStateOf(mainActivity.isDefaultLauncher()) }
     var showSplash by remember { mutableStateOf(isColdBoot) }
     var showSettings by remember { mutableStateOf(false) }
+    var showSerialMonitor by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
     var editConfig by remember { mutableStateOf<SystemBarConfig?>(null) }
     var elementWidths by remember { mutableStateOf(mapOf<String, Int>()) }
@@ -434,12 +445,25 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         editMode = true
                         showSettings = false
                     },
+                    onOpenSerialMonitor = {
+                        showSerialMonitor = true
+                        showSettings = false
+                    },
                     onExit = {
                         densityManager.resetToDefault()
                         activity.finish()
                         exitProcess(0)
                     },
                     onDismiss = { showSettings = false }
+                )
+            }
+
+            // Serial Monitor overlay — full-screen dev instrument, reached from settings
+            // (mirrors the edit-workspace route). Closing returns to the main screen.
+            if (showSerialMonitor) {
+                SerialMonitorScreen(
+                    transport = transport,
+                    onDismiss = { showSerialMonitor = false }
                 )
             }
 

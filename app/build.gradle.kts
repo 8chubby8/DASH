@@ -13,8 +13,8 @@ android {
         applicationId = "com.dash.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 5
-        versionName = "1.3.5"
+        versionCode = 6
+        versionName = "1.4.1"
     }
 
     buildTypes {
@@ -45,5 +45,7 @@ dependencies {
     implementation(libs.androidx.material3)
     implementation(libs.androidx.datastore.preferences)
     implementation(libs.kotlinx.serialization.json)
+    implementation(libs.kotlinx.coroutines.android)
+    implementation(libs.usb.serial)
     debugImplementation(libs.androidx.ui.tooling)
 }

@@ -71,6 +71,7 @@ fun SettingsPanel(
     densityManager: DensityManager,
     onPreviewSplash: () -> Unit,
     onEnterEditMode: () -> Unit,
+    onOpenSerialMonitor: () -> Unit,
     onExit: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -263,6 +264,16 @@ fun SettingsPanel(
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
                 ) { Text("CHANGE LAUNCHER →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+            }
+
+            // Serial Monitor — persistent transport diagnostic (1.4.x). Migrates into the
+            // Transports/Developer tab when the full settings panel is built in 1.5.x.
+            Section("SERIAL MONITOR") {
+                Button(
+                    onClick = onOpenSerialMonitor,
+                    colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                ) { Text("OPEN SERIAL MONITOR →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
             }
 
             // Exit

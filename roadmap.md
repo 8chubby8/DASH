@@ -131,17 +131,19 @@ Every version increment — including third number refinements — must have a c
 
 **What it is:** The communication backbone that allows modules to connect, identify themselves, and send data to DASH.
 
-**What gets built:**
-- Transport interface — the pluggable transport abstraction
-- USB serial transport using usb-serial-for-android library
-- Discovery broadcast — DASH:DISCOVER sent on all active transports
-- Module discovery response parsing — six field format
-- Installation handshake — DASH:INSTALL:moduleID and module response handling
-- Module database — save installed modules to disk
-- Startup reconciliation — broadcast on boot, Active and Dormant state management
-- System message routing — SYSTEM:function:value parsed and dispatched
-- Module message routing — MODULE:moduleID:variable:value parsed and dispatched
-- WiFi TCP transport — DASH TCP server, module client connections
+**Wire format note:** This layer is built against the ratified module grammar in `arduino/arduino.md` (pipe-separated `TYPE|id|…`), which supersedes the older colon grammar (`DASH:DISCOVER`, `SYSTEM:function:value`, …) still shown in the body of `transport.md`. See the banner note at the top of `transport.md` (added 2026-07-01) for the full old→new mapping. The message names below have been updated to the current grammar.
+
+**Build order — one piece per version (1.4.1 → 1.4.10):**
+- **1.4.1** — Transport interface (pluggable abstraction) **+** USB serial transport (usb-serial-for-android) **+** Serial Monitor. *(Combined: a transport foundation must be visible to be verifiable. The Serial Monitor — a persistent dev instrument reached from settings — is the diagnostic surface every later piece is verified through.)* **(Complete — 1.4.1, bench-verified on Arduino Uno R4: `DISCOVER` → `HELLO` round-trip confirmed.)**
+- **1.4.2** — Discovery broadcast — `DISCOVER` sent on all active transports
+- **1.4.3** — Discovery response parsing — `HELLO|id|type|name|description|version`
+- **1.4.4** — Installation handshake — `INSTALL|id` → type-specific declarations → `INSTALL_END|id`
+- **1.4.5** — Module database — save installed modules to disk
+- **1.4.6** — Startup reconciliation — boot broadcast, Active/Dormant management, `ACTIVATE`/`DEACTIVATE` + `ROGER` acknowledgement
+- **1.4.7** — System message routing — `BROADCAST|id|function|value` parsed and dispatched into the sourceless core
+- **1.4.8** — LISTENER streams — `SUBSCRIBE` at install, `LISTEN` delivery, with rate/threshold/gate evaluated in DASH (arduino.md §9)
+- **1.4.9** — Module message routing — `REPORT|id|variable|value` parsed and dispatched (renders in the module panel once that exists in 1.6.x; dispatches to the monitor until then)
+- **1.4.10** — WiFi TCP transport — DASH TCP server, module client connections (proves the 1.4.1 abstraction is genuinely transport-agnostic)
 
 **Why fourth:** The module panel in 1.5.x needs live data to be useful. Building transport first means module panel testing is immediately meaningful rather than working with dummy data.
 
