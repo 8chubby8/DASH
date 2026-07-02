@@ -15,10 +15,11 @@ import kotlinx.coroutines.launch
  * the same pipe.
  *
  * This is the *frame*, built ahead of the features it will hold — the roadmap fills the desks one per
- * version (install handshake 1.4.4, reconciliation 1.4.6, system-message routing 1.4.7, module data
- * 1.4.9…). Today exactly one desk is staffed: [discovery] (`HELLO`). Every other TYPE word is
- * deliberately ignored for now rather than mishandled — it still shows on the wire tap, so nothing is
- * lost, and adding its desk later is a single new branch in [route], never a rewrite.
+ * version (reconciliation 1.4.6, system-message routing 1.4.7, module data 1.4.9…). Two desks are
+ * staffed today: [discovery] (`HELLO`) and [install] (the handshake — `SYSTEM_SIGNAL` / `SUBSCRIBE` /
+ * `MANIFEST` / asset blocks / `INSTALL_END`, roadmap 1.4.4). Every other TYPE word is deliberately
+ * ignored for now rather than mishandled — it still shows on the wire tap, so nothing is lost, and
+ * adding its desk later is a single new branch in [route], never a rewrite.
  *
  * Future direction (see the transport-brain design notes): routing becomes *configurable* — standard
  * signals act by sensible defaults, custom signals fall through to a user-defined desk, and a
@@ -32,13 +33,24 @@ class DashController(private val transport: TransportManager) {
     /** The discovery desk. Broadcasts DISCOVER on the user's command and collects the HELLO replies. */
     val discovery = Discovery(broadcast = transport::send)
 
+    /** The install desk. Runs the install handshake for a module the user chose from the discovery list. */
+    val install = Install(
+        send = transport::send,
+        identityOf = { id -> discovery.modules.value.firstOrNull { it.id == id } }
+    )
+
     private var started = false
 
     fun start() {
         if (started) return
         started = true
         scope.launch {
-            transport.inbound.collect { line -> route(line) }
+            transport.inbound.collect { frame ->
+                when (frame) {
+                    is Inbound.Line -> route(frame.text)
+                    is Inbound.Block -> install.onBlock(frame)   // asset payload → straight to the desk
+                }
+            }
         }
     }
 
@@ -46,7 +58,13 @@ class DashController(private val transport: TransportManager) {
     private fun route(line: String) {
         when (line.substringBefore('|').trim()) {
             "HELLO" -> discovery.onHello(line)
-            // No desk for these TYPE words yet — added one per version. Still visible on the wire tap.
+            "SYSTEM_SIGNAL" -> install.onSignal(line)
+            "SUBSCRIBE" -> install.onSubscribe(line)
+            "MANIFEST" -> install.onManifest(line)
+            "INSTALL_END" -> install.onInstallEnd(line)
+            // BLOCK headers arrive as Inbound.Block (header + bytes together), so no branch is needed
+            // here; they still show on the wire tap. No desk for other TYPE words yet — added one per
+            // version.
             else -> Unit
         }
     }

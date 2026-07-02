@@ -58,29 +58,38 @@ class TransportManager(context: Context) {
     val wire: SharedFlow<WireEvent> = _wire.asSharedFlow()
 
     /**
-     * The primary inbound message stream (module → DASH) the controller/brain consumes and routes.
-     * Distinct from [wire]: [wire] is a read-only *observation* tap for the monitor (and a future SDK
-     * logger) carrying both directions with replay; this is the live one-direction feed for the brain,
-     * with no replay so a restarted collector never re-processes stale lines as new modules.
+     * The primary inbound stream (module → DASH) the controller/brain consumes and routes — framed
+     * [Inbound] units (lines and asset blocks), in order. Distinct from [wire]: [wire] is a read-only
+     * *observation* tap for the monitor (and a future SDK logger) carrying both directions as text with
+     * replay; this is the live one-direction feed for the brain, with no replay so a restarted
+     * collector never re-processes stale frames as new modules.
      */
-    private val _inbound = MutableSharedFlow<String>(
+    private val _inbound = MutableSharedFlow<Inbound>(
         extraBufferCapacity = 256,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val inbound: SharedFlow<String> = _inbound.asSharedFlow()
+    val inbound: SharedFlow<Inbound> = _inbound.asSharedFlow()
 
     private var started = false
 
     fun start() {
         if (started) return
         started = true
-        // Merge inbound lines from every transport onto the wire tap (module → DASH), each tagged
-        // with the pipe it arrived on.
+        // Merge inbound frames from every transport onto the wire tap (module → DASH), each tagged
+        // with the pipe it arrived on. A block renders as its header line plus a readable byte-count
+        // note — never the raw payload as text, which would spew binary into the monitor.
         transports.forEach { t ->
             scope.launch {
-                t.incoming.collect { line ->
-                    _wire.tryEmit(WireEvent(System.currentTimeMillis(), WireDirection.IN, t.tag, line))
-                    _inbound.tryEmit(line)
+                t.incoming.collect { frame ->
+                    val now = System.currentTimeMillis()
+                    when (frame) {
+                        is Inbound.Line -> _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.text))
+                        is Inbound.Block -> {
+                            _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.header))
+                            _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.note))
+                        }
+                    }
+                    _inbound.tryEmit(frame)
                 }
             }
         }

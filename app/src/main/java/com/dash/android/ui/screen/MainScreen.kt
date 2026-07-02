@@ -477,6 +477,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             if (showModules) {
                 ModuleManagementScreen(
                     discovery = controller.discovery,
+                    install = controller.install,
                     onDismiss = { showModules = false }
                 )
             }

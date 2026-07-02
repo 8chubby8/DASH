@@ -256,6 +256,43 @@ per the §3 fallback.)
 module declares at install matches it — `SYSTEM_SIGNAL` lines (SYSTEM), panel/icon
 `BLOCK`s (ACCESSORY), `SUBSCRIBE` lines (LISTENER).
 
+## 4b. State reporting (SYSTEM modules)
+
+A SYSTEM module does not only report *changes* — it reports **current state**, on
+two occasions, so the controller's state store is never guessing.
+
+**On activation — the full dump.** When DASH sends `ACTIVATE|id`, the module
+immediately replies (alongside its `ROGER|id|activate`) with the current value of
+**every** signal it manages, each as an ordinary `BROADCAST|id|function|value`.
+This is a full state dump, not a change notification: the module reports what it
+currently sees whether or not anything has changed. It closes the gap where a
+signal's value would otherwise be unknown until the next time it happened to
+change — e.g. a door that was already open before the module came online.
+
+**Periodic heartbeat.** Independent of any change, a SYSTEM module re-sends its
+current signal values at a regular interval — **recommended every 5 seconds**.
+Again this is a state report, not a change notification. The module never has to
+track whether a value changed; it simply reports current state on the heartbeat.
+
+**The controller owns change detection.** For both the dump and the heartbeat,
+DASH compares each incoming value against its state store: if it differs, DASH
+updates the store and fires an event; if it is the same, DASH does nothing. All
+change-detection logic lives in the controller, not the module. This keeps the
+module dumb and stateless (it reads its inputs and reports them) and makes the
+store **self-healing** — a value missed during a brief disconnect is corrected
+within one heartbeat. It is the same self-healing property §6 notes for live data,
+now guaranteed on an interval rather than left to chance.
+
+Both the dump and the heartbeat apply to **stateful** signals only — the
+store-and-event and store-only kinds (§5a). Momentary **event-only** controls
+have no current value, so they are never dumped and never heartbeated; they fire
+only live, on the press.
+
+**The library handles it.** Both behaviours are built into the module firmware
+library — the builder writes neither. A community SYSTEM module gets the
+on-activation dump and the heartbeat for free, exactly as a built-in one does
+(SDKable).
+
 ## 5. The two layers inside DASH (source-awareness)
 
 - **Receiving layer (gatekeeper)** — what the connections plug into. It is
@@ -274,6 +311,67 @@ DASH-internal detail, invisible to the module).
 This is why there is no RS485 special case: because **every** message carries the
 id, a shared bus is handled exactly like any other transport. The earlier
 "add an address prefix only on RS485" idea is **superseded** by uniform ids.
+
+## 5a. Controller architecture (the state store & the three behaviours)
+
+This is DASH-side, not module-side — but it is recorded here because it is the
+other half of the `BROADCAST` contract, and because it settles exactly what a
+SYSTEM module's signals *mean* once they arrive. **`system_commands.md` is the
+authoritative signal vocabulary and behaviour reference** — the master list of
+every standard signal, its value type, and which of the three behaviours below it
+uses. This section describes how the controller acts on that list.
+
+**Three behaviours, chosen by the signal — never by the module.** Every incoming
+`BROADCAST` is handled in one of three ways, determined by the signal's type in
+`system_commands.md`. The module neither knows nor declares which — it just sends
+its value; the controller looks the behaviour up.
+
+- **Store and event** — boolean and multi-state signals (`door_driver_open`,
+  `gear_position`, `ignition_state`…). The controller updates the state store
+  **and** fires an event in one step. The interface can react immediately to the
+  event or query the store at any time for the current value.
+- **Store only** — continuous signals (`vehicle_speed`, `steering_angle`,
+  `engine_rpm`, `fuel_level`, `coolant_temp`, `ambient_temp`, `ambient_light`,
+  `charge_level`). The value updates silently in the store on each new reading; no
+  event fires. Interface components that need these read the store directly at
+  whatever rate they choose. Firing events on high-frequency continuous signals
+  would flood listeners for no benefit.
+- **Event only** — momentary control signals (`media_next`, `media_prev`,
+  `media_play_pause`, `media_volume_up`, `media_volume_down`, `voice_activate`,
+  `button_home_pressed`). No value travels with these — the message *is* the whole
+  content. The controller fires the event and forgets it; nothing is stored,
+  because there is no state to maintain.
+
+**The wire is always event-driven; the three behaviours are internal.** Every
+signal reaches the controller as a message — the store/event distinction is
+entirely inside DASH and is **never expressed on the wire**. A builder never
+declares a behaviour. This is what keeps modules dumb and the vocabulary
+authoritative.
+
+**Event-only signals carry no value field.** A momentary control on the wire is
+just:
+
+```
+BROADCAST|id|media_next
+```
+
+No value field — its absence is the signal. (This is the "trailing fields
+optional" rule from the cheat sheet doing real work: the controller sees no value
+and knows immediately this is event-only.) State and event signals always carry a
+value:
+
+```
+BROADCAST|id|door_driver_open|true
+BROADCAST|id|gear_position|reverse
+```
+
+**The state store.** The controller keeps a persistent in-memory store — the
+current known value of every *stateful* signal (store-and-event and store-only)
+received since DASH started. The interface reads current values straight from it.
+It is populated on module activation by the state dump and kept current by the
+periodic heartbeat (§4b). If DASH restarts, the store is empty until modules
+report in — which the on-activation dump guarantees they do the moment they go
+active. Event-only controls never enter the store; they have no state to hold.
 
 ## 6. Module lifecycle
 
@@ -688,3 +786,48 @@ the canonical SYSTEM build the plan called for: full core loop, no payload.
 - **DASH-side reality noted:** the transport layer is roadmap 1.4.x and not yet
   built, so near-term the firmware is proven on the bench (serial monitor / a
   mock-DASH transcript). Real in-app integration lands with 1.4.x.
+
+### Session — 2026-07-02
+**State reporting made explicit for SYSTEM modules** (added as §4b). Two
+behaviours agreed as protocol requirements:
+- **On-activation full dump** — after `ACTIVATE|id`, the module immediately
+  `BROADCAST`s the current value of every signal it manages, changed or not, so
+  the state store is fully populated the moment the module comes online (no gap
+  for a state that changed before the module booted).
+- **Periodic heartbeat** — the module re-reports all current signal values on a
+  regular interval (recommended 5 s), independent of whether anything changed.
+- **Change detection lives in the controller, not the module.** DASH compares
+  each incoming value to its state store, updates and fires an event only on a
+  difference, and ignores a match. The module stays dumb and stateless; the
+  firmware library provides both behaviours so the builder writes neither.
+- **Vocabulary note:** the incoming instruction referred to a `SYSTEM_TX`
+  message; that name was retired to `BROADCAST` in the 2026-06-25 sitting, so the
+  state reports are ordinary `BROADCAST|id|function|value` lines. Recorded here so
+  the older term isn't reintroduced. *(Roger's notes, from a design conversation.)*
+
+### Session — 2026-07-02 (second sitting)
+**Controller architecture agreed — the three-behaviour model** (added as §5a).
+The controller acts on every incoming `BROADCAST` in one of three ways, chosen by
+the signal's type in `system_commands.md`, never by the module:
+- **Store and event** — booleans/multi-state: update the store *and* fire an event.
+- **Store only** — continuous signals: update the store silently, fire nothing
+  (firing on high-frequency values would flood listeners).
+- **Event only** — momentary controls: fire and forget, store nothing.
+Decisions banked:
+- **The wire is always event-driven.** The three-way distinction is entirely
+  internal to DASH and is *never* expressed on the wire; a builder never declares
+  a behaviour. Keeps modules dumb and `system_commands.md` authoritative.
+- **Event-only signals carry no value field** — `BROADCAST|id|media_next`. The
+  absence of a value *is* the signal; the controller reads it via the cheat
+  sheet's "trailing fields optional" rule. Stateful signals always carry a value.
+- **The state store** holds the current value of every stateful signal since DASH
+  started, populated by the on-activation dump and kept fresh by the heartbeat
+  (§4b); empty after a DASH restart until modules report in. Event-only controls
+  never enter it.
+- **§4b tightened:** the dump and heartbeat apply to stateful signals only —
+  event-only controls have no state to dump or heartbeat.
+- **Vocabulary note (again):** the incoming instruction wrote `SYSTEM_TX`
+  throughout; rendered as `BROADCAST` per the 2026-06-25 rename.
+- **`system_commands.md`** named the authoritative signal vocabulary & behaviour
+  reference. No formal references list exists in this doc, so the citation lives
+  in §5a rather than in a list of its own.

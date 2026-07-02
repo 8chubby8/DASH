@@ -9,7 +9,8 @@ import android.hardware.usb.UsbDevice
 import android.hardware.usb.UsbManager
 import androidx.core.content.ContextCompat
 import com.dash.android.transport.DashTransport
-import com.dash.android.transport.LineAssembler
+import com.dash.android.transport.FrameAssembler
+import com.dash.android.transport.Inbound
 import com.dash.android.transport.TransportState
 import com.dash.android.transport.TransportStatus
 import com.hoho.android.usbserial.driver.CdcAcmSerialDriver
@@ -51,8 +52,8 @@ class UsbSerialTransport(
 
     override val tag: String = "usb"
 
-    private val _incoming = MutableSharedFlow<String>(extraBufferCapacity = 128)
-    override val incoming: SharedFlow<String> = _incoming.asSharedFlow()
+    private val _incoming = MutableSharedFlow<Inbound>(extraBufferCapacity = 128)
+    override val incoming: SharedFlow<Inbound> = _incoming.asSharedFlow()
 
     private val _status = MutableStateFlow(TransportStatus.NO_DEVICE)
     override val status: StateFlow<TransportStatus> = _status.asStateFlow()
@@ -63,8 +64,9 @@ class UsbSerialTransport(
     // The device we've already asked permission for, so the re-sweep doesn't re-prompt every tick.
     private var pendingPermissionDevice: UsbDevice? = null
 
-    // The IO thread feeds bytes in; completed lines are published to the incoming flow.
-    private val assembler = LineAssembler { line -> _incoming.tryEmit(line) }
+    // The IO thread feeds bytes in; completed frames (lines and asset blocks) are published to the
+    // incoming flow. The assembler decides line-vs-block framing synchronously on that same thread.
+    private val assembler = FrameAssembler { frame -> _incoming.tryEmit(frame) }
 
     private var started = false
 
@@ -198,6 +200,9 @@ class UsbSerialTransport(
             serialPort.setRTS(true)
         }
         port = serialPort
+        // Fresh framing state for the new connection — a previous session that dropped mid-block
+        // must not bleed its raw-mode state into this one. Safe here: the IO manager isn't running yet.
+        assembler.reset()
         ioManager = SerialInputOutputManager(serialPort, this).also { it.start() }
         _status.value = TransportStatus(TransportState.CONNECTED, "CDC @ $BAUD_RATE 8N1")
     }

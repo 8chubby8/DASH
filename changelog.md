@@ -47,6 +47,49 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.4
+
+**Status:** Complete — bench-verified on the Arduino Uno R4 (Settings → MANAGE MODULES → DISCOVER → INSTALL → the pane runs a progress bar, turns green, and DETAILS shows the captured declarations). Third version of the 1.4.x Transport Layer era. Roadmap 1.4.3 was already merged into 1.4.2, so this is the next number.
+
+**Scope note:** all three declaration parsers were built in one version — SYSTEM (`SYSTEM_SIGNAL`), LISTENER (`SUBSCRIBE`), and ACCESSORY (`MANIFEST` + asset `BLOCK`s) — rather than SYSTEM-only. The verify-on-hardware rule normally argues against building parsers with no module to exercise them, but Roger is writing LISTENER and ACCESSORY reference modules to flash onto the R4, so all three paths get real bytes before the version is signed off. The install handshake takes a module from *found* (1.4.2) to *set up*: DASH sends `INSTALL|id`, reads the type-specific declarations, and commits them on `INSTALL_END|id`.
+
+**Design decisions taken this session (ahead of the features that use them):**
+- **The install desk is the controller's first stateful and first bidirectional desk.** Discovery is fire-and-collect (each `HELLO` self-contained); an install is a *conversation* — opened by DASH sending `INSTALL`, fed by a run of declaration lines, closed by `INSTALL_END`. State lives in the desk (`Install`), not the controller, which stays a thin dispatcher — the patch-bay-not-a-funnel shape holding under its first real test. Sessions are keyed by module id in a map: the UI drives one install at a time, but the wire is id-addressed (arduino.md §2), so the frame supports many in flight for nothing.
+- **Framing belongs to the transport; meaning belongs to the desk.** An asset `BLOCK|id|name|length|crc` is followed by exactly `length` raw bytes that may contain `\n` — so the reader must stop line-framing and read a byte count, then resume. This switch is made *synchronously inside the byte loop on the IO thread*: any asynchronous decision above the assembler would arrive after the payload had already been mis-framed as lines. The assembler does length-framing only (where does the unit end); the desk does CRC validation and record assembly (what the unit means).
+
+**Implemented:**
+- `Install` (`com.dash.android.transport`) — the install desk. `install(id)` opens an `InstallSession` (seeded from the module's discovery identity) and sends `INSTALL|id`; `onSignal` / `onSubscribe` / `onManifest` / `onBlock` feed the open session; `onInstallEnd` commits it to an `InstalledModule`; `uninstall(id)` drops the record. Exposes `states: StateFlow<Map<String, InstallState>>` for the UI. A declaration for an id with no open session is logged and ignored (well-mannered — also the forward-compat path for message types a later build will handle).
+- `Inbound` (sealed: `Line` / `Block`) — one ordered stream carrying both ordinary lines and length-prefixed asset blocks, so `MANIFEST`, its `BLOCK`s, and `INSTALL_END` reach the desk in the order the module sent them.
+- `FrameAssembler` — replaces `LineAssembler`. Frames two ways now: newline-delimited lines and length-prefixed blocks. On completing a `BLOCK|id|name|length|crc` header it switches to raw mode, reads exactly `length` bytes verbatim, and emits `Inbound.Block(header, bytes)`. A `reset()` (called on each connect) prevents a mid-block disconnect corrupting the next session's framing. Provisional 64 KB block cap guards a corrupt header (real asset-size caps are arduino.md §10, still open).
+- `InstalledModule` / `Subscription` / `InstalledAsset` — the committed record, deliberately the shape 1.4.5 will serialise to disk. Identity fields (`type`/`name`/`description`/`version`) carry over from the `HELLO`; the handshake adds only the type-specific payload. `Subscription.parse()` captures all seven `SUBSCRIBE` fields (rate/threshold/gate included, though DASH does not act on them until 1.4.8).
+- `DashController` now staffs two desks — routes `SYSTEM_SIGNAL` / `SUBSCRIBE` / `MANIFEST` / `INSTALL_END` to the install desk, and hands `Inbound.Block` payloads straight to it. `BLOCK` headers need no route branch (they ride inside `Inbound.Block`) but still appear on the wire tap.
+- `TransportManager.inbound` is now `SharedFlow<Inbound>` (was `String`). Block payloads render on the wire tap as the header line plus a readable `«N bytes»` note — never raw binary in the monitor.
+- `ModuleManagementScreen` — each discovered pane gains the install lifecycle: an **INSTALL** button → a progress bar (determinate for ACCESSORY once `MANIFEST` gives a byte total, indeterminate pulse for SYSTEM/LISTENER) → a **green pane** with a **DETAILS** button. The Details dialog (a settings-side modal — named a *dialog*, kept distinct from a v3 Overlay) shows the captured declarations type-shaped (signals / subscriptions / assets), with **UNINSTALL** and **DONE**. This dialog is the verification surface for the three parsers.
+- Version bumped: `versionName` 1.4.2 → 1.4.4, `versionCode` 7 → 8.
+
+**Protocol details settled this session (the module firmware must match):**
+- **Asset `BLOCK` CRC is CRC32 as lowercase hexadecimal, no prefix** (DASH parses the field base-16; Arduino's `String(crc, HEX)` produces exactly this). A decimal CRC would fail every block and abort the install.
+- **ACCESSORY variables and interactive controls are not implemented** — their install-declaration framing is an open item (arduino.md §10), so no format was invented. An ACCESSORY install carries `MANIFEST` + `BLOCK`s only until that framing is agreed.
+- **`SUBSCRIBE` throttle/gate fields are captured and displayed but inert** until the stream engine (1.4.8).
+
+**Regressions:**
+- None. The `LineAssembler` → `FrameAssembler` rename and the `String` → `Inbound` inbound type are behaviour-preserving for ordinary lines (a line becomes `Inbound.Line`, routed exactly as before); the Serial Monitor is unchanged. Discovery is untouched. All install UI is additive.
+
+**Fixes:**
+- None required.
+
+**Outstanding / deferred (with agreed homes):**
+- **Install timeout + designed fail-state visual → later 1.4.x failure work.** 1.4.4 handles only the unavoidable failure: a block failing CRC/length aborts the session cleanly (record dropped, pane reverts to INSTALL, logged to logcat). A handshake that never sends `INSTALL_END` currently sits pending until relaunch — accepted on the bench, where the modules are under the tester's control.
+- **ACCESSORY variables/controls declaration framing** — to be designed with Roger before that half of the panel contract (1.6.x) can land; arduino.md §10.
+- **Disk persistence → 1.4.5.** Installed records are session-only; the record shape is ready to serialise.
+- **ACTIVATE / live data / state store → 1.4.6+.** Installed means *dormant*: no module is sending yet.
+
+**Notes:**
+- Two SDK documents were extended this session as groundwork for 1.4.6+ (not 1.4.4 code): arduino.md **§4b State reporting** (SYSTEM modules dump all current values on `ACTIVATE` and heartbeat them every ~5 s; DASH does change detection) and **§5a Controller architecture** (the state store and the three signal behaviours — store+event / store-only / event-only — driven by `system_commands.md`, the new authoritative signal-vocabulary document). None of that is exercised until modules are activated and stream live data.
+- Roger's design-conversation notes arrived using the retired term `SYSTEM_TX`; it was rendered as `BROADCAST` throughout (renamed 2026-06-25) and the substitution recorded in arduino.md's discussion notes. The `light_ambient` signal was also renamed to `ambient_light` for naming consistency.
+
+---
+
 ## Version 1.4.2
 
 **Status:** Complete — bench-verified on the Arduino Uno R4 (Settings → MANAGE MODULES → DISCOVER → the R4 appears in the list by name). Second version of the 1.4.x Transport Layer era.

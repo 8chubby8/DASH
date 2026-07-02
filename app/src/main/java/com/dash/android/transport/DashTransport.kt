@@ -38,8 +38,12 @@ interface DashTransport {
     /** Short human-readable tag identifying this transport, e.g. "usb". Rides on every WireEvent. */
     val tag: String
 
-    /** Complete inbound lines (module → DASH), already framed with the trailing newline removed. */
-    val incoming: Flow<String>
+    /**
+     * Complete inbound units (module → DASH), framed by the transport: ordinary [Inbound.Line]s with
+     * the trailing newline removed, and length-prefixed [Inbound.Block]s for asset payloads. Both
+     * arrive on this one stream, in the order the module sent them.
+     */
+    val incoming: Flow<Inbound>
 
     /** Live connection status. */
     val status: StateFlow<TransportStatus>

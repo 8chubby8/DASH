@@ -1,6 +1,7 @@
 package com.dash.android.ui.modules
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -9,15 +10,20 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -25,33 +31,43 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dash.android.transport.Discovery
+import androidx.compose.ui.window.Dialog
 import com.dash.android.transport.DiscoveredModule
+import com.dash.android.transport.Install
+import com.dash.android.transport.InstallState
+import com.dash.android.transport.InstalledModule
+import com.dash.android.transport.Discovery
 
 private val BG = Color(0xFF0A0A12)
 private val LIST_BG = Color(0xFF06060A)
 private val CARD_BG = Color(0xFF14141F)
+private val INSTALLED_BG = Color(0xFF0D160D)
+private val INSTALLED_BORDER = Color(0xFF3DA35D)
 private val INACTIVE = Color(0xFF2A2A2A)
 private val LABEL = Color(0xFF666666)
 private val MUTED = Color(0xFF888888)
+private val INSTALL_ACCENT = Color(0xFF00695C)
+private val UNINSTALL_ACCENT = Color(0xFF7A2222)
 
 /**
  * The Module Management screen — a full-screen instrument reached from the settings panel, mirroring
- * the Serial Monitor route. Its job in 1.4.2: the DISCOVER button. Pressing it broadcasts `DISCOVER`
- * on every active transport (via the discovery desk) and the modules that answer with a `HELLO`
- * appear in the list below, by name.
+ * the Serial Monitor route. DISCOVER (1.4.2) finds modules; each discovered pane now carries the
+ * install action (1.4.4): press INSTALL and DASH runs the handshake, the pane shows a progress bar,
+ * then turns green with a DETAILS button that opens a dialog of what the module declared.
  *
  * Discovery is an installation action, not reconnection: the list is what's *out there and answering
- * right now*, rebuilt from scratch on each press. It is the user's responsibility to make sure a
- * module has finished booting before pressing DISCOVER. The installed-module database (1.4.5) and the
- * per-module install/enable actions layer into this same screen in later versions.
+ * right now*, rebuilt from scratch on each press. Installed records are session-only until the on-disk
+ * database (1.4.5); a module is installed but *dormant* here — ACTIVATE and live data are 1.4.6+.
  */
 @Composable
 fun ModuleManagementScreen(
     discovery: Discovery,
+    install: Install,
     onDismiss: () -> Unit
 ) {
     val modules by discovery.modules.collectAsState()
+    val states by install.states.collectAsState()
+    var detailsFor by remember { mutableStateOf<InstalledModule?>(null) }
 
     Box(Modifier.fillMaxSize().background(BG)) {
         Column(
@@ -101,23 +117,52 @@ fun ModuleManagementScreen(
                         modifier = Modifier.fillMaxSize().padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(modules, key = { it.id }) { module -> ModuleCard(module) }
+                        items(modules, key = { it.id }) { module ->
+                            ModuleCard(
+                                module = module,
+                                state = states[module.id],
+                                onInstall = { install.install(module.id) },
+                                onDetails = {
+                                    (states[module.id] as? InstallState.Installed)?.let { detailsFor = it.module }
+                                }
+                            )
+                        }
                     }
                 }
             }
         }
     }
+
+    detailsFor?.let { module ->
+        ModuleDetailsDialog(
+            module = module,
+            onUninstall = {
+                install.uninstall(module.id)
+                detailsFor = null
+            },
+            onDone = { detailsFor = null }
+        )
+    }
 }
 
 @Composable
-private fun ModuleCard(module: DiscoveredModule) {
-    Column(
-        modifier = Modifier
-            .fillMaxWidth()
-            .background(CARD_BG, RoundedCornerShape(6.dp))
-            .padding(horizontal = 14.dp, vertical = 12.dp),
-        verticalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
+private fun ModuleCard(
+    module: DiscoveredModule,
+    state: InstallState?,
+    onInstall: () -> Unit,
+    onDetails: () -> Unit
+) {
+    val installed = state is InstallState.Installed
+    val cardModifier = Modifier
+        .fillMaxWidth()
+        .background(if (installed) INSTALLED_BG else CARD_BG, RoundedCornerShape(6.dp))
+        .then(
+            if (installed) Modifier.border(1.dp, INSTALLED_BORDER, RoundedCornerShape(6.dp))
+            else Modifier
+        )
+        .padding(horizontal = 14.dp, vertical = 12.dp)
+
+    Column(modifier = cardModifier, verticalArrangement = Arrangement.spacedBy(6.dp)) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -140,7 +185,129 @@ private fun ModuleCard(module: DiscoveredModule) {
                 Text(module.version, color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }
         }
+
+        // Action area — the pane's status object: Install → progress → Details.
+        Row(
+            modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+            horizontalArrangement = Arrangement.End,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            when (state) {
+                null -> ActionButton("INSTALL", INSTALL_ACCENT, onInstall)
+                is InstallState.Installing -> InstallingBar(state.progress, Modifier.weight(1f))
+                is InstallState.Installed -> ActionButton("DETAILS", INACTIVE, onDetails)
+            }
+        }
     }
+}
+
+/** The in-progress bar. Determinate once an ACCESSORY MANIFEST gives a total; indeterminate otherwise. */
+@Composable
+private fun InstallingBar(progress: Float?, modifier: Modifier = Modifier) {
+    Row(modifier = modifier, verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+        if (progress == null) {
+            LinearProgressIndicator(
+                modifier = Modifier.weight(1f),
+                color = INSTALLED_BORDER,
+                trackColor = INACTIVE
+            )
+        } else {
+            LinearProgressIndicator(
+                progress = { progress },
+                modifier = Modifier.weight(1f),
+                color = INSTALLED_BORDER,
+                trackColor = INACTIVE
+            )
+        }
+        Text(
+            text = if (progress == null) "INSTALLING…" else "${(progress * 100).toInt()}%",
+            color = MUTED,
+            fontSize = 11.sp,
+            fontFamily = FontFamily.Monospace
+        )
+    }
+}
+
+@Composable
+private fun ActionButton(label: String, colour: Color, onClick: () -> Unit) {
+    Button(
+        onClick = onClick,
+        colors = ButtonDefaults.buttonColors(containerColor = colour, contentColor = Color.White),
+        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+    ) { Text(label, fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+}
+
+/**
+ * The Details dialog (a settings-side modal, distinct from a v3 Overlay). Read-only proof of what the
+ * install captured — the verification surface for the three declaration parsers — with Uninstall and
+ * Done. Its content is type-shaped: signals for SYSTEM, subscriptions for LISTENER, assets for ACCESSORY.
+ */
+@Composable
+private fun ModuleDetailsDialog(
+    module: InstalledModule,
+    onUninstall: () -> Unit,
+    onDone: () -> Unit
+) {
+    Dialog(onDismissRequest = onDone) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
+                .background(CARD_BG, RoundedCornerShape(10.dp))
+                .border(1.dp, INSTALLED_BORDER, RoundedCornerShape(10.dp))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(module.name.ifBlank { "(unnamed)" }, color = Color.White, fontSize = 16.sp, fontFamily = FontFamily.Monospace)
+                TypeChip(module.type)
+            }
+            Text("${module.id}   ${module.version}", color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+
+            when (module.type.uppercase()) {
+                "SYSTEM" -> DetailSection("SIGNALS BROADCAST", module.signals.ifEmpty { listOf("(none declared)") })
+                "LISTENER" -> DetailSection("SUBSCRIPTIONS", module.subscriptions.map { it.display() }.ifEmpty { listOf("(none declared)") })
+                "ACCESSORY" -> DetailSection("ASSETS RECEIVED", module.assets.map { "${it.name}  —  ${it.bytes} bytes ${if (it.crcOk) "✓" else "✗"}" }.ifEmpty { listOf("(none received)") })
+                else -> DetailSection("DECLARATIONS", listOf("(unknown module type)"))
+            }
+
+            Row(
+                modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
+                horizontalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Button(
+                    onClick = onUninstall,
+                    colors = ButtonDefaults.buttonColors(containerColor = UNINSTALL_ACCENT, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                ) { Text("UNINSTALL", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+                Button(
+                    onClick = onDone,
+                    colors = ButtonDefaults.buttonColors(containerColor = INSTALL_ACCENT, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                ) { Text("DONE", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+            }
+        }
+    }
+}
+
+@Composable
+private fun DetailSection(heading: String, rows: List<String>) {
+    Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+        Text(heading, color = MUTED, fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+        rows.forEach { row ->
+            Text(row, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+        }
+    }
+}
+
+/** One subscription rendered for the dialog: the function plus any throttle/gate fields that were set. */
+private fun com.dash.android.transport.Subscription.display(): String {
+    val tail = listOf(rate, threshold, gate, gateValue).filter { it.isNotBlank() }
+    return if (tail.isEmpty()) function else "$function  [${tail.joinToString("  ")}]"
 }
 
 /** Colour the type word by the three module types (arduino.md §4a). Unknown types read neutral. */
