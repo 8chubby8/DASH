@@ -7,6 +7,19 @@
 - **store only** — value saved to state store silently. Interface reads directly from store. No event fired.
 - **event only** — momentary. Fired and forgotten. Nothing persisted.
 
+**LISTENER subscribe defaults:** every signal below also carries a default
+`rate` and `threshold` for a LISTENER's `SUBSCRIBE` message (see arduino.md
+§4c/§9). A builder leaving those fields blank gets these defaults; they are
+overridden only if the module needs different behaviour.
+- **Boolean / multi-state signals** — default is **event-driven**: no rate, no
+  threshold. DASH delivers only on change (plus the §4c heartbeat/activation
+  dump).
+- **Continuous signals** — default rate and threshold are given per signal
+  below, chosen to be a sensible balance between responsiveness and bus load
+  for that signal's nature.
+- **Event-only signals** (Controls table) have no state and no default
+  rate/threshold — delivery is on fire only, per §4c.
+
 ---
 
 ## Doors & Access
@@ -59,18 +72,18 @@
 
 ## Vehicle State
 
-| Signal | Type | Values | Behaviour |
-|--------|------|--------|-----------|
-| ignition_state | multi-state | off / accessory / on | store + event |
-| handbrake_on | boolean | true / false | store + event |
-| gear_position | multi-state | park / reverse / neutral / drive / 1 / 2 / 3 | store + event |
-| vehicle_speed | continuous | km/h | store only |
-| steering_angle | continuous | degrees | store only |
-| engine_rpm | continuous | rpm | store only |
-| fuel_level | continuous | percentage 0-100 | store only |
-| coolant_temp | continuous | degrees C | store only |
-| ambient_temp | continuous | degrees C | store only |
-| ambient_light | continuous | lux | store only |
+| Signal | Type | Values | Behaviour | Default rate | Default threshold |
+|--------|------|--------|-----------|---------------|--------------------|
+| ignition_state | multi-state | off / accessory / on | store + event | — (event-driven) | — |
+| handbrake_on | boolean | true / false | store + event | — (event-driven) | — |
+| gear_position | multi-state | park / reverse / neutral / drive / 1 / 2 / 3 | store + event | — (event-driven) | — |
+| vehicle_speed | continuous | km/h | store only | 5hz | 1 km/h |
+| steering_angle | continuous | degrees | store only | 20hz | 2 degrees |
+| engine_rpm | continuous | rpm | store only | 5hz | 50 rpm |
+| fuel_level | continuous | percentage 0-100 | store only | 0.2hz | 1 % |
+| coolant_temp | continuous | degrees C | store only | 0.5hz | 1 °C |
+| ambient_temp | continuous | degrees C | store only | 0.1hz | 0.5 °C |
+| ambient_light | continuous | lux | store only | 1hz | 10 lux |
 
 ---
 
@@ -85,10 +98,10 @@
 
 ## EV / Charging
 
-| Signal | Type | Values | Behaviour |
-|--------|------|--------|-----------|
-| charge_connected | boolean | true / false | store + event |
-| charge_level | continuous | percentage 0-100 | store only |
+| Signal | Type | Values | Behaviour | Default rate | Default threshold |
+|--------|------|--------|-----------|---------------|--------------------|
+| charge_connected | boolean | true / false | store + event | — (event-driven) | — |
+| charge_level | continuous | percentage 0-100 | store only | 0.1hz | 1 % |
 
 ---
 

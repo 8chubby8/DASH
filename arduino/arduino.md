@@ -72,7 +72,7 @@ trailing fields optional. `id` = the 12-hex MAC.
 | Message | Dir | Purpose |
 |---|---|---|
 | `BROADCAST\|id\|function\|value` | mod→DASH | Standard signal out — general / pub-sub. |
-| `LISTEN\|id\|function\|value` | DASH→mod | Standard signal delivered to a subscriber. |
+| `LISTEN\|id\|function\|value` | DASH→mod | Standard signal delivered to a subscriber — heartbeat (5s) + immediate on change + on-activation dump; no value field for event-only signals (see §4c). |
 | `REPORT\|id\|variable\|value` | mod→DASH | Module's own panel data — specific / private. |
 | `ACTION\|id\|control\|value` | DASH→mod | User operated one of the module's panel controls. |
 | `TRIGGER\|id\|name` | mod→DASH | Agnostic alarm → system bar (icon; ACCESSORY only). |
@@ -82,7 +82,7 @@ trailing fields optional. `id` = the 12-hex MAC.
 | Message | Dir | Purpose |
 |---|---|---|
 | `SYSTEM_SIGNAL\|id\|function` | mod→DASH | SYSTEM declares a signal it will broadcast — one per line. |
-| `SUBSCRIBE\|id\|function\|rate\|threshold\|gate\|gate_value` | mod→DASH | LISTENER subscribes to a signal with optional throttle/gate — one per line. |
+| `SUBSCRIBE\|id\|function\|rate\|threshold\|gate\|gate_value` | mod→DASH | LISTENER subscribes to a signal — one per line. Trailing fields optional; their defaults (event-driven for boolean/multi-state, a sensible rate+threshold for continuous) come from the signal's type in `system_commands.md`, not the builder. |
 | `MANIFEST\|id\|blocks\|bytes` | mod→DASH | ACCESSORY asset table-of-contents + total size. |
 | `BLOCK\|id\|name\|length\|crc` + raw bytes | mod→DASH | ACCESSORY one asset (icon/panel), length-prefixed, CRC-checked. |
 | `INSTALL_END\|id` | mod→DASH | Ends the handshake. |
@@ -166,7 +166,7 @@ is a command:
 | `INSTALL\|id` | Set this module up (begins the install handshake). |
 | `ACTIVATE\|id` | You are installed — start sending live data. |
 | `DEACTIVATE\|id` | Stop sending. |
-| `LISTEN\|id\|function\|value` | Here is a **standard** signal you subscribed to. |
+| `LISTEN\|id\|function\|value` | Here is a **standard** signal you subscribed to — delivered on a 5s heartbeat, immediately on change, and once on activation; event-only signals arrive with no value field, on fire only (see §4c). |
 | `ACTION\|id\|control\|value` | A user operated one of **your panel's** controls — **agnostic** input. |
 
 **module → DASH:**
@@ -292,6 +292,88 @@ only live, on the press.
 library — the builder writes neither. A community SYSTEM module gets the
 on-activation dump and the heartbeat for free, exactly as a built-in one does
 (SDKable).
+
+## 4c. LISTENER module — full specification
+
+A `LISTENER` module subscribes to one or more standard signals at install time
+and receives those signals from the DASH controller at runtime. It acts on its
+own hardware in response — switching a relay, driving an output, controlling a
+device.
+
+### Subscribing (install time)
+
+The module sends one `SUBSCRIBE` message per signal it wants to receive:
+
+```
+SUBSCRIBE|id|function|rate|threshold|gate|gate_value
+```
+
+All fields after `function` are optional. Their defaults are determined by the
+**signal's type**, as defined in `system_commands.md` — not chosen by the
+builder:
+
+- **Boolean and multi-state signals** default to **event-driven delivery** — no
+  rate, no threshold. DASH delivers only on change.
+- **Continuous signals** default to a sensible rate and threshold appropriate to
+  that signal type, as defined in `system_commands.md`. The builder overrides
+  these only if it needs different behaviour.
+- **Gate** is always optional for any signal type. If omitted, the signal is
+  delivered whenever the controller would normally deliver it.
+
+A LISTENER that only needs to know when something crosses a threshold can
+subscribe to a continuous signal with a threshold and no rate — DASH delivers
+only when the value crosses the threshold, not constantly.
+
+(See §9 for the full mechanics of `rate` / `threshold` / `gate` and shared-bus
+bandwidth — this section covers what the LISTENER receives and when.)
+
+### Delivery (runtime) — three ways
+
+The controller delivers signals to the LISTENER in three ways:
+
+**Heartbeat.** Every 5 seconds the controller pushes the current value of every
+subscribed **stateful** signal to the LISTENER via a `LISTEN` message,
+regardless of whether the value has changed. The LISTENER compares the incoming
+value to its last known value, acts if different, ignores if the same. This
+keeps the LISTENER current even if it missed an event, or came online after the
+state was already set.
+
+**Event delivery.** The moment a subscribed stateful signal changes, the
+controller immediately pushes the new value to the LISTENER outside of the
+heartbeat cycle. The LISTENER does not wait up to 5 seconds to find out about a
+change — it is told immediately.
+
+**On activation.** The moment DASH sends `ACTIVATE|id` to a LISTENER module, the
+controller immediately pushes the current value of every subscribed stateful
+signal, before the first heartbeat. This ensures the LISTENER knows the full
+current state from the moment it comes online, with no gap for states that
+changed before the module booted.
+
+**Event-only signals.** Momentary controls such as `media_next` or
+`button_home_pressed` carry no value and have no state. If a LISTENER subscribes
+to an event-only signal, the controller delivers a `LISTEN` message with no
+value field the moment the event fires. There is no heartbeat delivery and no
+on-activation delivery for event-only signals — there is no state to deliver.
+
+```
+LISTEN|id|door_driver_open|true      ← stateful, has a value
+LISTEN|id|media_next                  ← event-only, no value
+```
+
+### Change detection lives in the firmware library
+
+Change detection lives in the LISTENER firmware library, not the builder's
+code. The library receives every `LISTEN` message, compares it to the last
+known value for that signal, and calls the builder's registered callback only
+when the value has changed. The builder writes only what to do when a signal
+changes — not the comparison logic.
+
+### Symmetry with the SYSTEM module
+
+The SYSTEM module (§4b) reports upward to the controller on a heartbeat and
+immediately on change. The controller delivers downward to the LISTENER on a
+heartbeat and immediately on change. Same rhythm, both directions — the 5
+second heartbeat interval matches.
 
 ## 5. The two layers inside DASH (source-awareness)
 
@@ -455,9 +537,11 @@ module → ROGER|id|activate
          (live data now flows)
 ```
 
-A given module sends **only its own type's** declarations — a SYSTEM module sends
-`SYSTEM_SIGNAL` lines, a LISTENER module `SUBSCRIBE` lines, an ACCESSORY its
-`BLOCK`s. The flow above stacks all three only to show them in one place.
+A given module sends declarations for **its own type**, plus optionally
+`SUBSCRIBE` lines — a SYSTEM module sends `SYSTEM_SIGNAL` lines, a LISTENER
+module `SUBSCRIBE` lines, an ACCESSORY its `BLOCK`s **and, optionally,**
+`SUBSCRIBE` lines of its own (§11). The flow above stacks all three only to show
+them in one place.
 
 What an install transfers depends on the module's **type** (§4a):
 - **`SYSTEM`** → one `SYSTEM_SIGNAL` line per standard signal it **sends**. No visuals.
@@ -465,7 +549,8 @@ What an install transfers depends on the module's **type** (§4a):
   trigger icons, its display **variables** (the `REPORT` data it pushes), **and its
   interactive controls** (each with an id, so DASH can route a `ACTION` event back
   when the user operates it). Variables out and control ids in are the two halves of
-  the panel contract.
+  the panel contract. It may **also** send `SUBSCRIBE` lines for standard signals
+  it wants delivered to it (§11) — handled identically to a LISTENER's.
 - **`LISTENER`** → one `SUBSCRIBE` line per signal it wants **delivered** (§9).
 
 (A board doing several jobs installs several modules — one per type — each with
@@ -581,6 +666,112 @@ carrying the **sender's** id.
 | name | 24 | builder text |
 | description | 64 | builder text (also a UI tidiness cap) |
 | version | 12 | builder text |
+
+---
+
+## 11. ACCESSORY Module — Panel and Layout
+
+> **Work in progress.** The concepts below are agreed. The concrete numbers —
+> final panel dimensions for each layout slot, and the full overlay vocabulary —
+> are **not yet locked**. Treat this section as direction, not a frozen spec.
+> This refines the layout-panel side of §8's asset model: the panel itself is a
+> PNG canvas plus overlay metadata (both still shipped as `BLOCK`s); the trigger
+> **icon** is unaffected by this section.
+
+### Panel layout model — canvas, not components
+
+The ACCESSORY panel uses a **canvas model**, not a component model. The module
+author provides a **PNG image** as the visual foundation — drawn however they
+like, in any design tool — and places **overlays** on top of it for interactive
+and data-driven behaviour. DASH renders the PNG as the panel background and
+handles the overlays. DASH never dictates what the visual design looks like —
+the art is entirely the author's domain (module is king).
+
+### Overlays
+
+Overlays sit on top of the PNG background and provide behaviour. The
+**provisional** overlay types:
+
+| Overlay | Behaviour |
+|---|---|
+| **Text** | Displays a value from a named `REPORT` variable at a defined position. Font size and colour are either a literal value or a theme token reference. |
+| **Touch** | An invisible tappable area that sends a named `ACTION` when pressed. Has a position and size. Optionally shows a visual state change on press. |
+| **Image** | A second PNG layered on top at a defined position. Useful for state indicators that swap between images. |
+| **Transform** | An image that rotates or translates based on a `REPORT` variable's value. For needles, sliders, and level indicators. |
+| **Animation** | Plays a GIF (or similar animated asset), shipped as a `BLOCK` like any other image, **once, all the way through**. One-shot only — DASH and the module don't track duration, size, or looping; the command is simply "play this animation." Triggered by either a **touch overlay's control id** (fires once on press) or a **`REPORT` variable + condition** (fires once when the condition becomes true). Both trigger sources behave identically — one command, `play the animation`, differing only in what fires it. |
+
+For a **permanent** visual change, use an Image overlay instead — that's what
+it's for. An Animation overlay can also be used to *transition into* a
+permanent state: play a GIF whose final frame matches an Image overlay sitting
+beneath or beside it, so the animation reads as the transition rather than a
+separate effect. This falls out naturally from the two overlay types coexisting
+— DASH implements nothing special for it.
+
+This overlay vocabulary is provisional and will be extended as real module
+panels are designed.
+
+### Coordinate system — normalised units
+
+Overlay positions are expressed in **normalised units** — a fraction of the
+canvas width and height, not absolute pixels. An overlay at position `0.5, 0.3`
+is always in the same relative position regardless of actual panel dimensions.
+DASH converts to real pixels at render time.
+
+### Theme token references
+
+A module author can reference DASH theme tokens instead of specifying literal
+colour values. The token is prefixed with **`@`** to distinguish it from a
+literal hex value — e.g. `@barBackground`, `@barText`, `@barAccent`. DASH
+resolves the token at render time using the current active theme. When the user
+changes their theme, all panels using token references update automatically,
+with no module involvement. Literal colour values remain valid for authors who
+want a specific branded look independent of the user's theme.
+
+### Fixed aspect ratios — universality over flexibility
+
+The module panel aspect ratio is **fixed by the spec** for each layout slot —
+small, medium, large, horizontal, vertical. These ratios are defined once and
+never change. Every module author designs to these fixed ratios. Every DASH
+installation honours them exactly, regardless of screen size or bar height. The
+panel dimensions are **independent of the system bar height** — they do not
+scale with it.
+
+This is what makes modules universal and swappable. A module designed to the
+spec works on any DASH installation without modification. The author designs to
+a known shape; DASH enforces that shape. Both sides honour the same contract.
+
+**The actual ratio values for each of the six layout slots are not yet
+defined** — this will be decided once real panels are being designed and the
+proportions can be evaluated against real content.
+
+### ACCESSORY subscriptions
+
+An ACCESSORY module may include `SUBSCRIBE` declarations in its install
+handshake alongside its `MANIFEST` and `BLOCK` asset declarations. The
+controller handles these **identically** to a LISTENER's subscriptions —
+heartbeat delivery every 5 seconds, immediate delivery on change, on-activation
+full state dump (§4c). The controller does not distinguish between a LISTENER
+module and an ACCESSORY module that has subscriptions — it simply delivers to
+all subscribers.
+
+### For testing purposes — provisional test layout format (temporary)
+
+> This is **not** the agreed spec — it exists only to exercise the DASH-side
+> panel rendering pipeline end to end before the final format is locked. It
+> does not need to be accurate to the eventual format, and will be discarded
+> once the real spec lands.
+
+A simple pipe-delimited or JSON description of a PNG background plus one or two
+overlays is sufficient to prove the pipeline — for example:
+
+```
+TEST_LAYOUT|background.png
+TEST_OVERLAY|text|temperature|0.5|0.3|@barText|18
+TEST_OVERLAY|touch|fan_up|0.8|0.6|0.1|0.1
+```
+
+Kept deliberately separate from the agreed decisions above so it is never
+mistaken for locked spec.
 
 ---
 
@@ -831,3 +1022,96 @@ Decisions banked:
 - **`system_commands.md`** named the authoritative signal vocabulary & behaviour
   reference. No formal references list exists in this doc, so the citation lives
   in §5a rather than in a list of its own.
+
+### Session — 2026-07-03
+**LISTENER delivery model agreed** (added as §4c, placed after the SYSTEM
+module's §4b). Settles how the controller delivers subscribed signals downward,
+mirroring the SYSTEM module's upward reporting model:
+- **Heartbeat every 5 seconds** — the controller pushes the current value of
+  every subscribed stateful signal to the LISTENER on a fixed interval,
+  changed or not. The LISTENER compares to its last known value and acts only
+  on a difference.
+- **Immediate event delivery** — a subscribed signal that changes is pushed to
+  the LISTENER the instant it changes, outside the heartbeat cycle. No waiting
+  up to 5 seconds to find out.
+- **On-activation full state dump** — the moment `ACTIVATE|id` is sent, the
+  controller immediately delivers the current value of every subscribed
+  stateful signal, before the first heartbeat, so the LISTENER has full current
+  state from the moment it comes online.
+- **Event-only signals delivered on fire, with no heartbeat and no
+  on-activation delivery** — momentary controls (`media_next`,
+  `button_home_pressed`…) have no state, so a `LISTEN` with no value field is
+  sent only the instant the event fires.
+- **Change detection lives in the firmware library**, not the builder's code —
+  the library compares each incoming `LISTEN` to the last known value and calls
+  the builder's callback only on a difference, exactly mirroring how the SYSTEM
+  module library handles the dump/heartbeat on the send side (§4b).
+- **Deliberate symmetry with the SYSTEM module**, noted explicitly: SYSTEM
+  reports upward on a heartbeat + immediately on change; the controller
+  delivers downward to LISTENER on the same rhythm — heartbeat + immediately on
+  change — with the same 5 second interval both ways.
+
+### Session — 2026-07-03 (second sitting)
+**ACCESSORY panel and layout model agreed** (added as §11, marked work in
+progress). First real design pass on what an ACCESSORY panel actually is,
+beyond "ships assets as `BLOCK`s":
+- **Canvas model, not components.** The author supplies a PNG as the visual
+  foundation, drawn in any tool, and places overlays on top for behaviour. DASH
+  renders the PNG and handles the overlays; it never dictates the visual design
+  — a direct expression of module-is-king applied to the panel itself.
+- **Normalised coordinate system.** Overlay positions are a fraction of canvas
+  width/height (e.g. `0.5, 0.3`), not absolute pixels, so a layout holds its
+  relative position regardless of actual rendered panel size. DASH converts to
+  pixels at render time.
+- **Theme token references via `@` prefix.** An author can write `@barText`
+  instead of a literal colour; DASH resolves it against the active theme at
+  render time, so panels re-theme automatically with no module involvement.
+  Literal hex values remain valid for authors who want a look independent of
+  the user's theme.
+- **Fixed aspect ratios — universality over flexibility.** Each layout slot
+  (small/medium/large/horizontal/vertical) has one fixed ratio, defined once,
+  independent of screen size or bar height. Reasoning banked explicitly: this
+  is what makes a module *universal and swappable* — designed to a known shape
+  once, that shape honoured identically on every installation. **The actual
+  ratio numbers are deliberately deferred** until real panels are being
+  designed and can be judged against real content — recorded as an open item
+  inside §11, not a general Open Items entry, since it's specific to this
+  section.
+- **ACCESSORY subscriptions mirror LISTENER exactly.** An ACCESSORY may send
+  `SUBSCRIBE` lines alongside its `MANIFEST`/`BLOCK` declarations; the
+  controller applies the identical §4c delivery model (5s heartbeat, immediate
+  on-change, on-activation dump) and does not care whether the subscriber is a
+  LISTENER or an ACCESSORY — it just delivers to subscribers. This closes the
+  gap where an interactive panel wanting standard signals (e.g. showing
+  headlight state) would otherwise have needed a bolted-on second module.
+- **Provisional test layout format**, deliberately unspecified and marked
+  temporary — enough to prove the DASH-side rendering pipeline (PNG background
+  + one or two overlays) works end to end without waiting on the locked spec.
+  Documented inside §11 clearly separated from the agreed decisions so it's
+  never mistaken for real spec.
+- **Overlay vocabulary (text/touch/image/transform) marked provisional** —
+  expected to grow once real panels expose needs not yet anticipated.
+
+### Session — 2026-07-03 (third sitting)
+**Fifth overlay type added: Animation** (§11 overlay table), refined over a
+short back-and-forth:
+- Started as a "Highlight" idea (a bright emphasis effect DASH would render on
+  demand — glow/pulse/flash). Rejected: DASH generating the effect would have
+  meant DASH authoring part of the visual design, which cuts against the
+  canvas model's whole premise (module is king over the art).
+- **Landed on: an author-supplied GIF, played once, all the way through.**
+  Shipped as a `BLOCK` like any other image asset. Renamed Highlight →
+  **Animation** to match. DASH and the module track nothing about it — no
+  duration, no size, no looping — the command is simply "play this animation."
+- **Two trigger sources, one command.** A touch overlay's control id (fires on
+  press) or a `REPORT` variable + condition (fires when the condition becomes
+  true) both just say "play the animation" — explicitly **one-shot only** in
+  both cases. An earlier version of the condition case considered looping/
+  holding while the condition stayed true; **rejected** — sustained/permanent
+  states are the Image overlay's job, not Animation's. Keeps the two overlay
+  types cleanly separated by purpose (temporary flourish vs. persistent state).
+  Reasoning: *"for permanent changes the png overlay feature will be used."*
+- **Chaining noted as a technique, not a feature.** A GIF whose final frame
+  matches an adjacent Image overlay reads as an animated transition into a new
+  permanent state — this falls out of the two overlay types coexisting; DASH
+  implements nothing special for it.
