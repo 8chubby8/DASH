@@ -47,6 +47,43 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.5
+
+**Status:** Complete — verified (install a module, kill and relaunch DASH, the green card is back from disk; DETAILS reads the saved record; UNINSTALL removes it and its folder). Fourth version of the 1.4.x Transport Layer era.
+
+**Scope:** the module database — the on-disk installed list that arduino.md §6 names as the single source of truth: DASH holds the installed list on disk and tells the module what to do each session; the module persists nothing. An install that completes now survives every restart. This is the last piece of *set up* before 1.4.6 makes modules *do* something — startup reconciliation reads this same list to decide who gets `ACTIVATE`d each boot.
+
+**Design decisions taken this session:**
+- **The database holds *installed*; the install desk holds *installing*.** The desk's `states` flow now covers only handshakes under way this session (the old `InstallState` sealed interface collapsed to a plain `Installing(progress)` — its `Installed` half moved to the database wholesale). A completed handshake is handed to a `commit` callback wired to the database, which persists it and owns it from then on. Asset payload bytes are held in the session for exactly that hop: validated in the desk, written to disk by the database, never kept in memory after.
+- **Write order is the crash-safety mechanism.** One folder per module under `filesDir/modules/`: an `assets/` folder of raw block payloads, then `module.json` written *last*. A folder interrupted mid-write has no record and is skipped — and swept away — on the next load; a record and its assets are born and die together, so uninstall is one recursive delete.
+- **One physical module = one card.** Module Management renders a merge of two sources keyed by id: the on-disk installed list (green cards, present the moment the screen opens — no DISCOVER needed, plugged in or not) and this session's discovered set (INSTALL cards for modules answering right now that aren't installed). A module in both is one green card — discovery just confirmed something DASH knew. DISCOVER still rebuilds the discovered set from scratch each press, but it can never remove an installed card.
+- **Wire-supplied names never become filesystem paths unsanitised.** Module ids and asset names arrive off the wire and become folder/file names, so they pass through a plain-alphabet sanitiser (leading dots stripped, collisions suffixed, blanks given fallbacks) before touching disk. The sanitised asset filename is recorded in the new `InstalledAsset.file` field — the panel (1.6.x) reads the bytes from there.
+
+**Implemented:**
+- `ModuleDatabase` (`com.dash.android.transport`) — `load()` reads every `module.json` under `filesDir/modules/` at controller start (sweeping recordless debris folders); `commit(module, payloads)` assigns asset filenames, updates the `modules` flow synchronously (the UI sees it immediately), then writes assets-then-record on an IO scope; `uninstall(id)` drops the record and recursively deletes the folder. Exposes `modules: StateFlow<Map<String, InstalledModule>>` — THE installed list; absent here ⇒ not installed. JSON posture matches `DashPreferences`: `ignoreUnknownKeys`, so a record written by an older or newer DASH build still decodes.
+- `InstalledModule` / `Subscription` / `InstalledAsset` marked `@Serializable`; `InstalledAsset` gains `file` (the on-disk filename). The record shape built in 1.4.4 serialised as-is — the "deliberately what 1.4.5 will serialise" bet paid off.
+- `Install` — `install(id)` now also refuses an already-installed id (uninstall first); sessions accumulate raw payload bytes alongside asset metadata; `onInstallEnd` hands the finished record and payloads to `commit` and clears the session. `uninstall` left the desk entirely — it belongs to the database now.
+- `DashController` — takes a `Context`, creates the database, calls `load()` on start, and wires the install desk's `isInstalled` / `commit` to it.
+- `ModuleManagementScreen` — renders the merged one-card-per-module list (installed first, alphabetical; then this session's discoveries in answer order); DETAILS reads the on-disk record; UNINSTALL goes through the database; empty-state text now explains installed modules appear automatically.
+- Version bumped: `versionName` 1.4.4 → 1.4.5, `versionCode` 8 → 9.
+
+**Regressions:**
+- None. The install handshake, progress bar, and Details dialog behave as in 1.4.4 — the change is that the result now outlives the session. Discovery and the Serial Monitor are untouched.
+
+**Fixes:**
+- None required.
+
+**Outstanding / deferred (with agreed homes):**
+- **A failed disk write degrades, not errors** — the record stays in memory (1.4.4's session-only behaviour) and the failure is logged. A designed failure surface remains part of the later 1.4.x failure work, alongside the install timeout.
+- **Asset bytes on disk are read by nothing yet** — the module panel (1.6.x) is their consumer.
+- **ACTIVATE / reconciliation → 1.4.6.** An installed module is still dormant; the database's `modules` flow is exactly what reconciliation will read.
+- **Firmware-side, carried from the 2026-07-05 session:** the test LISTENER module (`arduino/test_listener/`) is written and compiling but awaits its bench run before commit.
+
+**Notes:**
+- Built in the session of 2026-07-05/06; verified by Roger and recorded 2026-07-06.
+
+---
+
 ## Version 1.4.4
 
 **Status:** Complete — bench-verified on the Arduino Uno R4 (Settings → MANAGE MODULES → DISCOVER → INSTALL → the pane runs a progress bar, turns green, and DETAILS shows the captured declarations). Third version of the 1.4.x Transport Layer era. Roadmap 1.4.3 was already merged into 1.4.2, so this is the next number.

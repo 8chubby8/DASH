@@ -86,7 +86,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     // The controller/brain (1.4.2) sits above it: it consumes inbound messages, routes them by type,
     // and holds the discovery desk the Module Management screen drives. Both live for the app's life.
     val transport = remember { TransportManager(context) }
-    val controller = remember { DashController(transport) }
+    val controller = remember { DashController(transport, context) }
     DisposableEffect(transport, controller) {
         transport.start()
         controller.start()
@@ -478,6 +478,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 ModuleManagementScreen(
                     discovery = controller.discovery,
                     install = controller.install,
+                    database = controller.database,
                     onDismiss = { showModules = false }
                 )
             }

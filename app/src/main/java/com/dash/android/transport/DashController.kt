@@ -1,5 +1,6 @@
 package com.dash.android.transport
 
+import android.content.Context
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -26,17 +27,24 @@ import kotlinx.coroutines.launch
  * patch-bay override redirects signals to Android, DASH, or back out to another module. The shape
  * here — one inbox, sort by TYPE, dispatch, one outbox — is what makes that possible without rework.
  */
-class DashController(private val transport: TransportManager) {
+class DashController(private val transport: TransportManager, context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
+
+    /** The module database (1.4.5). The on-disk installed list — the single source of truth for
+     *  install state (arduino.md §6), loaded every boot, fed by the install desk on commit. */
+    val database = ModuleDatabase(context)
 
     /** The discovery desk. Broadcasts DISCOVER on the user's command and collects the HELLO replies. */
     val discovery = Discovery(broadcast = transport::send)
 
-    /** The install desk. Runs the install handshake for a module the user chose from the discovery list. */
+    /** The install desk. Runs the install handshake for a module the user chose from the discovery
+     *  list; a completed handshake commits into the [database]. */
     val install = Install(
         send = transport::send,
-        identityOf = { id -> discovery.modules.value.firstOrNull { it.id == id } }
+        identityOf = { id -> discovery.modules.value.firstOrNull { it.id == id } },
+        isInstalled = { id -> database.modules.value.containsKey(id) },
+        commit = database::commit
     )
 
     private var started = false
@@ -44,6 +52,7 @@ class DashController(private val transport: TransportManager) {
     fun start() {
         if (started) return
         started = true
+        database.load()
         scope.launch {
             transport.inbound.collect { frame ->
                 when (frame) {

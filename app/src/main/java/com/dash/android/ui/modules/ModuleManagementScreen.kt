@@ -32,11 +32,11 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
-import com.dash.android.transport.DiscoveredModule
-import com.dash.android.transport.Install
-import com.dash.android.transport.InstallState
-import com.dash.android.transport.InstalledModule
 import com.dash.android.transport.Discovery
+import com.dash.android.transport.Install
+import com.dash.android.transport.Installing
+import com.dash.android.transport.InstalledModule
+import com.dash.android.transport.ModuleDatabase
 
 private val BG = Color(0xFF0A0A12)
 private val LIST_BG = Color(0xFF06060A)
@@ -51,23 +51,40 @@ private val UNINSTALL_ACCENT = Color(0xFF7A2222)
 
 /**
  * The Module Management screen — a full-screen instrument reached from the settings panel, mirroring
- * the Serial Monitor route. DISCOVER (1.4.2) finds modules; each discovered pane now carries the
- * install action (1.4.4): press INSTALL and DASH runs the handshake, the pane shows a progress bar,
- * then turns green with a DETAILS button that opens a dialog of what the module declared.
+ * the Serial Monitor route. DISCOVER (1.4.2) finds modules; INSTALL (1.4.4) runs the handshake; the
+ * module database (1.4.5) makes the result permanent.
  *
- * Discovery is an installation action, not reconnection: the list is what's *out there and answering
- * right now*, rebuilt from scratch on each press. Installed records are session-only until the on-disk
- * database (1.4.5); a module is installed but *dormant* here — ACTIVATE and live data are 1.4.6+.
+ * **One physical module = one card.** The list is a merge of two sources keyed by id: the on-disk
+ * installed list (green cards, present the moment the screen opens — no DISCOVER needed, plugged in or
+ * not) and this session's discovered set (INSTALL cards for modules answering right now that aren't
+ * installed). A module in both is one green card — discovery just confirmed something DASH knew.
+ * DISCOVER still rebuilds the discovered set from scratch each press (an installation action, not
+ * reconnection), but that can never remove an installed card: those are sustained by the database.
+ *
+ * An installed module is still *dormant* here — ACTIVATE and live data are 1.4.6+.
  */
 @Composable
 fun ModuleManagementScreen(
     discovery: Discovery,
     install: Install,
+    database: ModuleDatabase,
     onDismiss: () -> Unit
 ) {
-    val modules by discovery.modules.collectAsState()
-    val states by install.states.collectAsState()
+    val discovered by discovery.modules.collectAsState()
+    val installing by install.states.collectAsState()
+    val installed by database.modules.collectAsState()
     var detailsFor by remember { mutableStateOf<InstalledModule?>(null) }
+
+    // The merged list: installed modules first (alphabetical — they're what you own), then this
+    // session's discovered-but-not-installed modules in the order they answered.
+    val rows = remember(discovered, installed) {
+        installed.values
+            .sortedBy { it.name.lowercase() }
+            .map { ModuleRow(it.id, it.type, it.name, it.description, it.version, installedRecord = it) } +
+        discovered
+            .filterNot { installed.containsKey(it.id) }
+            .map { ModuleRow(it.id, it.type, it.name, it.description, it.version, installedRecord = null) }
+    }
 
     Box(Modifier.fillMaxSize().background(BG)) {
         Column(
@@ -103,9 +120,9 @@ fun ModuleManagementScreen(
 
             // List
             Box(modifier = Modifier.fillMaxWidth().weight(1f).background(LIST_BG)) {
-                if (modules.isEmpty()) {
+                if (rows.isEmpty()) {
                     Text(
-                        text = "No modules yet.\n\nMake sure your module has finished booting, then press DISCOVER.",
+                        text = "No modules yet.\n\nInstalled modules appear here automatically.\nTo add one, make sure it has finished booting, then press DISCOVER.",
                         color = MUTED,
                         fontSize = 13.sp,
                         fontFamily = FontFamily.Monospace,
@@ -117,14 +134,12 @@ fun ModuleManagementScreen(
                         modifier = Modifier.fillMaxSize().padding(10.dp),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(modules, key = { it.id }) { module ->
+                        items(rows, key = { it.id }) { row ->
                             ModuleCard(
-                                module = module,
-                                state = states[module.id],
-                                onInstall = { install.install(module.id) },
-                                onDetails = {
-                                    (states[module.id] as? InstallState.Installed)?.let { detailsFor = it.module }
-                                }
+                                row = row,
+                                installing = installing[row.id],
+                                onInstall = { install.install(row.id) },
+                                onDetails = { detailsFor = row.installedRecord }
                             )
                         }
                     }
@@ -137,7 +152,7 @@ fun ModuleManagementScreen(
         ModuleDetailsDialog(
             module = module,
             onUninstall = {
-                install.uninstall(module.id)
+                database.uninstall(module.id)
                 detailsFor = null
             },
             onDone = { detailsFor = null }
@@ -145,19 +160,32 @@ fun ModuleManagementScreen(
     }
 }
 
+/**
+ * One row of the merged list — one physical module, whichever source knows it. Identity fields come
+ * from the installed record when there is one (the durable truth), otherwise from this session's HELLO.
+ */
+private data class ModuleRow(
+    val id: String,
+    val type: String,
+    val name: String,
+    val description: String,
+    val version: String,
+    val installedRecord: InstalledModule?
+)
+
 @Composable
 private fun ModuleCard(
-    module: DiscoveredModule,
-    state: InstallState?,
+    row: ModuleRow,
+    installing: Installing?,
     onInstall: () -> Unit,
     onDetails: () -> Unit
 ) {
-    val installed = state is InstallState.Installed
+    val isInstalled = row.installedRecord != null
     val cardModifier = Modifier
         .fillMaxWidth()
-        .background(if (installed) INSTALLED_BG else CARD_BG, RoundedCornerShape(6.dp))
+        .background(if (isInstalled) INSTALLED_BG else CARD_BG, RoundedCornerShape(6.dp))
         .then(
-            if (installed) Modifier.border(1.dp, INSTALLED_BORDER, RoundedCornerShape(6.dp))
+            if (isInstalled) Modifier.border(1.dp, INSTALLED_BORDER, RoundedCornerShape(6.dp))
             else Modifier
         )
         .padding(horizontal = 14.dp, vertical = 12.dp)
@@ -169,20 +197,20 @@ private fun ModuleCard(
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = module.name.ifBlank { "(unnamed)" },
+                text = row.name.ifBlank { "(unnamed)" },
                 color = Color.White,
                 fontSize = 15.sp,
                 fontFamily = FontFamily.Monospace
             )
-            TypeChip(module.type)
+            TypeChip(row.type)
         }
-        if (module.description.isNotBlank()) {
-            Text(module.description, color = MUTED, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        if (row.description.isNotBlank()) {
+            Text(row.description, color = MUTED, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(module.id, color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-            if (module.version.isNotBlank()) {
-                Text(module.version, color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text(row.id, color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            if (row.version.isNotBlank()) {
+                Text(row.version, color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
             }
         }
 
@@ -192,10 +220,10 @@ private fun ModuleCard(
             horizontalArrangement = Arrangement.End,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            when (state) {
-                null -> ActionButton("INSTALL", INSTALL_ACCENT, onInstall)
-                is InstallState.Installing -> InstallingBar(state.progress, Modifier.weight(1f))
-                is InstallState.Installed -> ActionButton("DETAILS", INACTIVE, onDetails)
+            when {
+                installing != null -> InstallingBar(installing.progress, Modifier.weight(1f))
+                isInstalled -> ActionButton("DETAILS", INACTIVE, onDetails)
+                else -> ActionButton("INSTALL", INSTALL_ACCENT, onInstall)
             }
         }
     }
@@ -239,8 +267,8 @@ private fun ActionButton(label: String, colour: Color, onClick: () -> Unit) {
 
 /**
  * The Details dialog (a settings-side modal, distinct from a v3 Overlay). Read-only proof of what the
- * install captured — the verification surface for the three declaration parsers — with Uninstall and
- * Done. Its content is type-shaped: signals for SYSTEM, subscriptions for LISTENER, assets for ACCESSORY.
+ * install captured — since 1.4.5, read back from the on-disk record — with Uninstall and Done. Its
+ * content is type-shaped: signals for SYSTEM, subscriptions for LISTENER, assets for ACCESSORY.
  */
 @Composable
 private fun ModuleDetailsDialog(
