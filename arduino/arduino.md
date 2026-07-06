@@ -814,6 +814,30 @@ Still to settle before the SDK is fully locked:
   + 3-digit module) — was rejected: it throws away the MAC's global uniqueness,
   reintroduces assignment/collisions, and bakes topology into identity.
 
+- **A separate reconnect message** (distinct from `DISCOVER`, for the §6 boot
+  reconciliation sweep). Raised by Roger while building DASH 1.4.6 — the feeling
+  that `DISCOVER` belongs to installation and reconnection deserves its own word.
+  **Rejected** on architectural grounds: a broadcast "installed modules, report
+  in" is impossible when modules persist nothing and don't know their own install
+  state (§6) — the only question a module can ever answer is *who's there?*, and
+  `HELLO` is that answer. The install/reconnect distinction lives in DASH's
+  handling of the replies (unknown id → install candidate; installed id →
+  `ACTIVATE`), not on the wire. A per-id ping variant was also rejected: N retry
+  loops against possibly-absent hardware instead of one broadcast, a new message
+  every firmware must implement forever, and it loses the free hot-plug
+  detection the shared reply gives. *(2026-07-06)*
+
+- **A HELLO state field** — an optional seventh field, `active` / `silent`, so
+  the reconciliation sweep could send `ACTIVATE` only to modules that need it
+  instead of re-asserting every sweep (a rebooted module's `HELLO` is otherwise
+  indistinguishable from a healthy one's). Backward-compatible by the trailing-
+  fields rule: no field ⇒ state unknown ⇒ DASH re-asserts, which is exactly the
+  1.4.6 behaviour. **Parked** after measuring the re-assert cost (~1% of a
+  115200 wire for ten modules, even with the future §4b activation dumps; the
+  §4b heartbeat itself is ~7%) — the chatter doesn't justify touching the
+  identity message every module ever built will send. Revisit if sweep bursts
+  ever matter on a shared RS485 bus. *(2026-07-06)*
+
 **Next:** begin the Arduino SDKable firmware work against this definition,
 starting with the SYSTEM module on the Arduino Uno Q.
 
@@ -1115,3 +1139,30 @@ short back-and-forth:
   matches an adjacent Image overlay reads as an animated transition into a new
   permanent state — this falls out of the two overlay types coexisting; DASH
   implements nothing special for it.
+
+### Session — 2026-07-06
+DASH 1.4.6 (startup reconciliation) built and bench-verified — the first version
+where the §6 lifecycle runs end to end on the real wire. No changes to the
+message vocabulary; the session's decisions are about how DASH *uses* it:
+- **The §6 boot reconciliation and low-rate re-sweep are now real.** One
+  persistent `DISCOVER` sweep (5 s for the first minute — the Uno Q slow-boot
+  case — then 30 s forever) serves discovery-for-install and reconnection at
+  once. En route Roger proposed a dedicated reconnect message; rejected and
+  recorded in Considered & parked — the module can't know which broadcast means
+  it, so the distinction belongs to DASH's reply-handling, not the wire.
+- **`ACTIVATE` is re-asserted on every sweep answer**, because both module
+  states answer `DISCOVER` identically and a fresh `ROGER` is the only proof a
+  module is genuinely active *now* — this is what heals a crank brown-out reboot
+  within one sweep. Roger challenged the redundancy; the traffic was measured
+  (~1% of a 115200 wire for ten modules) and the re-assert kept. The HELLO
+  state-field alternative is recorded in Considered & parked.
+- **The §6 SYNC button absorbed the DISCOVER button** on Module Management —
+  with the sweep persistent, one manual "check now" serves install and
+  reconnection alike.
+- **The §6 uninstall wording was interpreted** as: delete the record
+  immediately (forgetting *is* the uninstall), retry `DEACTIVATE` behind it,
+  and raise the disconnect-or-power-cycle warning only if no `ROGER` ever
+  comes — a warning after the fact rather than a blocking FORCE UNINSTALL step.
+- **The reference sketches needed nothing.** All three had carried the
+  SILENT → ACTIVE machine, `ROGER`, and the data-only-while-active rule since
+  1.4.4 — the SDK-conformance bet paying off exactly as intended.

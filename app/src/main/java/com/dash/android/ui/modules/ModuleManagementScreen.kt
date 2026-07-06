@@ -36,7 +36,9 @@ import com.dash.android.transport.Discovery
 import com.dash.android.transport.Install
 import com.dash.android.transport.Installing
 import com.dash.android.transport.InstalledModule
+import com.dash.android.transport.ModuleActivity
 import com.dash.android.transport.ModuleDatabase
+import com.dash.android.transport.Reconciliation
 
 private val BG = Color(0xFF0A0A12)
 private val LIST_BG = Color(0xFF06060A)
@@ -51,28 +53,33 @@ private val UNINSTALL_ACCENT = Color(0xFF7A2222)
 
 /**
  * The Module Management screen — a full-screen instrument reached from the settings panel, mirroring
- * the Serial Monitor route. DISCOVER (1.4.2) finds modules; INSTALL (1.4.4) runs the handshake; the
- * module database (1.4.5) makes the result permanent.
+ * the Serial Monitor route. The sweep (1.4.6) finds modules; INSTALL (1.4.4) runs the handshake; the
+ * module database (1.4.5) makes the result permanent; reconciliation (1.4.6) keeps it alive.
  *
  * **One physical module = one card.** The list is a merge of two sources keyed by id: the on-disk
- * installed list (green cards, present the moment the screen opens — no DISCOVER needed, plugged in or
- * not) and this session's discovered set (INSTALL cards for modules answering right now that aren't
- * installed). A module in both is one green card — discovery just confirmed something DASH knew.
- * DISCOVER still rebuilds the discovered set from scratch each press (an installation action, not
- * reconnection), but that can never remove an installed card: those are sustained by the database.
+ * installed list (green cards, present the moment the screen opens — plugged in or not, each wearing
+ * its ACTIVE/DORMANT state) and the discovered set (INSTALL cards for modules answering the sweep that
+ * aren't installed). A module in both is one green card. Nothing here can remove an installed card:
+ * those are sustained by the database.
  *
- * An installed module is still *dormant* here — ACTIVATE and live data are 1.4.6+.
+ * *(Amended for 1.4.6, 2026-07-06: the DISCOVER button became SYNC. As built in 1.4.2 the button was
+ * the only broadcast — user-driven, list rebuilt per press. The reconciliation sweep now broadcasts
+ * continuously, so cards appear when hardware is plugged in and age away when it stops answering;
+ * SYNC simply runs the sweep immediately — the §6 manual "check now" — rather than owning discovery.)*
  */
 @Composable
 fun ModuleManagementScreen(
     discovery: Discovery,
     install: Install,
     database: ModuleDatabase,
+    reconciliation: Reconciliation,
     onDismiss: () -> Unit
 ) {
     val discovered by discovery.modules.collectAsState()
     val installing by install.states.collectAsState()
     val installed by database.modules.collectAsState()
+    val activity by reconciliation.activity.collectAsState()
+    val unconfirmed by reconciliation.unconfirmedDeactivation.collectAsState()
     var detailsFor by remember { mutableStateOf<InstalledModule?>(null) }
 
     // The merged list: installed modules first (alphabetical — they're what you own), then this
@@ -105,24 +112,26 @@ fun ModuleManagementScreen(
                 ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
             }
 
-            // DISCOVER broadcasts to every module on every active transport, so this screen is about
-            // the whole bus of modules, not any one device — there is deliberately no single-device
-            // status here (device/connection state belongs to the Devices view and Serial Monitor).
-            // Always pressable: with nothing connected it simply finds nothing.
+            // SYNC runs the reconciliation sweep right now instead of waiting out its timer — the §6
+            // manual "check now" after fixing wiring or plugging something in. The sweep broadcasts to
+            // every module on every active transport, so this screen is about the whole bus of modules,
+            // not any one device — there is deliberately no single-device status here (that belongs to
+            // the Devices view and Serial Monitor). Always pressable: with nothing connected it simply
+            // finds nothing. (This button was DISCOVER until 1.4.6, when the sweep became persistent.)
             Button(
-                onClick = { discovery.discover() },
+                onClick = { reconciliation.sync() },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF1A237E),
                     contentColor = Color.White
                 ),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-            ) { Text("DISCOVER", fontSize = 14.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp) }
+            ) { Text("SYNC", fontSize = 14.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp) }
 
             // List
             Box(modifier = Modifier.fillMaxWidth().weight(1f).background(LIST_BG)) {
                 if (rows.isEmpty()) {
                     Text(
-                        text = "No modules yet.\n\nInstalled modules appear here automatically.\nTo add one, make sure it has finished booting, then press DISCOVER.",
+                        text = "No modules yet.\n\nPlug a module in and it appears here within moments.\nSYNC checks the bus right now instead of waiting.",
                         color = MUTED,
                         fontSize = 13.sp,
                         fontFamily = FontFamily.Monospace,
@@ -137,6 +146,7 @@ fun ModuleManagementScreen(
                         items(rows, key = { it.id }) { row ->
                             ModuleCard(
                                 row = row,
+                                activity = activity[row.id],
                                 installing = installing[row.id],
                                 onInstall = { install.install(row.id) },
                                 onDetails = { detailsFor = row.installedRecord }
@@ -151,12 +161,20 @@ fun ModuleManagementScreen(
     detailsFor?.let { module ->
         ModuleDetailsDialog(
             module = module,
+            // Since 1.4.6 uninstall goes through the reconciliation desk: the record is still deleted
+            // immediately, but an active module is also sent DEACTIVATE so it stops transmitting.
             onUninstall = {
-                database.uninstall(module.id)
+                reconciliation.uninstall(module)
                 detailsFor = null
             },
             onDone = { detailsFor = null }
         )
+    }
+
+    // The §6 warning: a DEACTIVATE that was never ROGERed. The record is already gone; the module may
+    // still be transmitting, and only physical action can silence it.
+    unconfirmed?.let { name ->
+        UnconfirmedDeactivationDialog(name = name, onDismiss = { reconciliation.clearUnconfirmed() })
     }
 }
 
@@ -176,6 +194,7 @@ private data class ModuleRow(
 @Composable
 private fun ModuleCard(
     row: ModuleRow,
+    activity: ModuleActivity?,
     installing: Installing?,
     onInstall: () -> Unit,
     onDetails: () -> Unit
@@ -202,7 +221,10 @@ private fun ModuleCard(
                 fontSize = 15.sp,
                 fontFamily = FontFamily.Monospace
             )
-            TypeChip(row.type)
+            Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isInstalled) ActivityChip(activity ?: ModuleActivity.DORMANT)
+                TypeChip(row.type)
+            }
         }
         if (row.description.isNotBlank()) {
             Text(row.description, color = MUTED, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
@@ -336,6 +358,55 @@ private fun DetailSection(heading: String, rows: List<String>) {
 private fun com.dash.android.transport.Subscription.display(): String {
     val tail = listOf(rate, threshold, gate, gateValue).filter { it.isNotBlank() }
     return if (tail.isEmpty()) function else "$function  [${tail.joinToString("  ")}]"
+}
+
+/** An installed module's liveness (arduino.md §6): green ACTIVE — it answered the sweep and ROGERed
+ *  its ACTIVATE — or grey DORMANT. The designed wired-fault visual is later 1.4.x failure work. */
+@Composable
+private fun ActivityChip(activity: ModuleActivity) {
+    val (label, colour) = when (activity) {
+        ModuleActivity.ACTIVE -> "ACTIVE" to INSTALLED_BORDER
+        ModuleActivity.DORMANT -> "DORMANT" to MUTED
+    }
+    Box(
+        modifier = Modifier
+            .background(colour.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text(label, color = colour, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+    }
+}
+
+/** The arduino.md §6 unconfirmed-deactivation warning, shown once per occurrence. */
+@Composable
+private fun UnconfirmedDeactivationDialog(name: String, onDismiss: () -> Unit) {
+    Dialog(onDismissRequest = onDismiss) {
+        Column(
+            modifier = Modifier
+                .widthIn(max = 520.dp)
+                .fillMaxWidth()
+                .background(CARD_BG, RoundedCornerShape(10.dp))
+                .border(1.dp, UNINSTALL_ACCENT, RoundedCornerShape(10.dp))
+                .padding(20.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
+        ) {
+            Text("UNINSTALLED — NOT CONFIRMED", color = Color.White, fontSize = 14.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+            Text(
+                text = "$name has been uninstalled, but it never confirmed deactivation. It could still " +
+                    "send misleading data, so either disconnect the module or power-cycle the module.",
+                color = MUTED,
+                fontSize = 13.sp,
+                fontFamily = FontFamily.Monospace
+            )
+            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
+                Button(
+                    onClick = onDismiss,
+                    colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                ) { Text("UNDERSTOOD", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+            }
+        }
+    }
 }
 
 /** Colour the type word by the three module types (arduino.md §4a). Unknown types read neutral. */

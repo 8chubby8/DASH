@@ -47,6 +47,45 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.6
+
+**Status:** Complete — bench-verified on the Arduino Uno R4 (launch DASH with an installed module plugged in → the green card turns ACTIVE within a sweep, the Serial Monitor shows the DISCOVER → HELLO → ACTIVATE → ROGER rally; install a new module → it goes straight to ACTIVE; uninstall while active → DEACTIVATE → ROGER and the module's heartbeat stops). Fifth version of the 1.4.x Transport Layer era.
+
+**Scope:** startup reconciliation — the version where installed modules stop being dormant records and come alive each session. DASH is the single source of truth (arduino.md §6): a module boots SILENT and must be told to wake every session. The new reconciliation desk does the telling — a persistent `DISCOVER` sweep, `ACTIVATE` with acknowledged retries, Active/Dormant state on Module Management, and `DEACTIVATE` on uninstall. The firmware needed nothing: all three reference sketches had carried the SILENT → ACTIVE state machine since 1.4.4.
+
+**Design decisions taken this session (all with Roger, 2026-07-06):**
+- **One DISCOVER — no separate reconnect message.** Roger's instinct was that DISCOVER was for install and reconnection deserved its own message. Rejected on architectural grounds: a broadcast "installed modules, reconnect" is impossible when modules persist nothing and don't know their own install state (§6) — the only question a module can ever answer is "who's there?". The install/reconnect distinction lives in DASH: the same `HELLO` is an install candidate to the discovery desk and a liveness report to the reconciliation desk. A per-id ping and an optional HELLO state field were considered and parked (recorded in arduino.md).
+- **The DISCOVER button became SYNC.** With the sweep persistent, install candidates appear on Module Management when hardware is plugged in and age away when it stops answering — a dedicated install-discovery button is redundant. SYNC is §6's manual "check now": one press serving both install and reconnection by running the sweep immediately. This amends 1.4.2's "broadcasts only on the button press, never on a timer" — that rule was the placeholder until the sweep 1.4.2 explicitly reserved for 1.4.6 existed.
+- **ACTIVATE is re-asserted every sweep, not only when DASH thinks a module is silent.** A brown-out-rebooted module (engine crank) answers `HELLO` identically to a healthy active one, so a fresh `ROGER` is the only proof of life; activate-only-when-dormant would leave a silently-rebooted module dead until DASH restarts — invisible on the wire for a LISTENER, which sends nothing at runtime. Roger challenged the redundant ACTIVATEs; the traffic was measured (~1% of a 115200 wire for ten modules, even including the future §4b activation dumps; the §4b heartbeat itself is ~7%) and he accepted the chatter over changing the HELLO contract. The state-field alternative is parked, backward-compatible, if it ever matters on a shared bus.
+- **Uninstall deletes immediately and warns after, rather than blocking on confirmation.** §6's FORCE UNINSTALL wording supports two readings; the non-blocking one was chosen: the record is deleted at once (DASH forgetting *is* the uninstall), `DEACTIVATE` retries behind it, and only if no ack ever comes does a dialog raise §6's warning — disconnect or power-cycle the module. A module never heard from this session skips the wire entirely, exactly as 1.4.5 behaved.
+- **Cadence numbers:** sweep every 5 s for the first 60 s (the Uno Q's ~20–30 s Linux boot is the design case), then every 30 s forever (crank-reset and hot-plug recovery); ack timeout 2 s × 3 attempts; absent after 75 s unheard (≈ two missed slow sweeps), which is also the discovered-card prune horizon. A transport coming up (boot, replug, permission grant) triggers an immediate sweep; the sweep holds off while an install handshake is in flight so a broadcast never interleaves a declaration run.
+
+**Implemented:**
+- `Reconciliation` (`com.dash.android.transport`) — the controller's third desk, and its first with a clock. Owns the persistent `DISCOVER` sweep (fast phase → slow forever-rate, `sync()` jumps the timer); `onHello` re-asserts `ACTIVATE` for installed ids; `onRoger` feeds monotonic per-command ack counters (a StateFlow condition-wait, so a fast ROGER can't be missed and a stale one can't satisfy a fresh command) — an activate ack is the only thing that turns a module ACTIVE; `uninstall` deletes immediately then hushes with retried `DEACTIVATE`; exposes `activity: StateFlow<Map<String, ModuleActivity>>` (ACTIVE/DORMANT) and `unconfirmedDeactivation` for the §6 warning.
+- `Discovery` — the broadcast moved out (to the sweep); the desk became the passive HELLO collector: upsert by id, entries age out via `prune()` on the sweep's clock. The 1.4.2 clear-and-rebroadcast `discover()` method retired; the kdoc records the amendment.
+- `ModuleDatabase` — gains `loaded: StateFlow<Boolean>` so the first sweep waits for the disk read and an early HELLO is matched against the real installed list, never a briefly-empty one.
+- `DashController` — staffs the third desk: `HELLO` now routes to *two* desks (deliberately — each ignores the ids that aren't its business), `ROGER` to reconciliation; an install commit goes straight to `activate()` (the §7 flow ends `INSTALL_END` → save → `ACTIVATE`, so a fresh install lights up without waiting for a sweep); a transport reaching CONNECTED triggers `sync()`.
+- `ModuleManagementScreen` — DISCOVER button renamed SYNC (calls `reconciliation.sync()`); installed cards wear a green ACTIVE / grey DORMANT chip; uninstall goes through the reconciliation desk; new unconfirmed-deactivation dialog with the §6 warning text; empty-state text now says plug it in and it appears.
+- Version bumped: `versionName` 1.4.5 → 1.4.6, `versionCode` 9 → 10.
+
+**Regressions:**
+- None. The install handshake, progress bar, Details dialog, and database behave as in 1.4.5. The DISCOVER-button behaviour change (list no longer rebuilt per press; cards appear and age out on their own) is the agreed 1.4.6 design, not a regression.
+
+**Fixes:**
+- One compile-time fix during the build: `reconciliation` and `install` reference each other through lambdas (`installBusy` / commit-to-activate), which sent Kotlin's type inference recursive — explicit property types on both broke the cycle.
+
+**Outstanding / deferred (with agreed homes):**
+- **Absent-wired = fault vs absent-wireless = quiet dormant (§6)** — today absent is just DORMANT, neutrally; the transport-aware fault visual belongs to the later 1.4.x designed-failure work, alongside the install timeout.
+- **A wedged install pauses the sweep indefinitely** — the sweep holds while any install session is open, and installs still have no timeout (deliberate 1.4.4 deferral). Inherits the same later failure work.
+- **HELLO state field (`…|version|active/silent`) parked** — would let DASH activate only when needed instead of re-asserting; backward-compatible (no field ⇒ re-assert). Revisit if sweep chatter ever matters on a shared RS485 bus.
+- **Simultaneous HELLO replies will collide on a true shared bus** — irrelevant on point-to-point USB, real on RS485 multi-drop; a reply-jitter scheme belongs with the multi-device work (1.4.10+).
+
+**Notes:**
+- Built and bench-verified in the session of 2026-07-06.
+- New standing instruction from Roger, applied here and saved for future sessions: documentation updates must be **additive** — record what changed and why beside the original decision, never erase the previous version.
+
+---
+
 ## Version 1.4.5
 
 **Status:** Complete — verified (install a module, kill and relaunch DASH, the green card is back from disk; DETAILS reads the saved record; UNINSTALL removes it and its folder). Fourth version of the 1.4.x Transport Layer era.

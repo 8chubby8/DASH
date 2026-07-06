@@ -46,6 +46,11 @@ class ModuleDatabase(context: Context) {
     /** Every installed module, keyed by id. THE installed list — absent here ⇒ not installed. */
     val modules: StateFlow<Map<String, InstalledModule>> = _modules.asStateFlow()
 
+    private val _loaded = MutableStateFlow(false)
+    /** True once [load] has finished its disk read. Reconciliation (1.4.6) waits on this before its
+     *  first sweep, so an early HELLO is matched against the real installed list, not an empty one. */
+    val loaded: StateFlow<Boolean> = _loaded.asStateFlow()
+
     /** Read the installed list off disk. Called once at controller start; replaces the flow wholesale. */
     fun load() {
         scope.launch {
@@ -63,6 +68,7 @@ class ModuleDatabase(context: Context) {
                     .onFailure { Log.w(TAG, "could not decode ${record.path} — skipped", it) }
             }
             _modules.value = loaded
+            _loaded.value = true
             Log.i(TAG, "loaded ${loaded.size} installed module(s) from disk")
         }
     }

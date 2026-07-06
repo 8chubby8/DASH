@@ -479,6 +479,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     discovery = controller.discovery,
                     install = controller.install,
                     database = controller.database,
+                    reconciliation = controller.reconciliation,
                     onDismiss = { showModules = false }
                 )
             }

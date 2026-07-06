@@ -9,36 +9,43 @@ import kotlinx.coroutines.flow.update
  * The discovery desk (roadmap 1.4.2, with 1.4.3's HELLO parsing merged in). One handler behind the
  * [DashController] router — the router hands it every `HELLO` line; it owns nothing else.
  *
- * Discovery here is a **user-driven method of installation, not reconnection**. DASH broadcasts
- * `DISCOVER` only when the user presses the DISCOVER button on the Module Management screen — never on
- * a timer. It is the user's job to make sure a module has finished booting before they press it; a
- * module still coming up simply won't answer that round. The automatic low-rate re-sweep of
- * *already-installed* modules (arduino.md §6) belongs to reconnection / startup reconciliation
- * (roadmap 1.4.6) — a separate mechanism from this manual, install-time sweep.
+ * As built in 1.4.2, discovery was a **user-driven method of installation**: DASH broadcast
+ * `DISCOVER` only on the DISCOVER button, never on a timer, and each press rebuilt the list from
+ * scratch. *(Amended for 1.4.6, 2026-07-06, with Roger's agreement: the [Reconciliation] desk now
+ * owns the `DISCOVER` broadcast and runs it as a persistent low-rate sweep — reconciliation needs
+ * the sweep anyway, and one shared broadcast serves both purposes because the install/reconnect
+ * distinction lives in DASH, not on the wire. This desk became the passive collector of the sweep's
+ * `HELLO`s: install candidates now appear on Module Management without a button press, entries age
+ * out via [prune] when a module stops answering, and the clear-and-rebroadcast [discover] method
+ * retired along with the DISCOVER button — its manual role is the SYNC button, which just asks the
+ * sweep to run now.)*
  *
- * Every DISCOVER press [discover] clears the list and re-broadcasts; the list then repopulates as
- * `HELLO` replies arrive over the following moment. [onHello] upserts by module id, so a module that
- * answers twice appears once. The list is app-lifetime state, so it survives closing and reopening
- * the screen — only the next DISCOVER press clears it.
+ * [onHello] upserts by module id, so a module that answers every sweep appears once, refreshed. The
+ * list is app-lifetime state, so it survives closing and reopening the screen.
  */
-class Discovery(private val broadcast: (String) -> Unit) {
+class Discovery {
 
     private val _modules = MutableStateFlow<List<DiscoveredModule>>(emptyList())
     val modules: StateFlow<List<DiscoveredModule>> = _modules.asStateFlow()
 
-    /** User pressed DISCOVER: empty the list and broadcast afresh. Replies repopulate as they land. */
-    fun discover() {
-        _modules.value = emptyList()
-        broadcast(DISCOVER)
-    }
+    /** When each id last answered, for [prune] — the reconciliation sweep supplies the cutoff. */
+    private val seenAt = mutableMapOf<String, Long>()
 
     /** Handle a `HELLO` line routed here by the controller: parse it and upsert by id (last wins). */
+    @Synchronized
     fun onHello(line: String) {
         val module = DiscoveredModule.parseHello(line) ?: return
+        seenAt[module.id] = System.currentTimeMillis()
         _modules.update { current -> current.filterNot { it.id == module.id } + module }
     }
 
-    private companion object {
-        const val DISCOVER = "DISCOVER"
+    /** Drop modules not heard from since [cutoffMs] — unplugged hardware leaves the list the same
+     *  way it arrived: by the sweep noticing, no button press needed. */
+    @Synchronized
+    fun prune(cutoffMs: Long) {
+        val stale = seenAt.filterValues { it < cutoffMs }.keys
+        if (stale.isEmpty()) return
+        stale.forEach(seenAt::remove)
+        _modules.update { current -> current.filterNot { it.id in stale } }
     }
 }
