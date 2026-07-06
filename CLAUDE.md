@@ -203,6 +203,8 @@ Fine, I'll do it myself. And then let everyone else do it themselves too.
 
 ## Session Handoff
 
+**Retired — 2026-07-06, on Roger's instruction.** The separate design conversation (the Claude chat assistant) that `handoff.md` existed to brief has been deprecated — Roger has outgrown it, and design discussion now happens directly in Claude Code sessions. **Do not create or update `handoff.md` at the end of a session.** The section below is kept for the record rather than deleted, per the project's additive-documentation rule; the one instruction in it that still stands is that any stray `handoff.md` remains gitignored and is never committed.
+
 At the end of every working session, before finishing, create or overwrite a file called `handoff.md` in the project root.
 
 `handoff.md` is separate from changelog.md. The changelog is the formal project record — version numbers, what was implemented, what broke, what was fixed. `handoff.md` is informal — a short note written for Roger to paste into his design conversation with Claude (the chat assistant) so that conversation can pick up context without Roger needing to re-explain everything.
