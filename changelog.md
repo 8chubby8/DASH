@@ -84,6 +84,7 @@ Each version entry follows this structure:
 
 **Notes:**
 - Built and verified in the session of 2026-07-07 — the same session as the Test Accessory v2 work; the 1.4.7 design discussion (verification surface, §4b scope, bench module) ran as three agreed points before any code.
+- *Addendum, same day:* the deferred "firmware after" piece was written and verified too — `arduino/test_system/test_system.ino`, the **Test System module** (`0000DA58EE04`, the bench's fourth id), the hardware twin of the Sim Vehicle: the same pretend drive (500 ms speed/rpm stream, random door, cycling gear, toggling headlights, occasional valueless `media_next`) plus the §4b dump-on-activate and 5 s heartbeat, self-generated so nothing needs wiring to the board. Bench-verified on the Arduino Uno R4 against DASH 1.4.7 — the routing pipeline is proven on copper as well as in simulation.
 
 ---
 
