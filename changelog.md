@@ -47,6 +47,42 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.8
+
+**Status:** Complete — verified on the tablet with the built-in simulator (SIMULATOR ON → install Sim Vehicle and the new Sim Relay LISTENER from Module Management → the vehicle's `BROADCAST`s come straight back out to the Relay as `LISTEN` on the Serial Monitor: `vehicle_speed` throttled to ~1 Hz against the 2 Hz source and deadbanded, `engine_rpm` throttled, `door_driver_open`/`headlights_on`/`gear_position` delivered on-change and on the 5 s heartbeat, a full dump the moment the Relay goes ACTIVE, and a valueless `LISTEN|…|media_next` on the MEDIA ▸ poke). Seventh version of the 1.4.x Transport Layer era.
+
+**Scope:** LISTENER streams — the outbound half of the LISTENER type set up at install in 1.4.4. The controller gains its fifth desk (`Streams`), the *mirror* of 1.4.7's broadcast desk: where that one takes `BROADCAST` off the wire and fills the sourceless core, this one watches the core and delivers subscribed signals back out as `LISTEN`, with all of rate/threshold/gate evaluated in DASH (arduino.md §9).
+
+**Design decisions taken this session (all with Roger, 2026-07-07→08):**
+- **Defaults are the firmware library's job, not DASH's.** The earlier plan — DASH holding a per-signal default rate/threshold and applying it to a blank subscription field — was dropped. A module declares exactly what it wants; DASH honours the delivered line literally and holds no defaults of its own, so it records nothing extra. This is more aligned with the ethos (DASH holds no opinion on a "sensible" rate) and with SDKable (the default-provider moved to the shared library the sketch author still doesn't touch — "not chosen by the builder" is preserved). It also *simplified* the build: the Streams desk needs zero defaulting logic. arduino.md §4c/§9 and system_commands.md were reworded to match.
+- **Malformed subscriptions are dropped, not accommodated (Roger's principle).** DASH assumes modules are written perfectly. A blank optional field is legal and total (no cap / any change / always) and is honoured literally — that is reading the field, not leniency. A present-but-unparseable field (a rate that isn't `Nhz`, a non-numeric threshold) is logged and treated as absent; DASH never guesses the author's intent. The one obligation this leaves — and it is DASH protecting its *own* integrity, not the module's — is that the parser drops bad input cleanly rather than wedging.
+- **Watch the store; keep the core dumb.** The desk observes `SystemState` (diffing the value map) rather than the core being taught to push change notifications — the store stays the passive blackboard, the desk holds all the delivery cleverness, per the crossroads principle. Watching the store catches continuous (silent) and boolean (store-and-event) changes with one rule; the event bus is used only for event-only controls.
+- **Leading-and-trailing rate throttle**, not pure leading-edge. Pure leading-edge can drop the *resting* value of a stream for up to a full 5 s heartbeat — bad for exactly the steering-angle case §9 uses. Leading+trailing sends the first value of a burst at once and the last value at the window's close, converging within one rate-window. Costs one scheduled flush per throttled subscription (the coroutine-timer pattern the reconciliation desk already uses).
+- **Vocabulary-as-editable-data — raised and parked indefinitely.** Whether the signal vocabulary should live in a txt/md/json file rather than code was discussed; parked as premature. The built-in set stays curated in code (type-safe, no runtime parse, no way to ship a malformed vocabulary); user-added *custom* signals are the future patch-bay/custom-fallthrough stage's job, where a user-editable file is the right tool. The message *format* stays fixed in the protocol docs regardless — softness there breaks every module ever built.
+
+**Implemented:**
+- `Streams` (`com.dash.android.transport`) — the fifth desk. Watches `SystemState` + the installed/active module list; delivers `LISTEN|id|function|value` (valueless for event-only). Four §4c triggers: on-change (from the store watch), 5 s heartbeat, on-activation dump, and event-only fire (from the event bus). Four §9 controls evaluated here: leading+trailing rate throttle, numeric deadband, and gate + gate_value (a false→true flip fires the current value immediately, ignoring the threshold; while closed nothing is sent). Deliberately *not* in `DashController.route()` — it is driven by watching state, not an inbound TYPE word; the one desk that produces without consuming the wire. Subscriptions are read type-agnostic from every installed module, so a LISTENER's and an ACCESSORY's (§11) are handled identically.
+- `DashController` — staffs the fifth desk (`streams`), started alongside the others; wired to `transport::send`, `systemState`, `database.modules`, `reconciliation.activity`.
+- `VirtualListenerModule` ("Sim Relay", `0000DA5E0003`) — the third virtual module and the 1.4.8 test rig: subscribes at install to all six Sim Vehicle signals with rates chosen to make the mechanics visible (`vehicle_speed|1hz|2`, `engine_rpm|1hz`, three plain on-change booleans, and event-only `media_next`). Firmware discipline like its siblings — SILENT until ACTIVATE, ROGERs, holds no live loop (a LISTENER only receives). Registered in `SimulatedModuleTransport` (now three modules on the shared-bus preview); a status row added to the State Inspector.
+- Version bumped: `versionName` 1.4.7 → 1.4.8, `versionCode` 11 → 12.
+
+**Regressions:**
+- None known. The 1.4.7 broadcast path, the core, install, database, and reconciliation are untouched — Streams is purely additive, an observer of existing flows and a producer of outbound lines.
+
+**Fixes:**
+- None — clean first build.
+
+**Outstanding / deferred (with agreed homes):**
+- **The gate path is built but not yet watched work.** The sim Relay's subscriptions are deliberately ungated for a clean "all signals" read, so the gate (and its gate-open-fires-immediately behaviour) has no runtime exercise yet. Low risk — it reuses the verified store-watch and store-lookup patterns — but recorded honestly. A gated sim subscription (e.g. `vehicle_speed` gated on `gear_position reverse`, watched switch on/off with the GEAR poke) can be added whenever a live demo is wanted.
+- **Per-signal continuous defaults** now live library-side (this session's decision) — the numbers stay documented in system_commands.md as the library's reference, but DASH applies none. The firmware library that fills them is later SDK work, not a DASH version.
+- **Custom-signal fallthrough + patch-bay + vocabulary-as-data** — the crossroads' configurable future; parked together, not 1.4.x.
+
+**Notes:**
+- Built and verified in the session of 2026-07-07→08. The four design points (library-owned defaults, malformed-is-dropped, watch-the-store, leading+trailing throttle) were agreed before any code, and the vocabulary-as-data idea was raised and parked in the same conversation.
+- Firmware twin deferred to a later bench session — unlike 1.4.7's Test System module, no hardware LISTENER sketch was written this session; the simulator proves the delivery path, and a real LISTENER on the Uno can follow when convenient (it would subscribe and switch a pin on what it hears).
+
+---
+
 ## Version 1.4.7
 
 **Status:** Complete — verified on the tablet with the built-in simulator (SIMULATOR ON → both virtual modules discovered by the sweep → installed from Module Management → the State Inspector's store ticks with the speed/rpm stream, door flips land in both panes, MEDIA ▸ fires an event-only line, heartbeats stream on the wire tap while the event pane stays silent). Sixth version of the 1.4.x Transport Layer era.

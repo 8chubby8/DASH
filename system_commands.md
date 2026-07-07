@@ -11,6 +11,17 @@
 `rate` and `threshold` for a LISTENER's `SUBSCRIBE` message (see arduino.md
 §4c/§9). A builder leaving those fields blank gets these defaults; they are
 overridden only if the module needs different behaviour.
+
+> **Amendment, 2026-07-08 (with Roger):** these defaults are filled by the
+> **firmware library**, not by DASH. The numbers below are the library's reference
+> — it substitutes them into a blank field before the `SUBSCRIBE` line is sent, so
+> the line reaching DASH is already complete. **DASH holds no defaults of its own**
+> and honours whatever arrives literally; a blank field means the total default (no
+> cap / any change / always), a malformed field is logged and ignored. This keeps
+> DASH out of the way and the built-in/community playing field level (the default
+> lives in the shared library, not DASH's core). The behaviour column (store/event)
+> is different — that stays DASH's, because it is how the controller *routes* a
+> signal, not how a module asks for it.
 - **Boolean / multi-state signals** — default is **event-driven**: no rate, no
   threshold. DASH delivers only on change (plus the §4c heartbeat/activation
   dump).

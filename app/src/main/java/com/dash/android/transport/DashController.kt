@@ -20,12 +20,17 @@ import kotlinx.coroutines.launch
  * the same pipe.
  *
  * This is the *frame*, built ahead of the features it will hold — the roadmap fills the desks one per
- * version (streams 1.4.8, module data 1.4.9…). Four desks are staffed today: [discovery] (`HELLO`
- * collection), [install] (the handshake — `SYSTEM_SIGNAL` / `SUBSCRIBE` / `MANIFEST` / asset blocks /
- * `INSTALL_END`, roadmap 1.4.4), [reconciliation] (the sweep, `ACTIVATE`/`DEACTIVATE`, `ROGER` —
- * roadmap 1.4.6), and [broadcasts] (`BROADCAST` → the sourceless core, roadmap 1.4.7). Every other
- * TYPE word is deliberately ignored for now rather than mishandled — it still shows on the wire tap,
- * so nothing is lost, and adding its desk later is a single new branch in [route], never a rewrite.
+ * version (module data 1.4.9…). Five desks are staffed today: [discovery] (`HELLO` collection),
+ * [install] (the handshake — `SYSTEM_SIGNAL` / `SUBSCRIBE` / `MANIFEST` / asset blocks / `INSTALL_END`,
+ * roadmap 1.4.4), [reconciliation] (the sweep, `ACTIVATE`/`DEACTIVATE`, `ROGER` — roadmap 1.4.6),
+ * [broadcasts] (`BROADCAST` → the sourceless core, roadmap 1.4.7), and [streams] (the core → `LISTEN`
+ * out to subscribers, roadmap 1.4.8). Every other TYPE word is deliberately ignored for now rather than
+ * mishandled — it still shows on the wire tap, so nothing is lost, and adding its desk later is a single
+ * new branch in [route], never a rewrite.
+ *
+ * The [streams] desk is not in [route]: it is driven by *watching* the sourceless core and the installed
+ * module list, not by an inbound TYPE word. It is the one desk that produces without consuming the wire —
+ * the mirror of [broadcasts], which consumes the wire to fill the core.
  *
  * `HELLO` is the one line two desks receive — deliberately. The install/reconnect distinction lives
  * in DASH, not on the wire (arduino.md §6: a module doesn't know its own install state), so the same
@@ -72,6 +77,17 @@ class DashController(private val transport: TransportManager, context: Context) 
         heard = { id -> reconciliation.heard(id) }
     )
 
+    /** The streams desk (1.4.8) — LISTENER delivery, the outbound mirror of [broadcasts]. Watches
+     *  [systemState] and the installed/active modules, and delivers subscribed signals back out as
+     *  `LISTEN`, evaluating rate/threshold/gate here (arduino.md §9). */
+    val streams: Streams = Streams(
+        scope = scope,
+        send = transport::send,
+        state = systemState,
+        installed = database.modules,
+        activity = reconciliation.activity
+    )
+
     /** The install desk. Runs the install handshake for a module the user chose from the discovery
      *  list; a completed handshake commits into the [database], then goes straight to activation —
      *  the §7 flow ends `INSTALL_END` → save → `ACTIVATE`. */
@@ -92,6 +108,7 @@ class DashController(private val transport: TransportManager, context: Context) 
         started = true
         database.load()
         reconciliation.start()
+        streams.start()
         scope.launch {
             transport.inbound.collect { frame ->
                 when (frame) {

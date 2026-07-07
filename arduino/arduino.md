@@ -309,16 +309,29 @@ SUBSCRIBE|id|function|rate|threshold|gate|gate_value
 ```
 
 All fields after `function` are optional. Their defaults are determined by the
-**signal's type**, as defined in `system_commands.md` — not chosen by the
+**signal's type**, and are filled by the **firmware library**, not chosen by the
 builder:
 
 - **Boolean and multi-state signals** default to **event-driven delivery** — no
   rate, no threshold. DASH delivers only on change.
 - **Continuous signals** default to a sensible rate and threshold appropriate to
-  that signal type, as defined in `system_commands.md`. The builder overrides
-  these only if it needs different behaviour.
+  that signal type. The builder overrides these only if it needs different
+  behaviour.
 - **Gate** is always optional for any signal type. If omitted, the signal is
   delivered whenever the controller would normally deliver it.
+
+> **Amendment, 2026-07-08 (with Roger):** defaults are the **firmware library's**
+> responsibility, not DASH's. When a builder leaves a field blank, the library
+> fills the type-appropriate default *before* the `SUBSCRIBE` line is sent, so the
+> line reaching DASH is already complete. DASH holds no defaults and records
+> nothing extra — it honours whatever arrives, literally. This keeps the
+> default-provider off the sketch author (the principle "not chosen by the builder"
+> still holds — the *library* chooses) and out of DASH (ethos: DASH holds no
+> opinion on a signal's rate; SDKable: the default lives in the shared library
+> every module uses). `system_commands.md` remains the reference for the *numbers*;
+> the *consumer* of them is the library, not the controller. A blank field that
+> does reach DASH is legal and total (no cap / any change / always) and honoured as
+> such; a present-but-malformed field is logged and ignored, never guessed at.
 
 A LISTENER that only needs to know when something crosses a threshold can
 subscribe to a continuous signal with a threshold and no rate — DASH delivers
@@ -630,6 +643,16 @@ default:
 | `rate` | on-change (no cap) | Max delivery frequency, e.g. `20hz`. A time throttle. |
 | `threshold` | any change | Minimum change before re-sending (deadband), in the signal's own units, e.g. `2`. A value throttle. |
 | `gate` + `gate_value` | always active | A condition the stream runs **only** under, written as the usual `function value` pair — `reverse active`. While false, nothing is sent at all. |
+
+> **Note, 2026-07-08 (implemented in 1.4.8):** "default" above is what the
+> **firmware library** fills into a blank field before sending — not something DASH
+> supplies (see §4c amendment). DASH evaluates the controls **exactly as delivered**:
+> a blank field carries its literal total meaning (no cap / any change / always); a
+> present-but-unparseable field (a rate that isn't `Nhz`, a non-numeric threshold)
+> is logged and treated as absent, never repaired or guessed at. The `rate` throttle
+> is **leading-and-trailing** — the first value of a burst is delivered at once and
+> the last value at the window's close, so a stream converges to its resting value
+> within one rate-window rather than waiting on the heartbeat.
 
 ```
 SUBSCRIBE|id|steering_angle|20hz                     just rate-capped
