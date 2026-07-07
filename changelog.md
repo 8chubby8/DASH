@@ -78,7 +78,7 @@ Each version entry follows this structure:
 - **Absent-wired = fault vs absent-wireless = quiet dormant (§6)** — today absent is just DORMANT, neutrally; the transport-aware fault visual belongs to the later 1.4.x designed-failure work, alongside the install timeout.
 - **A wedged install pauses the sweep indefinitely** — the sweep holds while any install session is open, and installs still have no timeout (deliberate 1.4.4 deferral). Inherits the same later failure work.
 - **HELLO state field (`…|version|active/silent`) parked** — would let DASH activate only when needed instead of re-asserting; backward-compatible (no field ⇒ re-assert). Revisit if sweep chatter ever matters on a shared RS485 bus.
-- **Simultaneous HELLO replies will collide on a true shared bus** — irrelevant on point-to-point USB, real on RS485 multi-drop; a reply-jitter scheme belongs with the multi-device work (1.4.10+).
+- **Simultaneous HELLO replies will collide on a true shared bus** — irrelevant on point-to-point USB, real on RS485 multi-drop; a reply-jitter scheme belongs with the multi-device work (1.4.10+). *(Addendum 2026-07-07: block transfers join the same shared-bus conversation — an install's BLOCK payload and another module's live data would interleave on a shared wire and corrupt the frame, so DASH must quiesce the bus for the transfer. Recorded in the roadmap 1.4.10 entry alongside the per-device-FrameAssembler requirement that keeps point-to-point transports immune.)*
 
 **Notes:**
 - Built and bench-verified in the session of 2026-07-06.

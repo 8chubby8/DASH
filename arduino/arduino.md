@@ -556,6 +556,19 @@ What an install transfers depends on the module's **type** (§4a):
 (A board doing several jobs installs several modules — one per type — each with
 its own handshake.)
 
+**No live data mid-handshake** *(rule added 2026-07-07)* — from answering
+`INSTALL|id` until `INSTALL_END|id` is sent, a module sends **only** handshake
+messages. No `REPORT`, no `BROADCAST`, no heartbeat — nothing may interleave a
+declaration run or a block transfer. The lifecycle already makes this natural:
+a first-time install starts from SILENT (there is no live data to hush), and a
+reinstall/update is preceded by `DEACTIVATE` (DASH quiesces the module before
+re-running the handshake — roadmap 1.4.12). Firmware whose handshake blocks its
+main loop — as all three reference sketches do — gets the rule for free;
+firmware that sends from timers or interrupts must suspend them for the
+duration. (The mirror-image DASH-side guarantees — per-device frame assembly on
+point-to-point transports, bus quiescing on a future shared bus — are DASH
+1.4.10 work, not module-facing protocol.)
+
 ## 8. Asset transfer (the install payload)
 
 ACCESSORY visuals (an SVG icon and up to twelve layout panels) are multi-line and
