@@ -119,6 +119,14 @@ class Reconciliation(
         send(DISCOVER)
     }
 
+    /** Live traffic (a `BROADCAST` passing the gatekeeper, 1.4.7) counts as being heard — a module
+     *  streaming between sweeps obviously isn't absent, so its ACTIVE state must not age out under
+     *  it. Only touches the liveness clock; ACTIVE is still only ever granted by a `ROGER`. */
+    @Synchronized
+    fun heard(id: String) {
+        lastSeen[id] = System.currentTimeMillis()
+    }
+
     /** Every `HELLO` lands here as well as at the discovery desk. An installed id gets re-asserted. */
     @Synchronized
     fun onHello(line: String) {

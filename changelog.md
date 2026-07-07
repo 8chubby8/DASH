@@ -47,6 +47,46 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.7
+
+**Status:** Complete — verified on the tablet with the built-in simulator (SIMULATOR ON → both virtual modules discovered by the sweep → installed from Module Management → the State Inspector's store ticks with the speed/rpm stream, door flips land in both panes, MEDIA ▸ fires an event-only line, heartbeats stream on the wire tap while the event pane stays silent). Sixth version of the 1.4.x Transport Layer era.
+
+**Scope:** system message routing — `BROADCAST|id|function|value` parsed and dispatched into the sourceless core. The controller gains its fourth desk and DASH gains the state store and event bus everything after the transport era will read from. Groundwork laid in 1.4.4 (arduino.md §4b/§5a, `system_commands.md`) got its implementation.
+
+**Design decisions taken this session (all with Roger, 2026-07-07):**
+- **The verification surface is a State Inspector, not a real reaction.** 1.4.7's outcomes are internal (a map value changing, an event nothing listens to yet), and the Serial Monitor can only prove delivery, not understanding. A live window into the core — store pane (value + age), event pane (timestamped rolling log) — verifies the mechanism for every signal; wiring one signal to a real behaviour (headlights → dim screen) would have tested one signal through interface-era territory that isn't designed yet. Agreed split: the **machinery is permanent, the screen is deliberately quick and dirty** — a dev instrument like the Serial Monitor, replaceable without ceremony.
+- **§4b is in scope by construction.** The dump and heartbeat are ordinary `BROADCAST`s; their entire DASH side is the desk *comparing before it acts* (§4b puts change detection on DASH's side). One comparison makes the activation dump, the 5 s heartbeat, flood-free events, and the self-healing store all fall out free.
+- **Verification via simulation, DASH first, firmware after (Roger's call).** A simulated transport with virtual modules behind it, kept to full firmware discipline — SILENT until ACTIVATE, ROGER everything, no access a real board couldn't have — so nothing is faked past the gatekeeper. The inspector's poke buttons (DOOR/GEAR/LIGHTS/MEDIA ▸) are the pretend car's physical inputs, *not* module UI — Roger queried whether buttons made it wrongly ACCESSORY-shaped; resolved: a SYSTEM module's buttons are physical (the steering wheel module is exactly that), and these stand in for the physical world. A dummy ACCESSORY was added at Roger's choice alongside the SYSTEM module.
+- **Live broadcast traffic counts as being heard.** The desk feeds the reconciliation liveness clock (`heard(id)`), so a module streaming ten times a second can't age to DORMANT between sweeps and have its data refused mid-stream. ACTIVE is still only ever granted by a `ROGER`.
+- **Unknown signals drop and log.** The custom-signal fallthrough and the patch-bay override are the crossroads' future configurable stages, deliberately not built; dropped traffic stays visible on the wire tap.
+
+**Implemented:**
+- `SystemState` (`com.dash.android.core` — new package) — the sourceless core: state store (`values: StateFlow<Map<String, StoredSignal>>`) and event bus (`events: SharedFlow<SystemEvent>`, replay 100). Deliberately dumb; never sees a module id.
+- `SystemCommands` — the §5a behaviour vocabulary transcribed from `system_commands.md` (which stays authoritative): every standard signal → store-and-event / store-only / event-only.
+- `Broadcasts` (`com.dash.android.transport`) — the fourth desk and the §5 gatekeeper: installed + ACTIVE or refused-and-logged; id consumed at the desk; behaviour lookup; §4b compare-then-act. Event-only signals are never deduplicated (each firing is a fresh press) and carry no value on the wire.
+- `Reconciliation.heard(id)` — the liveness-clock feed from the broadcast desk.
+- `DashController` — staffs the fourth desk; `BROADCAST` routes to it; owns `systemState`.
+- `SimulatedModuleTransport` (`transport.sim`, tag `sim`) — a loopback `DashTransport` behind the same contract as USB; boots unplugged; its toggle is the pretend USB lead (off = instant module silence, no goodbye — exactly a yanked cable). Two modules on one pipe is a deliberate shared-bus preview.
+- `VirtualSystemModule` ("Sim Vehicle", `0000DA5E0001`) — streams `vehicle_speed`/`engine_rpm` every 500 ms on a sine "drive", random `door_driver_open` flips every 8–20 s, §4b dump on activation + full heartbeat every 5 s, pokes for door/gear/headlights/`media_next`. `VirtualAccessoryModule` ("Sim Accessory", `0000DA5E0002`) — two-block MANIFEST/CRC install, `REPORT` every 2 s while active (correctly unrouted until 1.4.9 — visible on the tap, absent from the store, which is itself a 1.4.7 test).
+- `StateInspectorScreen` (settings → OPEN STATE INSPECTOR) — simulator toggle + pokes, store pane with value/age, event pane with timestamped log. Quick and dirty by agreement.
+- Version bumped: `versionName` 1.4.6 → 1.4.7, `versionCode` 10 → 11.
+
+**Regressions:**
+- None known. USB transport, install, database, and reconciliation paths untouched except the additive `heard()`.
+
+**Fixes:**
+- None — clean first build.
+
+**Outstanding / deferred (with agreed homes):**
+- **Custom-signal fallthrough + patch-bay override** — the crossroads' configurable stages; future work by design (see the transport-brain notes), not 1.4.x.
+- **Sim rig's two-modules-one-pipe contention** (simultaneous HELLOs, bus quiescing) — cannot collide in-process, real on RS485; parked at 1.4.10 with the rest of shared-bus design.
+- **The State Inspector is temp** — replaced or redesigned whenever a real surface earns its place; no design debt intended.
+
+**Notes:**
+- Built and verified in the session of 2026-07-07 — the same session as the Test Accessory v2 work; the 1.4.7 design discussion (verification surface, §4b scope, bench module) ran as three agreed points before any code.
+
+---
+
 ## Version 1.4.6
 
 **Status:** Complete — bench-verified on the Arduino Uno R4 (launch DASH with an installed module plugged in → the green card turns ACTIVE within a sweep, the Serial Monitor shows the DISCOVER → HELLO → ACTIVATE → ROGER rally; install a new module → it goes straight to ACTIVE; uninstall while active → DEACTIVATE → ROGER and the module's heartbeat stops). Fifth version of the 1.4.x Transport Layer era.

@@ -59,6 +59,7 @@ import com.dash.android.transport.TransportManager
 import com.dash.android.ui.debug.DiagnosticOverlay
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.LocalDashScale
+import com.dash.android.ui.inspector.StateInspectorScreen
 import com.dash.android.ui.modules.ModuleManagementScreen
 import com.dash.android.ui.monitor.SerialMonitorScreen
 import com.dash.android.ui.settings.SettingsPanel
@@ -101,6 +102,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var showSettings by remember { mutableStateOf(false) }
     var showModules by remember { mutableStateOf(false) }
     var showSerialMonitor by remember { mutableStateOf(false) }
+    var showStateInspector by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
     var editConfig by remember { mutableStateOf<SystemBarConfig?>(null) }
     var elementWidths by remember { mutableStateOf(mapOf<String, Int>()) }
@@ -463,6 +465,10 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         showSerialMonitor = true
                         showSettings = false
                     },
+                    onOpenStateInspector = {
+                        showStateInspector = true
+                        showSettings = false
+                    },
                     onExit = {
                         densityManager.resetToDefault()
                         activity.finish()
@@ -490,6 +496,16 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 SerialMonitorScreen(
                     transport = transport,
                     onDismiss = { showSerialMonitor = false }
+                )
+            }
+
+            // State Inspector overlay — the window into the sourceless core (1.4.7): state store,
+            // event log, simulator bench controls. Same shelf as the Serial Monitor.
+            if (showStateInspector) {
+                StateInspectorScreen(
+                    controller = controller,
+                    sim = transport.simulated,
+                    onDismiss = { showStateInspector = false }
                 )
             }
 

@@ -1,6 +1,7 @@
 package com.dash.android.transport
 
 import android.content.Context
+import com.dash.android.transport.sim.SimulatedModuleTransport
 import com.dash.android.transport.usb.UsbSerialTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -36,9 +37,14 @@ class TransportManager(context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
+    /** The simulated transport (1.4.7 test rig) — a loopback pipe with two virtual modules behind
+     *  it, driven from the State Inspector. Boots unplugged; costs nothing while disabled. */
+    val simulated = SimulatedModuleTransport(scope)
+
     /** Every transport DASH can talk over. Nothing above this line is USB-specific. */
     private val transports: List<DashTransport> = listOf(
-        UsbSerialTransport(context, scope)
+        UsbSerialTransport(context, scope),
+        simulated
     )
 
     /**

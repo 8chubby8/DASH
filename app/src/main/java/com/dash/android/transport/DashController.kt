@@ -1,6 +1,7 @@
 package com.dash.android.transport
 
 import android.content.Context
+import com.dash.android.core.SystemState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -19,12 +20,12 @@ import kotlinx.coroutines.launch
  * the same pipe.
  *
  * This is the *frame*, built ahead of the features it will hold — the roadmap fills the desks one per
- * version (system-message routing 1.4.7, streams 1.4.8, module data 1.4.9…). Three desks are staffed
- * today: [discovery] (`HELLO` collection), [install] (the handshake — `SYSTEM_SIGNAL` / `SUBSCRIBE` /
- * `MANIFEST` / asset blocks / `INSTALL_END`, roadmap 1.4.4), and [reconciliation] (the sweep,
- * `ACTIVATE`/`DEACTIVATE`, `ROGER` — roadmap 1.4.6). Every other TYPE word is deliberately ignored
- * for now rather than mishandled — it still shows on the wire tap, so nothing is lost, and adding its
- * desk later is a single new branch in [route], never a rewrite.
+ * version (streams 1.4.8, module data 1.4.9…). Four desks are staffed today: [discovery] (`HELLO`
+ * collection), [install] (the handshake — `SYSTEM_SIGNAL` / `SUBSCRIBE` / `MANIFEST` / asset blocks /
+ * `INSTALL_END`, roadmap 1.4.4), [reconciliation] (the sweep, `ACTIVATE`/`DEACTIVATE`, `ROGER` —
+ * roadmap 1.4.6), and [broadcasts] (`BROADCAST` → the sourceless core, roadmap 1.4.7). Every other
+ * TYPE word is deliberately ignored for now rather than mishandled — it still shows on the wire tap,
+ * so nothing is lost, and adding its desk later is a single new branch in [route], never a rewrite.
  *
  * `HELLO` is the one line two desks receive — deliberately. The install/reconnect distinction lives
  * in DASH, not on the wire (arduino.md §6: a module doesn't know its own install state), so the same
@@ -56,6 +57,19 @@ class DashController(private val transport: TransportManager, context: Context) 
         database = database,
         installBusy = { install.states.value.isNotEmpty() },
         pruneDiscovered = discovery::prune
+    )
+
+    /** The sourceless core's system state (1.4.7) — the §5a state store and event bus. The interface
+     *  era reads from this; today the State Inspector is its window. */
+    val systemState = SystemState()
+
+    /** The broadcast desk (1.4.7). The §5 gatekeeper: checks the sender is installed and ACTIVE,
+     *  consumes the id, then routes the signal into [systemState] by its §5a behaviour. */
+    val broadcasts: Broadcasts = Broadcasts(
+        state = systemState,
+        isInstalled = { id -> database.modules.value.containsKey(id) },
+        isActive = { id -> reconciliation.activity.value[id] == ModuleActivity.ACTIVE },
+        heard = { id -> reconciliation.heard(id) }
     )
 
     /** The install desk. Runs the install handshake for a module the user chose from the discovery
@@ -105,6 +119,7 @@ class DashController(private val transport: TransportManager, context: Context) 
                 reconciliation.onHello(line)
             }
             "ROGER" -> reconciliation.onRoger(line)
+            "BROADCAST" -> broadcasts.onBroadcast(line)
             "SYSTEM_SIGNAL" -> install.onSignal(line)
             "SUBSCRIBE" -> install.onSubscribe(line)
             "MANIFEST" -> install.onManifest(line)

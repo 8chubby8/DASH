@@ -67,6 +67,7 @@ fun SettingsPanel(
     onEnterEditMode: () -> Unit,
     onOpenModules: () -> Unit,
     onOpenSerialMonitor: () -> Unit,
+    onOpenStateInspector: () -> Unit,
     onExit: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -256,6 +257,16 @@ fun SettingsPanel(
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
                 ) { Text("OPEN SERIAL MONITOR →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+            }
+
+            // State Inspector — the window into the sourceless core (1.4.7): state store, event log,
+            // and the simulator bench controls. A dev instrument, same shelf as the Serial Monitor.
+            Section("STATE INSPECTOR") {
+                Button(
+                    onClick = onOpenStateInspector,
+                    colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
+                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
+                ) { Text("OPEN STATE INSPECTOR →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
             }
 
             // Exit
