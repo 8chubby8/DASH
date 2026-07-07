@@ -28,11 +28,18 @@
      pane turns green, and DETAILS lists all three assets with the right
      byte counts.
 
+     v2 (2026-07-07) — a second purpose, added once DASH 1.4.6 gave modules
+     a live ACTIVE state: while ACTIVE, the module sends three REPORT
+     variables every two seconds (see LIVE TEST REPORTS below). DASH routes
+     REPORT nowhere until roadmap 1.4.9, but the lines show on the Serial
+     Monitor wire tap — so the reports starting is visible proof an
+     ACTIVATE landed, and their stopping dead is visible proof of a
+     DEACTIVATE. The v1 sketch had a single such REPORT, off by default.
+
    WHAT IT DELIBERATELY DOES NOT DO
-     - No REPORT / ACTION / TRIGGER traffic — DASH routes none of that until
-       roadmap 1.4.9+. (An optional off-by-default test REPORT is included
-       below purely to watch the wire tap, mirroring the steering wheel
-       sketch's optional heartbeat.)
+     - No ACTION / TRIGGER traffic — DASH routes none of that until roadmap
+       1.4.9+. (REPORT is the one exception since v2, above — sent to be
+       *watched*, not routed.)
      - No SUBSCRIBE lines — an ACCESSORY may subscribe (arduino.md §11), but
        keeping this sketch pure-accessory keeps the test unambiguous.
      - No variables / interactive-controls declarations — their install
@@ -85,8 +92,8 @@ const char* MODULE_ID = "0000DA58EE02";   // PLACEHOLDER assigned id — make it
    --------------------------------------------------------------------------- */
 const char* MODULE_TYPE = "ACCESSORY";               // exactly one type (§4a)
 const char* MODULE_NAME = "Test Accessory";          // <= 24 chars
-const char* MODULE_DESC = "Install path test: MANIFEST + BLOCK assets"; // <= 64
-const char* MODULE_VERS = "v0.2";                    // <= 12 chars
+const char* MODULE_DESC = "Install path + live REPORT test module"; // <= 64
+const char* MODULE_VERS = "v2.0";                    // <= 12 chars
 
 /* ---------------------------------------------------------------------------
    THE TEST ASSETS
@@ -244,7 +251,7 @@ const uint8_t ASSET_PANEL_PNG[1352] = {
 // (explicitly temporary, there to exercise the pipeline before the real
 // spec is locked). It ties the other two assets together: the PNG as the
 // canvas, a text overlay bound to the same `test_counter` variable the
-// optional REPORT heartbeat sends, a transform stand-in for a needle, and
+// live test REPORTs send (v2), a transform stand-in for a needle, and
 // a touch area. Note the pipes INSIDE this payload: block content is framed
 // by byte count alone, so the §2 no-pipes rule (a rule about message
 // *fields*) does not apply in here — a useful property to prove.
@@ -285,15 +292,29 @@ bool active = false;          // SILENT until DASH sends ACTIVATE
 char    rxLine[64];
 uint8_t rxLen = 0;
 
-/* OPTIONAL: once ACTIVE, emit a stand-in REPORT on a timer. DASH does not
-   route REPORT until roadmap 1.4.9 — until then this is only useful for
-   watching the message appear on the Serial Monitor wire tap. Off by
-   default; uncomment to enable. */
-//#define SEND_TEST_REPORT
-#ifdef SEND_TEST_REPORT
-unsigned long lastReport   = 0;
-long          reportCount  = 0;
-#endif
+/* ---------------------------------------------------------------------------
+   LIVE TEST REPORTS  (v2)
+   Three REPORT variables, sent every 2 s, ONLY while active — §6's rule
+   that live data flows only while ACTIVE is exactly what makes these a
+   liveness signal: they start when ACTIVATE lands and stop dead on
+   DEACTIVATE. That start/stop IS the test.
+
+   The variable names are not arbitrary. `test_counter` and `needle` are
+   the two variables the panel_layout asset binds its overlays to, so when
+   the module panel arrives (roadmap 1.6.x) this sketch is already a
+   complete panel test module with live data feeding its own layout — and
+   a ready-made bench module for REPORT routing (1.4.9) before that.
+   `uptime_s` earns its place differently: if it ever resets to zero on
+   the wire tap, you have just watched a brown-out reboot get caught and
+   re-activated by DASH's reconciliation sweep.
+
+   Three short lines per 2 s is nothing on a 115200 wire (well under 1%).
+   --------------------------------------------------------------------------- */
+const unsigned long REPORT_EVERY_MS = 2000;
+unsigned long lastReport  = 0;
+long          reportCount = 0;   // test_counter — proves messages keep coming
+int           needleValue = 0;   // needle — bounces 0..100 so it visibly moves
+int           needleStep  = 10;
 
 
 /* ================================  CRC32  ================================= */
@@ -381,7 +402,6 @@ void sendRoger(const char* which) {
   DASH_SERIAL.println(which);
 }
 
-#ifdef SEND_TEST_REPORT
 // REPORT|id|variable|value — the module's own agnostic panel data (§4).
 void sendReport(const char* variable, long value) {
   DASH_SERIAL.print(F("REPORT|"));
@@ -389,7 +409,6 @@ void sendReport(const char* variable, long value) {
   DASH_SERIAL.print(variable);  DASH_SERIAL.print('|');
   DASH_SERIAL.println(value);
 }
-#endif
 
 
 /* =====================  MESSAGES WE RECEIVE FROM DASH  ==================== */
@@ -450,11 +469,15 @@ void loop() {
     }
   }
 
-  // Live data flows ONLY while active (§6).
-#ifdef SEND_TEST_REPORT
-  if (active && millis() - lastReport >= 2000) {
+  // Live data flows ONLY while active (§6) — which is the whole point: the
+  // reports starting is the proof of ACTIVATE, their stopping the proof of
+  // DEACTIVATE.
+  if (active && millis() - lastReport >= REPORT_EVERY_MS) {
     lastReport = millis();
     sendReport("test_counter", reportCount++);
+    needleValue += needleStep;
+    if (needleValue >= 100 || needleValue <= 0) needleStep = -needleStep;
+    sendReport("needle", needleValue);
+    sendReport("uptime_s", (long)(millis() / 1000));
   }
-#endif
 }
