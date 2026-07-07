@@ -83,6 +83,7 @@ Each version entry follows this structure:
 **Notes:**
 - Built and bench-verified in the session of 2026-07-06.
 - New standing instruction from Roger, applied here and saved for future sessions: documentation updates must be **additive** — record what changed and why beside the original decision, never erase the previous version.
+- *Addendum — session of 2026-07-07 (post-verification work, no version bump):* the Test Accessory reference sketch went to **v2** — three live `REPORT` variables (`test_counter`, `needle`, `uptime_s`) every 2 s while ACTIVE, so activation and deactivation are visible on the Serial Monitor as the traffic starting and stopping; the variable names match the panel_layout bindings so the sketch is the ready-made bench module for 1.4.9 and the 1.6.x panel. Bench testing organically demonstrated the hot-plug self-heal: the module was unplugged mid-session, the sweep caught the replug, ACTIVATE/ROGER re-armed it, and the counters restarted from zero — captured in `gallery/v1.4.6-activation-verification.jpeg`, the first entry in the new `gallery/` folder for project pictures. Design fallout recorded the same day: roadmap **1.4.12** (firmware version mismatch — the v2 reflash exposed it) and **1.4.13** (designed install failure) added, **1.4.10** amended (per-device frame assembly; shared-bus quiescing parked), and the **no-live-data-mid-handshake** rule added to arduino.md §7. `DashTheme.kt` also carries an uncommitted colour change — the dark blue palette was difficult to see and was swapped for light grey.
 
 ---
 
