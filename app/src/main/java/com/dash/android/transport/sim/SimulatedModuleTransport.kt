@@ -14,10 +14,12 @@ import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.asStateFlow
 
 /**
- * A simulated transport (roadmap 1.4.7 test rig) — a loopback [DashTransport] with two virtual
- * modules living behind it. Nothing above this class can tell it from real hardware, which is the
- * point: the virtual modules are discovered, installed, activated, and gatekept through exactly the
- * same path as a physical board, so the 1.4.7 pipeline is verifiable with no firmware in the loop.
+ * A simulated transport (roadmap 1.4.7 test rig, extended for 1.4.8) — a loopback [DashTransport] with
+ * three virtual modules living behind it. Nothing above this class can tell it from real hardware,
+ * which is the point: the virtual modules are discovered, installed, activated, and gatekept through
+ * exactly the same path as a physical board, so the pipeline is verifiable with no firmware in the loop.
+ * The LISTENER (1.4.8) makes stream *delivery* visible — it subscribes to the SYSTEM module's signals
+ * and they come straight back out to it as `LISTEN`, throttled and gated, on the same wire tap.
  *
  * **Honesty rules.** The transport cheats nowhere: DASH's outbound lines arrive via [send] like any
  * other pipe, the modules answer onto [incoming], and every message shows on the wire tap under the
@@ -29,8 +31,10 @@ import kotlinx.coroutines.flow.asStateFlow
  * modules are powered off — installed records go DORMANT exactly as unplugged hardware does. The
  * State Inspector's toggle is the pretend USB lead.
  *
- * Two modules on one pipe is not how point-to-point USB behaves — it is a preview of a shared bus,
- * which the message grammar handles by design (every message carries its id, arduino.md §5).
+ * Three modules on one pipe is not how point-to-point USB behaves — it is a preview of a shared bus,
+ * which the message grammar handles by design (every message carries its id, arduino.md §5). It is
+ * exactly what makes the LISTENER demo honest: a `LISTEN` on the shared pipe carries the target's id,
+ * and the other two modules ignore it (§9).
  */
 class SimulatedModuleTransport(scope: CoroutineScope) : DashTransport {
 
@@ -55,7 +59,11 @@ class SimulatedModuleTransport(scope: CoroutineScope) : DashTransport {
     /** A virtual ACCESSORY — exercises the block-transfer install and sends (unrouted) REPORTs. */
     val accessory = VirtualAccessoryModule(scope) { _incoming.tryEmit(it) }
 
-    private val modules = listOf(vehicle, accessory)
+    /** A virtual LISTENER (1.4.8) — subscribes to the Sim Vehicle's signals so stream delivery is
+     *  visible: the vehicle's `BROADCAST`s come back out to this module as `LISTEN` on the wire tap. */
+    val relay = VirtualListenerModule(scope) { _incoming.tryEmit(it) }
+
+    private val modules = listOf(vehicle, accessory, relay)
 
     /** Plug in / unplug the pretend lead. Powering off silences the modules without ceremony —
      *  exactly what yanking a cable does; no DEACTIVATE, no goodbye. */

@@ -277,3 +277,61 @@ class VirtualAccessoryModule(
         const val WIRE_PAUSE_MS = 80L
     }
 }
+
+/**
+ * A virtual LISTENER (roadmap 1.4.8 test rig) — firmware in all but silicon, like its siblings. It
+ * subscribes, at install, to every standard signal the [VirtualSystemModule] puts out, so with both
+ * plugged in the whole stream path is visible on the Serial Monitor: the Sim Vehicle `BROADCAST`s a
+ * signal → it lands in the sourceless core → the streams desk delivers it straight back out as
+ * `LISTEN|thisId|function|value`, gated, throttled and deadbanded per this module's subscriptions —
+ * to a module that never knew where the value came from (§9's headline: sourceless mediation).
+ *
+ * The subscriptions are chosen to exercise every path (§9):
+ *  - `vehicle_speed` — continuous, **rate-capped at 1 Hz with a deadband of 2**, against a 2 Hz source:
+ *    the cap makes the leading-and-trailing throttle visible (roughly half the `BROADCAST`s pass), and
+ *    the deadband holds moves smaller than 2 km/h.
+ *  - `engine_rpm` — continuous, **rate-capped at 1 Hz**, no deadband.
+ *  - `door_driver_open`, `headlights_on`, `gear_position` — plain on-change (a boolean/multi-state
+ *    "stream with no cap"): delivered the instant they change, and on the 5 s heartbeat.
+ *  - `media_next` — event-only: a valueless `LISTEN` on each fire, no heartbeat, no dump.
+ *
+ * Being a LISTENER, it declares nothing to send and holds no live loop — it wakes on `ACTIVATE`,
+ * `ROGER`s it (base class), and simply receives. A real one would switch a relay on what it hears; the
+ * sim's proof is the `LISTEN` traffic on the wire tap, so it does not need to echo receipt.
+ */
+class VirtualListenerModule(
+    scope: CoroutineScope,
+    reply: (Inbound) -> Unit
+) : VirtualModule(scope, reply) {
+
+    override val id = "0000DA5E0003"
+    override val hello =
+        "HELLO|$id|LISTENER|Sim Relay|Simulated LISTENER - subscribes to the Sim Vehicle signals|v1.0"
+
+    override fun doInstall() {
+        scope.launch {
+            // One SUBSCRIBE per signal wanted (§7/§9). Trailing fields set here stand in for what the
+            // firmware library will fill from the signal's type once it exists — DASH records them
+            // verbatim and honours them at delivery; it holds no defaults of its own.
+            delay(WIRE_PAUSE_MS)
+            listOf(
+                "SUBSCRIBE|$id|vehicle_speed|1hz|2",   // rate-capped + deadband
+                "SUBSCRIBE|$id|engine_rpm|1hz",        // rate-capped
+                "SUBSCRIBE|$id|door_driver_open",      // plain on-change
+                "SUBSCRIBE|$id|headlights_on",         // plain on-change
+                "SUBSCRIBE|$id|gear_position",         // plain on-change (multi-state)
+                "SUBSCRIBE|$id|media_next"             // event-only
+            ).forEach { sendLine(it) }
+            delay(WIRE_PAUSE_MS)
+            sendLine("INSTALL_END|$id")
+        }
+    }
+
+    // A LISTENER sends nothing once active — it only receives. Nothing to start or stop.
+    override fun onActivated() = Unit
+    override fun onDeactivated() = Unit
+
+    private companion object {
+        const val WIRE_PAUSE_MS = 60L
+    }
+}

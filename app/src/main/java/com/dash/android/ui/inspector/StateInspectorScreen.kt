@@ -117,7 +117,8 @@ fun StateInspectorScreen(
             Text(
                 text = listOf(
                     simStatus("Sim Vehicle", sim.vehicle, simEnabled, installed.containsKey(sim.vehicle.id), activity[sim.vehicle.id]),
-                    simStatus("Sim Accessory", sim.accessory, simEnabled, installed.containsKey(sim.accessory.id), activity[sim.accessory.id])
+                    simStatus("Sim Accessory", sim.accessory, simEnabled, installed.containsKey(sim.accessory.id), activity[sim.accessory.id]),
+                    simStatus("Sim Relay", sim.relay, simEnabled, installed.containsKey(sim.relay.id), activity[sim.relay.id])
                 ).joinToString("    ·    "),
                 color = HINT,
                 fontSize = 11.sp,
