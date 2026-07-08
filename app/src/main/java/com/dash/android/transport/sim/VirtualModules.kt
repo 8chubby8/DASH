@@ -57,6 +57,9 @@ abstract class VirtualModule(
                 sendLine("ROGER|$id|deactivate")
                 onDeactivated()
             }
+            // A user operated one of this module's panel controls (§4, roadmap 1.4.9). value is absent
+            // for a momentary control. A module that has no panel (SYSTEM/LISTENER) ignores it.
+            "ACTION" -> if (isModuleActive) onAction(parts.getOrNull(2)?.trim().orEmpty(), parts.getOrNull(3)?.trim())
             // Unknown TYPE: ignore — forward compatibility (§2).
         }
     }
@@ -73,6 +76,10 @@ abstract class VirtualModule(
     protected abstract fun doInstall()
     protected abstract fun onActivated()
     protected abstract fun onDeactivated()
+
+    /** A panel control was operated (roadmap 1.4.9). Only ACCESSORY modules own a panel, so the default
+     *  is to do nothing — a SYSTEM or LISTENER module never has controls to operate. */
+    protected open fun onAction(control: String, value: String?) = Unit
 }
 
 /**
@@ -211,9 +218,15 @@ class VirtualSystemModule(
 
 /**
  * A virtual ACCESSORY. Exercises the MANIFEST/BLOCK install path from the simulator side and, while
- * active, sends a `REPORT` every 2 s — which DASH deliberately does not route until 1.4.9, so its
- * only appearance is on the Serial Monitor wire tap. That is itself a 1.4.7 test: accessory traffic
- * must *not* reach the system state store, and here is a module producing some to prove it.
+ * active, sends a `REPORT` every 2 s. Until 1.4.7 those reports went nowhere but the wire tap (proving
+ * accessory traffic must *not* reach the sourceless system store); from 1.4.9 they are routed into the
+ * per-module data store and appear in the State Inspector's reports pane.
+ *
+ * It is also the 1.4.9 round-trip rig for `ACTION`. It declares one panel control (`sim_button`) in its
+ * layout asset, and the State Inspector's "ACTION ▸" button stands in for a user pressing it (there is
+ * no panel yet to press). On receiving `ACTION|id|sim_button|…` it does what a real accessory would —
+ * it acts, then reports its new state back — so the whole loop is visible: press → `ACTION` out on the
+ * wire → the module reacts → `REPORT|id|button_presses|N` back in → the count climbs in the reports pane.
  */
 class VirtualAccessoryModule(
     scope: CoroutineScope,
@@ -226,6 +239,7 @@ class VirtualAccessoryModule(
 
     private var reportJob: Job? = null
     private var reportCount = 0L
+    private var buttonPresses = 0L
 
     // Two small assets — enough to run the MANIFEST/BLOCK/CRC machinery, tiny enough to read here.
     private val icon = """
@@ -239,6 +253,7 @@ class VirtualAccessoryModule(
         # Simulated accessory test layout (provisional format, arduino.md section 11)
         TEST_LAYOUT|panel_background
         TEST_OVERLAY|text|test_counter|0.50|0.50|@barText|18
+        TEST_CONTROL|button|sim_button|0.50|0.80
     """.trimIndent().toByteArray()
 
     override fun doInstall() {
@@ -272,9 +287,18 @@ class VirtualAccessoryModule(
         reportJob = null
     }
 
+    /** The user pressed a panel control. This module owns one — `sim_button`. Like a real accessory it
+     *  acts on the press and reports its resulting state back, so the ACTION→REPORT loop closes on the
+     *  wire. Any other control id is unknown to this panel and ignored. */
+    override fun onAction(control: String, value: String?) {
+        if (control != CONTROL_ID) return
+        sendLine("REPORT|$id|button_presses|${++buttonPresses}")
+    }
+
     private companion object {
         const val REPORT_MS = 2_000L
         const val WIRE_PAUSE_MS = 80L
+        const val CONTROL_ID = "sim_button"
     }
 }
 

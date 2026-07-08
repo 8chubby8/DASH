@@ -47,6 +47,47 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.9
+
+**Status:** Complete — verified on the tablet (SIMULATOR ON → install Sim Accessory → the MODULE REPORTS pane shows its `test_counter` climbing, the reports that went nowhere until now routed and landing; press **ACTION ▸** → the Serial Monitor shows `ACTION|0000DA5E0002|sim_button` going OUT and `button_presses` climbs by one per press in the reports pane — `button_presses` being itself a `REPORT`, that one number rising proves both halves of the specific column at once: the action reached the module through the gatekeeper, and the module's reply routed back into the per-module store and rendered). Eighth version of the 1.4.x Transport Layer era.
+
+**Scope:** Module message routing — the whole "specific" column of the arduino.md §4 2×2, in and out. `REPORT|id|variable|value` (the module's own private panel data) is routed into a new per-module store, and `ACTION|id|control|value` (a user operating one of the module's panel controls) is emitted back out. This is the private mirror of the general column built in 1.4.7–1.4.8: where `BROADCAST`/`LISTEN` are the shared, sourceless signal bus, `REPORT`/`ACTION` are the module's private one-to-one panel wire. With this version the controller's 2×2 is fully staffed.
+
+**The one architectural point — sourceful, not sourceless:**
+- **The id is kept, never consumed.** The broadcast desk (1.4.7) *drops* the sender id so redundant sources for the same signal can coexist — the core is sourceless. `REPORT` is the exact opposite: `temperature` from module X is *that module's panel data* and must never merge with anyone else's, so the id is the store key. `ModuleData` is the sourceful twin of `SystemState`: one small blackboard per module (`id → variable → value`) rather than one shared one. Two modules may each have a `temperature` variable and never collide. That single choice is what 1.4.9 is really about; everything else mirrors 1.4.7.
+- **No behaviour lookup, no event bus.** A `REPORT` variable is agnostic — DASH holds no vocabulary for it (that would be reaching into the module's box), so there are no store-only / event-only kinds to distinguish; every report is latest-value-wins. The §4b change check is kept (an ACCESSORY may resend on a heartbeat/dump), but here it only spares the store needless churn — there is no event to gate.
+
+**Design decision taken this session (with Roger):**
+- **Build the `ACTION` backend now, ahead of the panel.** The roadmap scoped 1.4.9 to `REPORT` only; Roger asked for `ACTION` too, so the module-panel front end (1.6.x) is "ready to just work" the day it lands. This turned out clean rather than speculative because **DASH cannot and must not validate the control id** — a module's controls live inside its panel assets (BLOCKs), which DASH does not parse until 1.6.x. Validation is the panel's job and it does it for free: the panel only ever renders real controls, so the only ids that can reach `sendAction` are real ones. The desk is therefore deliberately thin — a gatekept emit that stores nothing — and is exactly the seam the panel plugs into: render a control, user taps it, call `sendAction` with the id read from the asset. `TRIGGER` (the other ACCESSORY-out message) was ruled *out* of scope this session and given a home at the new **1.9.x Elements** version — it lands in a shared, origin-aware alert store read by the alerts-area element, so it is element work, not private-panel work (see roadmap, added 2026-07-08).
+
+**Implemented:**
+- `ModuleData` (`com.dash.android.core`) — the per-module data store, sourceful twin of `SystemState`. Nested `id → variable → ReportedValue(value, updatedAt)`, in-memory, empty every boot. Deliberately dumb; no event bus. The module panel (1.6.x) is the real reader.
+- `ModuleReports` (`com.dash.android.transport`) — the sixth desk, the specific column's inbound half. Same §5 gatekeeper as `Broadcasts` (installed + ACTIVE, else dropped-and-logged) and the same reconciliation liveness feed, but the id is **kept** as the store key. §4b change check drops unchanged repeats before they touch the store. Wired into `DashController.route()` on the `REPORT` TYPE word.
+- `Actions` (`com.dash.android.transport`) — the specific column's outbound half, the mirror of `ModuleReports` as `Streams` is of `Broadcasts`. `sendAction(id, control, value)` emits `ACTION|id|control|value` (value optional — omitted for a momentary control), gatekept to installed + ACTIVE, storing nothing. Not in `route()` — driven by a user gesture, not an inbound line, so it is (like `Streams`) one of the two desks that produce without consuming the wire.
+- `DashController` — staffs `moduleData`, `moduleReports`, and `actions`; class doc updated to note the 2×2 is now fully staffed and which two desks sit outside `route()`.
+- `VirtualModule` (sim base) — an `ACTION` branch in `onLine` and an overridable `onAction(control, value)` hook (default no-op — a SYSTEM/LISTENER module owns no panel).
+- `VirtualAccessoryModule` ("Sim Accessory") — now the 1.4.9 round-trip rig: declares one control (`sim_button`) in its layout asset, and on `ACTION|id|sim_button|…` acts and reports `button_presses` back, closing the loop on the wire. Its 2 s `test_counter` reports — unrouted since 1.4.7, deliberately — are now routed.
+- `StateInspectorScreen` — a third pane, **MODULE REPORTS** (each active module's variables, name-labelled, value + age), and an **ACTION ▸** bench button standing in for a user pressing the Sim Accessory's control (there is no panel to press yet).
+- Version bumped: `versionName` 1.4.8 → 1.4.9, `versionCode` 12 → 13.
+
+**Regressions:**
+- None known. The general column (1.4.7/1.4.8), the sourceless core, install, database, and reconciliation are untouched — the specific column is purely additive, a new store plus two desks that reuse the existing gatekeeper and liveness patterns.
+
+**Fixes:**
+- None — clean first build.
+
+**Outstanding / deferred (with agreed homes):**
+- **`ModuleData` does not clear a module's entries on uninstall mid-session.** Consistent with `SystemState`, which also never clears itself mid-session; harmless because the store is in-memory (gone on restart), keyed by id, and only installed modules are ever rendered. Can be wired to the install/uninstall path if a live demo ever makes the lingering entries look wrong.
+- **`ACTION` has no real control vocabulary yet** — it can't, until the panel parses assets (1.6.x). The sim exercises the *path* with a sentinel control id; real control semantics arrive with the panel.
+- **`TRIGGER`** — the third ACCESSORY-out message, moved to the new 1.9.x Elements version (a shared origin-aware alert store + the alerts-area element that reads it). Not transport-column work.
+
+**Notes:**
+- Built and verified in the session of 2026-07-08. The sourceful-vs-sourceless distinction and the thin-ACTION-backend decision were both agreed before any code.
+- Roadmap changed this session alongside the build: a new **1.9.x — Elements** version was added as the final major feature of version 1 (Roger's call — TRIGGER/alerts is a low-priority nice-to-have, so it sits at the end rather than in the transport era), and the 1.3.x "alerts area functional in 1.4.x" line was given a dated supersession note pointing to 1.9.x.
+- No firmware twin this session — the simulator proves both directions of the specific column; a real ACCESSORY on the Uno (a panel variable out, a control coming back) can follow at a bench session, as its LISTENER sibling still can from 1.4.8.
+
+---
+
 ## Version 1.4.8
 
 **Status:** Complete — verified on the tablet with the built-in simulator (SIMULATOR ON → install Sim Vehicle and the new Sim Relay LISTENER from Module Management → the vehicle's `BROADCAST`s come straight back out to the Relay as `LISTEN` on the Serial Monitor: `vehicle_speed` throttled to ~1 Hz against the 2 Hz source and deadbanded, `engine_rpm` throttled, `door_driver_open`/`headlights_on`/`gear_position` delivered on-change and on the 5 s heartbeat, a full dump the moment the Relay goes ACTIVE, and a valueless `LISTEN|…|media_next` on the MEDIA ▸ poke). Seventh version of the 1.4.x Transport Layer era.

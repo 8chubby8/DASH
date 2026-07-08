@@ -39,12 +39,14 @@ import java.util.Date
 import java.util.Locale
 
 /**
- * The State Inspector (roadmap 1.4.7) — the window into the sourceless core, and the version's
- * verification surface. Two panes: the **state store** (current value + age of every stateful signal
- * heard since boot) and the **event log** (events as they fire). Between them and the Serial Monitor,
- * every 1.4.7 behaviour is visible: heartbeats streaming on the wire while the event pane stays
- * silent is change detection working; a broadcast on the wire that never reaches the store is the
- * gatekeeper refusing it.
+ * The State Inspector (roadmap 1.4.7, extended 1.4.9) — the window into the cores, and the versions'
+ * verification surface. Three panes: the **state store** (current value + age of every stateful signal
+ * heard since boot), the **event log** (events as they fire), and **module reports** (each active
+ * module's private variables — the sourceful per-module store, 1.4.9). Between them and the Serial
+ * Monitor, every routing behaviour is visible: heartbeats streaming on the wire while the event pane
+ * stays silent is change detection working; a broadcast that never reaches the store is the gatekeeper
+ * refusing it; and the "ACTION ▸" button closes the specific column's loop — press it and the Sim
+ * Accessory's `button_presses` climbs in the reports pane.
  *
  * Deliberately quick and dirty (agreed with Roger, 2026-07-07): the *machinery* it observes is the
  * permanent product; this screen is a dev instrument with no design pass, replaceable without
@@ -58,10 +60,12 @@ fun StateInspectorScreen(
     onDismiss: () -> Unit
 ) {
     val values by controller.systemState.values.collectAsState()
+    val reports by controller.moduleData.values.collectAsState()
     val installed by controller.database.modules.collectAsState()
     val activity by controller.reconciliation.activity.collectAsState()
     val simEnabled by sim.enabled.collectAsState()
     val vehicleActive by sim.vehicle.active.collectAsState()
+    val accessoryActive by sim.accessory.active.collectAsState()
 
     // Rolling event log, newest first. The bus replays recent history, so opening late isn't blank.
     val events = remember { mutableStateListOf<SystemEvent>() }
@@ -113,6 +117,9 @@ fun StateInspectorScreen(
                 PokeButton("GEAR", vehicleActive) { sim.vehicle.pokeGear() }
                 PokeButton("LIGHTS", vehicleActive) { sim.vehicle.pokeHeadlights() }
                 PokeButton("MEDIA ▸", vehicleActive) { sim.vehicle.pokeMediaNext() }
+                // The pretend panel control: stands in for a user pressing the Sim Accessory's button
+                // (1.4.9). Sends ACTION out; the accessory reports button_presses back — round trip.
+                PokeButton("ACTION ▸", accessoryActive) { controller.actions.sendAction(sim.accessory.id, "sim_button") }
             }
             Text(
                 text = listOf(
@@ -168,6 +175,36 @@ fun StateInspectorScreen(
                                     color = if (event.value == null) Color(0xFFFFCC80) else Color.White,
                                     fontSize = 12.sp, fontFamily = FontFamily.Monospace
                                 )
+                            }
+                        }
+                    }
+                }
+                // The per-module reports store (1.4.9) — the sourceful twin of the state store. Grouped
+                // by module (its id is kept, unlike a broadcast), name-labelled where the record is known.
+                Column(modifier = Modifier.weight(1f)) {
+                    Text("MODULE REPORTS", color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+                    if (reports.isEmpty()) {
+                        Text(
+                            "no reports yet",
+                            color = HINT, fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                            modifier = Modifier.padding(top = 12.dp)
+                        )
+                    }
+                    LazyColumn(modifier = Modifier.fillMaxSize().padding(top = 8.dp)) {
+                        reports.entries.sortedBy { it.key }.forEach { (id, vars) ->
+                            item(key = "hdr_$id") {
+                                Text(
+                                    installed[id]?.name ?: id,
+                                    color = Color(0xFF9FA8DA), fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                                    modifier = Modifier.padding(top = 6.dp, bottom = 2.dp)
+                                )
+                            }
+                            items(vars.entries.sortedBy { it.key }.toList(), key = { "$id.${it.key}" }) { (variable, stored) ->
+                                Row(modifier = Modifier.fillMaxWidth().padding(vertical = 3.dp)) {
+                                    Text(variable, color = Color(0xFF80CBC4), fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(1.4f))
+                                    Text(stored.value, color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(0.8f))
+                                    Text(age(now - stored.updatedAt), color = HINT, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = Modifier.weight(0.5f))
+                                }
                             }
                         }
                     }

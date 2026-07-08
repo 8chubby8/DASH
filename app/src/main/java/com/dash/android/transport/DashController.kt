@@ -1,6 +1,7 @@
 package com.dash.android.transport
 
 import android.content.Context
+import com.dash.android.core.ModuleData
 import com.dash.android.core.SystemState
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -20,17 +21,21 @@ import kotlinx.coroutines.launch
  * the same pipe.
  *
  * This is the *frame*, built ahead of the features it will hold — the roadmap fills the desks one per
- * version (module data 1.4.9…). Five desks are staffed today: [discovery] (`HELLO` collection),
- * [install] (the handshake — `SYSTEM_SIGNAL` / `SUBSCRIBE` / `MANIFEST` / asset blocks / `INSTALL_END`,
- * roadmap 1.4.4), [reconciliation] (the sweep, `ACTIVATE`/`DEACTIVATE`, `ROGER` — roadmap 1.4.6),
- * [broadcasts] (`BROADCAST` → the sourceless core, roadmap 1.4.7), and [streams] (the core → `LISTEN`
- * out to subscribers, roadmap 1.4.8). Every other TYPE word is deliberately ignored for now rather than
- * mishandled — it still shows on the wire tap, so nothing is lost, and adding its desk later is a single
- * new branch in [route], never a rewrite.
+ * version. Desks staffed today: [discovery] (`HELLO` collection), [install] (the handshake —
+ * `SYSTEM_SIGNAL` / `SUBSCRIBE` / `MANIFEST` / asset blocks / `INSTALL_END`, roadmap 1.4.4),
+ * [reconciliation] (the sweep, `ACTIVATE`/`DEACTIVATE`, `ROGER` — roadmap 1.4.6), [broadcasts]
+ * (`BROADCAST` → the sourceless core, roadmap 1.4.7), [streams] (the core → `LISTEN` out to subscribers,
+ * roadmap 1.4.8), [moduleReports] (`REPORT` → the per-module store, roadmap 1.4.9) and [actions]
+ * (`ACTION` out to a module's panel control, roadmap 1.4.9). Every other TYPE word is deliberately
+ * ignored for now rather than mishandled — it still shows on the wire tap, so nothing is lost, and
+ * adding its desk later is a single new branch in [route], never a rewrite.
  *
- * The [streams] desk is not in [route]: it is driven by *watching* the sourceless core and the installed
- * module list, not by an inbound TYPE word. It is the one desk that produces without consuming the wire —
- * the mirror of [broadcasts], which consumes the wire to fill the core.
+ * The 2×2 of arduino.md §4 is now fully staffed: [broadcasts]/[streams] are the general (sourceless)
+ * column in and out, [moduleReports]/[actions] the specific (per-module, sourceful) column in and out.
+ *
+ * Two desks are not in [route]: [streams] is driven by *watching* the sourceless core, and [actions] by
+ * a *user gesture* in a panel — neither by an inbound TYPE word. They are the two that produce without
+ * consuming the wire, the outbound mirrors of [broadcasts] and [moduleReports] respectively.
  *
  * `HELLO` is the one line two desks receive — deliberately. The install/reconnect distinction lives
  * in DASH, not on the wire (arduino.md §6: a module doesn't know its own install state), so the same
@@ -88,6 +93,30 @@ class DashController(private val transport: TransportManager, context: Context) 
         activity = reconciliation.activity
     )
 
+    /** The per-module data store (1.4.9) — the sourceful twin of [systemState]. A module's private
+     *  panel variables (`REPORT`) land here keyed by id. The module panel (1.6.x) reads it; today the
+     *  State Inspector is its window. */
+    val moduleData = ModuleData()
+
+    /** The module reports desk (1.4.9). The §5 gatekeeper for the specific column: checks the sender is
+     *  installed and ACTIVE, then routes the variable into [moduleData] under its id (kept, not
+     *  consumed — a report is private to its module). */
+    val moduleReports: ModuleReports = ModuleReports(
+        data = moduleData,
+        isInstalled = { id -> database.modules.value.containsKey(id) },
+        isActive = { id -> reconciliation.activity.value[id] == ModuleActivity.ACTIVE },
+        heard = { id -> reconciliation.heard(id) }
+    )
+
+    /** The actions desk (1.4.9) — the outbound mirror of [moduleReports]. The 1.6.x module panel calls
+     *  [Actions.sendAction] when the user operates a control; it emits `ACTION|id|control|value` to that
+     *  module, gatekept to installed + ACTIVE. Holds no state. */
+    val actions: Actions = Actions(
+        send = transport::send,
+        isInstalled = { id -> database.modules.value.containsKey(id) },
+        isActive = { id -> reconciliation.activity.value[id] == ModuleActivity.ACTIVE }
+    )
+
     /** The install desk. Runs the install handshake for a module the user chose from the discovery
      *  list; a completed handshake commits into the [database], then goes straight to activation —
      *  the §7 flow ends `INSTALL_END` → save → `ACTIVATE`. */
@@ -137,6 +166,7 @@ class DashController(private val transport: TransportManager, context: Context) 
             }
             "ROGER" -> reconciliation.onRoger(line)
             "BROADCAST" -> broadcasts.onBroadcast(line)
+            "REPORT" -> moduleReports.onReport(line)
             "SYSTEM_SIGNAL" -> install.onSignal(line)
             "SUBSCRIBE" -> install.onSubscribe(line)
             "MANIFEST" -> install.onManifest(line)
