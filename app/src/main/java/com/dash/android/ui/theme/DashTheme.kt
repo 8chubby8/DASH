@@ -16,11 +16,14 @@ data class DashColors(
     val barText: Color,
 ) {
     companion object {
+        // Neutral greys drawn from Apple's light-mode system palette: a light bar surface
+        // (systemGray5) with slightly darker accent panels (systemGray4), a mid-grey accent line
+        // (systemGray), and dark text — the token *roles* are unchanged, only the values flipped.
         fun dark() = DashColors(
-            barBackground = Color(0xFF1A1A2E),
-            barAccent     = Color(0xFF26263F),
-            barAccent2    = Color(0xFF7878A0),
-            barText       = Color(0xFFB0B0C8),
+            barBackground = Color(0xFFE5E5EA),
+            barAccent     = Color(0xFFD1D1D6),
+            barAccent2    = Color(0xFF8E8E93),
+            barText       = Color(0xFF3A3A3C),
         )
     }
 }
