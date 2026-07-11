@@ -48,6 +48,13 @@ interface DashTransport {
     /** Live connection status. */
     val status: StateFlow<TransportStatus>
 
+    /**
+     * Physical devices currently connected on this transport (roadmap 1.4.10) — one entry per device,
+     * empty when nothing is connected. The Serial Monitor's device selector reads this. A transport
+     * that never distinguishes devices may leave this empty and rely on the broadcast [send].
+     */
+    val devices: StateFlow<List<TransportDevice>>
+
     /** Begin operating: register listeners and attempt to connect. Idempotent. */
     fun start()
 
@@ -56,6 +63,12 @@ interface DashTransport {
      * live data is stateless and self-healing (arduino.md §6), so a failed send is not fatal.
      */
     fun send(line: String)
+
+    /**
+     * Send to one specific device by its [TransportDevice.key] (roadmap 1.4.10 — the Serial Monitor's
+     * "talk to one device" path). Default: broadcast, for transports that don't distinguish devices.
+     */
+    fun send(line: String, deviceKey: String) = send(line)
 
     /** Stop operating and release all resources. */
     fun stop()

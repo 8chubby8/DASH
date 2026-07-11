@@ -32,6 +32,10 @@ object SystemCommands {
     /** Behaviour of [function], or null if it is not a standard signal. */
     fun behaviourOf(function: String): SignalBehaviour? = BEHAVIOURS[function]
 
+    /** Every standard signal name, sorted — the full known vocabulary. The Signal Monitor (1.4.10)
+     *  lists these against the sourceless store's current values. */
+    fun allFunctions(): List<String> = BEHAVIOURS.keys.sorted()
+
     private val BEHAVIOURS: Map<String, SignalBehaviour> = buildMap {
         // Doors & Access
         storeAndEvent(

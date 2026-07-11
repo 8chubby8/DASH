@@ -19,6 +19,8 @@ import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
@@ -38,6 +40,7 @@ import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dash.android.transport.TransportDevice
 import com.dash.android.transport.TransportManager
 import com.dash.android.transport.TransportState
 import com.dash.android.transport.WireDirection
@@ -71,7 +74,17 @@ fun SerialMonitorScreen(
     var paused by remember { mutableStateOf(false) }
     var sendText by remember { mutableStateOf("") }
     val status by transport.status.collectAsState()
+    val devices by transport.devices.collectAsState()
+    var selectedDevice by remember { mutableStateOf<TransportDevice?>(null) }  // null = all devices
+    var deviceMenuOpen by remember { mutableStateOf(false) }
     val listState = rememberLazyListState()
+
+    // If the chosen device is unplugged, fall back to broadcasting to all rather than a dead target.
+    LaunchedEffect(devices) {
+        if (selectedDevice != null && devices.none { it.key == selectedDevice!!.key && it.transportTag == selectedDevice!!.transportTag }) {
+            selectedDevice = null
+        }
+    }
 
     // Collect the wire tap. replay in the SharedFlow means recent history appears immediately.
     LaunchedEffect(transport) {
@@ -90,7 +103,8 @@ fun SerialMonitorScreen(
     val send: () -> Unit = {
         val line = sendText.trim()
         if (line.isNotEmpty()) {
-            transport.send(line)
+            val target = selectedDevice
+            if (target == null) transport.send(line) else transport.sendTo(target, line)
             sendText = ""
         }
     }
@@ -137,6 +151,34 @@ fun SerialMonitorScreen(
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
                     items(events) { ev -> WireRow(ev) }
+                }
+            }
+
+            // Send target — which device the send box talks to. "All devices" broadcasts (the default,
+            // and exactly what the controller does); pick one board to talk to it alone (roadmap 1.4.10).
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text("SEND TO", color = LABEL, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+                Box {
+                    SmallButton("${selectedDevice?.label ?: "ALL DEVICES"}  ▾") { deviceMenuOpen = true }
+                    DropdownMenu(expanded = deviceMenuOpen, onDismissRequest = { deviceMenuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("All devices", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            onClick = { selectedDevice = null; deviceMenuOpen = false }
+                        )
+                        devices.forEach { d ->
+                            DropdownMenuItem(
+                                text = { Text("${d.label}  ·  ${d.transportTag}", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                                onClick = { selectedDevice = d; deviceMenuOpen = false }
+                            )
+                        }
+                    }
+                }
+                if (devices.isEmpty()) {
+                    Text("(none connected — broadcasts)", color = LABEL, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
                 }
             }
 

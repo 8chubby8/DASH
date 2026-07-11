@@ -1,7 +1,6 @@
 package com.dash.android.transport
 
 import android.content.Context
-import com.dash.android.transport.sim.SimulatedModuleTransport
 import com.dash.android.transport.usb.UsbSerialTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
@@ -37,14 +36,9 @@ class TransportManager(context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** The simulated transport (1.4.7 test rig) — a loopback pipe with two virtual modules behind
-     *  it, driven from the State Inspector. Boots unplugged; costs nothing while disabled. */
-    val simulated = SimulatedModuleTransport(scope)
-
     /** Every transport DASH can talk over. Nothing above this line is USB-specific. */
     private val transports: List<DashTransport> = listOf(
-        UsbSerialTransport(context, scope),
-        simulated
+        UsbSerialTransport(context, scope)
     )
 
     /**
@@ -55,6 +49,13 @@ class TransportManager(context: Context) {
     val status: StateFlow<TransportStatus> =
         combine(transports.map { it.status }) { statuses -> aggregate(statuses) }
             .stateIn(scope, SharingStarted.Eagerly, TransportStatus.NO_DEVICE)
+
+    /** Every physical device across every transport (roadmap 1.4.10) — the merged list the Serial
+     *  Monitor's device selector renders. Each [TransportDevice] carries its own transport tag, so a
+     *  targeted send routes back to the pipe that owns it. */
+    val devices: StateFlow<List<TransportDevice>> =
+        combine(transports.map { it.devices }) { lists -> lists.toList().flatten() }
+            .stateIn(scope, SharingStarted.Eagerly, emptyList())
 
     private val _wire = MutableSharedFlow<WireEvent>(
         replay = WIRE_REPLAY,
@@ -116,6 +117,17 @@ class TransportManager(context: Context) {
                 t.send(line)
             }
         }
+    }
+
+    /**
+     * Send a line to one specific device (roadmap 1.4.10 — the Serial Monitor's per-device target),
+     * routed to the transport that owns it and recorded on the wire tap like any outbound line. The
+     * broadcast [send] stays the controller's path; this is only the monitor's "talk to one" gesture.
+     */
+    fun sendTo(device: TransportDevice, line: String) {
+        val transport = transports.firstOrNull { it.tag == device.transportTag } ?: return
+        _wire.tryEmit(WireEvent(System.currentTimeMillis(), WireDirection.OUT, transport.tag, line))
+        transport.send(line, device.key)
     }
 
     fun stop() {

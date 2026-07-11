@@ -59,9 +59,9 @@ import com.dash.android.transport.TransportManager
 import com.dash.android.ui.debug.DiagnosticOverlay
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.LocalDashScale
-import com.dash.android.ui.inspector.StateInspectorScreen
 import com.dash.android.ui.modules.ModuleManagementScreen
 import com.dash.android.ui.monitor.SerialMonitorScreen
+import com.dash.android.ui.signal.SignalMonitorScreen
 import com.dash.android.ui.settings.SettingsPanel
 import com.dash.android.ui.theme.DashColors
 import com.dash.android.ui.theme.LocalDashTheme
@@ -102,7 +102,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var showSettings by remember { mutableStateOf(false) }
     var showModules by remember { mutableStateOf(false) }
     var showSerialMonitor by remember { mutableStateOf(false) }
-    var showStateInspector by remember { mutableStateOf(false) }
+    var showSignalMonitor by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
     var editConfig by remember { mutableStateOf<SystemBarConfig?>(null) }
     var elementWidths by remember { mutableStateOf(mapOf<String, Int>()) }
@@ -465,8 +465,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         showSerialMonitor = true
                         showSettings = false
                     },
-                    onOpenStateInspector = {
-                        showStateInspector = true
+                    onOpenSignalMonitor = {
+                        showSignalMonitor = true
                         showSettings = false
                     },
                     onExit = {
@@ -499,13 +499,12 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 )
             }
 
-            // State Inspector overlay — the window into the sourceless core (1.4.7): state store,
-            // event log, simulator bench controls. Same shelf as the Serial Monitor.
-            if (showStateInspector) {
-                StateInspectorScreen(
+            // Signal Monitor overlay — the live board of system messages + their state in the
+            // sourceless core (roadmap 1.4.10). Dev instrument, same shelf as the Serial Monitor.
+            if (showSignalMonitor) {
+                SignalMonitorScreen(
                     controller = controller,
-                    sim = transport.simulated,
-                    onDismiss = { showStateInspector = false }
+                    onDismiss = { showSignalMonitor = false }
                 )
             }
 

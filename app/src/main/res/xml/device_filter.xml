@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+    Standard USB-serial vendor IDs (roadmap 1.4.x — USB one-time permission grant).
+
+    Declaring these lets Android show a "use by default for this USB device" checkbox on first
+    attach. Tick it once and DASH is authorised for that device persistently, so it stops
+    re-prompting on every replug — the persistent-permission floor for a sideloaded (Bronze) app;
+    silent anyway on a system-app production board.
+
+    Values are DECIMAL — the Android device_filter convention (a classic gotcha); hex is in the
+    comments. Vendor-id only, so any serial device from that maker matches. A serial chip not
+    listed here still works — it just falls back to the runtime prompt (UsbSerialTransport).
+-->
+<resources>
+    <usb-device vendor-id="9025" />   <!-- 0x2341  Arduino (Uno R4, etc.) -->
+    <usb-device vendor-id="4292" />   <!-- 0x10C4  Silicon Labs CP210x (ESP32 DevKitC) -->
+    <usb-device vendor-id="6790" />   <!-- 0x1A86  QinHeng CH340 / CH341 / CH9102 -->
+    <usb-device vendor-id="1027" />   <!-- 0x0403  FTDI -->
+    <usb-device vendor-id="1659" />   <!-- 0x067B  Prolific PL2303 -->
+    <usb-device vendor-id="12346" />  <!-- 0x303A  Espressif (native-USB S2/S3/C3/C6) -->
+    <usb-device vendor-id="11914" />  <!-- 0x2E8A  Raspberry Pi (Pico CDC) -->
+    <usb-device vendor-id="9114" />   <!-- 0x239A  Adafruit -->
+</resources>

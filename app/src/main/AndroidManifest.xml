@@ -28,6 +28,16 @@
                 <category android:name="android.intent.category.HOME" />
                 <category android:name="android.intent.category.DEFAULT" />
             </intent-filter>
+
+            <!-- USB one-time permission grant (roadmap 1.4.x). The device filter lets Android offer
+                 "use by default" on first attach, so a serial device authorised once is not
+                 re-prompted on every replug. device_filter.xml lists the standard serial VIDs. -->
+            <intent-filter>
+                <action android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED" />
+            </intent-filter>
+            <meta-data
+                android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
+                android:resource="@xml/device_filter" />
         </activity>
 
         <receiver

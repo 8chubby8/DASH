@@ -67,7 +67,7 @@ fun SettingsPanel(
     onEnterEditMode: () -> Unit,
     onOpenModules: () -> Unit,
     onOpenSerialMonitor: () -> Unit,
-    onOpenStateInspector: () -> Unit,
+    onOpenSignalMonitor: () -> Unit,
     onExit: () -> Unit,
     onDismiss: () -> Unit
 ) {
@@ -259,14 +259,14 @@ fun SettingsPanel(
                 ) { Text("OPEN SERIAL MONITOR →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
             }
 
-            // State Inspector — the window into the sourceless core (1.4.7): state store, event log,
-            // and the simulator bench controls. A dev instrument, same shelf as the Serial Monitor.
-            Section("STATE INSPECTOR") {
+            // Signal Monitor — live board of system messages + state in the sourceless core (1.4.10).
+            // Migrates into the Developer tab (Signal Monitor) when the full settings panel is built in 1.5.x.
+            Section("SIGNAL MONITOR") {
                 Button(
-                    onClick = onOpenStateInspector,
+                    onClick = onOpenSignalMonitor,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) { Text("OPEN STATE INSPECTOR →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("OPEN SIGNAL MONITOR →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
             }
 
             // Exit
