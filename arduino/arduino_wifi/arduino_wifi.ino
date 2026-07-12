@@ -78,7 +78,7 @@ const char* MODULE_ID = "0000DA58EE07";   // assigned bench id — keep unique
 const char* MODULE_TYPE = "SYSTEM";                        // exactly one type (§4a)
 const char* MODULE_NAME = "Body WiFi";                     // <= 24 chars
 const char* MODULE_DESC = "R4 body over WiFi: doors, lights, cabin"; // <= 64 chars
-const char* MODULE_VERS = "v1.0";                          // <= 12 chars
+const char* MODULE_VERS = "v1.1";                          // <= 12 chars  (bumped for the 1.4.13 mismatch bench)
 
 /* ---------------------------------------------------------------------------
    THE SIGNALS  (one SYSTEM_SIGNAL line each at install — §7)

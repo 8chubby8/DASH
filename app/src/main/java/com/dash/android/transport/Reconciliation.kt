@@ -67,6 +67,15 @@ class Reconciliation(
     /** Module name whose DEACTIVATE was never ROGERed — the UI shows the §6 warning, then [clearUnconfirmed]. */
     val unconfirmedDeactivation: StateFlow<String?> = _unconfirmedDeactivation.asStateFlow()
 
+    private val _versionMismatch = MutableStateFlow<Map<String, String>>(emptyMap())
+    /**
+     * Installed ids whose `HELLO` reports a firmware version different from the one stored at install
+     * (roadmap 1.4.13), mapped to the *reporting* version. Present ⇒ the stored install contract
+     * (signals / subscriptions / assets) was captured from different firmware and may be stale, so the
+     * UI surfaces a one-tap update. Absent ⇒ stored and reported agree, or the module was never seen.
+     */
+    val versionMismatch: StateFlow<Map<String, String>> = _versionMismatch.asStateFlow()
+
     /** When each id last answered the bus (HELLO or ROGER), for absence aging and prune cutoffs. */
     private val lastSeen = mutableMapOf<String, Long>()
 
@@ -111,10 +120,15 @@ class Reconciliation(
         // Age first: rebuild the activity map from the current installed list, keeping ACTIVE only
         // for modules heard from recently. Adds new installs as DORMANT, drops uninstalled ids.
         _activity.value = database.modules.value.keys.associateWith { id ->
-            if (now - (lastSeen[id] ?: Long.MIN_VALUE) <= ABSENT_MS) {
+            if (id in _versionMismatch.value) {
+                ModuleActivity.DORMANT   // quarantined: never reads ACTIVE, whatever its recency (1.4.13)
+            } else if (now - (lastSeen[id] ?: Long.MIN_VALUE) <= ABSENT_MS) {
                 _activity.value[id] ?: ModuleActivity.DORMANT
             } else ModuleActivity.DORMANT
         }
+        // Drop mismatch flags for ids no longer installed, so an uninstalled module never leaves a
+        // stale UPDATE chip behind — the same honesty the activity rebuild above keeps.
+        _versionMismatch.value = _versionMismatch.value.filterKeys { it in database.modules.value }
         pruneDiscovered(now - ABSENT_MS)
         send(DISCOVER)
     }
@@ -127,13 +141,39 @@ class Reconciliation(
         lastSeen[id] = System.currentTimeMillis()
     }
 
-    /** Every `HELLO` lands here as well as at the discovery desk. An installed id gets re-asserted. */
+    /** Every `HELLO` lands here as well as at the discovery desk. An installed id gets re-asserted,
+     *  and — since 1.4.13 — its reported firmware version checked against the stored install contract. */
     @Synchronized
     fun onHello(line: String) {
         val id = line.split('|').getOrNull(1)?.trim().orEmpty()
         if (id.isEmpty()) return
         lastSeen[id] = System.currentTimeMillis()
-        if (database.modules.value.containsKey(id)) activate(id)
+        val stored = database.modules.value[id] ?: return   // unknown id ⇒ install candidate, not this desk's
+
+        // The same id-match that re-asserts liveness now also compares the reported firmware version
+        // against the one captured at install. Difference only — version is builder free text with no
+        // ordering (arduino.md §10), so "different" is exactly the condition under which the stored
+        // contract is untrustworthy — and only from a well-formed HELLO, so a truncated line can't raise
+        // a phantom mismatch. A match (or blank) clears any prior flag: this is the self-heal after an
+        // update, when the module reports the new version that now matches the freshly stored record.
+        val reported = DiscoveredModule.parseHello(line)?.version
+        if (reported != null) {
+            _versionMismatch.value =
+                if (reported.isNotBlank() && reported != stored.version) _versionMismatch.value + (id to reported)
+                else _versionMismatch.value - id
+        }
+
+        // Quarantine (1.4.13). A module whose reported firmware differs from the stored install
+        // contract is untrusted, so DASH **will not activate it**: it stays DORMANT and every §5
+        // gatekeeper (broadcasts, reports, streams, actions) already refuses a module that isn't
+        // ACTIVE — the rejection is total in both directions, enforced in one place. A compliant
+        // module is never even told to ACTIVATE, so it stays SILENT at the source and no stale-contract
+        // data is produced at all. One tap of UPDATE re-runs the install and lifts the quarantine.
+        if (id in _versionMismatch.value) {
+            _activity.value = _activity.value + (id to ModuleActivity.DORMANT)
+        } else {
+            activate(id)
+        }
     }
 
     /** `ROGER|id|which` — a module confirming a command. Feeds the ack counters; an activate ack is
@@ -146,8 +186,8 @@ class Reconciliation(
         if (id.isEmpty() || which.isEmpty()) return
         lastSeen[id] = System.currentTimeMillis()
         acks.value = acks.value + (ackKey(id, which) to ackCount(id, which) + 1)
-        if (which == ACK_ACTIVATE && database.modules.value.containsKey(id)) {
-            _activity.value = _activity.value + (id to ModuleActivity.ACTIVE)
+        if (which == ACK_ACTIVATE && database.modules.value.containsKey(id) && id !in _versionMismatch.value) {
+            _activity.value = _activity.value + (id to ModuleActivity.ACTIVE)   // never wake a quarantined module (1.4.13)
         }
     }
 
@@ -182,6 +222,7 @@ class Reconciliation(
         activateJobs.remove(module.id)?.cancel()
         database.uninstall(module.id)
         _activity.value = _activity.value - module.id
+        _versionMismatch.value = _versionMismatch.value - module.id
         val present = System.currentTimeMillis() - (lastSeen[module.id] ?: Long.MIN_VALUE) <= ABSENT_MS
         if (!present) return   // never heard from this session — nothing to hush, as in 1.4.5
         scope.launch {
@@ -201,6 +242,13 @@ class Reconciliation(
     /** The user has read the unconfirmed-deactivation warning. */
     fun clearUnconfirmed() {
         _unconfirmedDeactivation.value = null
+    }
+
+    /** Drop a module's version-mismatch flag — called optimistically the moment an update is kicked
+     *  off (roadmap 1.4.13). If the firmware somehow still differs, the next `HELLO` re-flags it. */
+    @Synchronized
+    fun clearMismatch(id: String) {
+        _versionMismatch.value = _versionMismatch.value - id
     }
 
     private fun ackKey(id: String, which: String) = "$id|$which"

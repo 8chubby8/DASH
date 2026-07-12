@@ -509,6 +509,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     install = controller.install,
                     database = controller.database,
                     reconciliation = controller.reconciliation,
+                    onUpdate = controller::updateModule,
                     onDismiss = { showModules = false }
                 )
             }

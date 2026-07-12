@@ -496,6 +496,37 @@ data) → back to `SILENT` (after `DEACTIVATE`).
 booter is picked up whenever it appears (the Arduino Uno Q's full Linux boot of
 ~20–30 s is the worst case — a fixed "3 tries then give up" would miss it).
 
+> **The firmware `version` field — a required freshness check (added 2026-07-12,
+> built and hardware-verified in DASH 1.4.13).** The sixth `HELLO` field
+> (`HELLO|id|type|name|description|version`) is the module's **firmware version** —
+> builder free text, ≤ 12 chars (§10), with **no ordering contract**: DASH never
+> reads it as "newer/older", only as *same* or *different*.
+>
+> It is **load-bearing**, not cosmetic. DASH captures the version at install as
+> part of the install contract (alongside the module's `SYSTEM_SIGNAL` /
+> `SUBSCRIBE` / MANIFEST declarations) and **re-checks it against the `HELLO` on
+> every reconnect**. If the reported version differs from the stored one, the
+> stored contract can no longer be trusted, so DASH **quarantines the module**: it
+> is **not** `ACTIVATE`d, it is held `DORMANT`, and every gatekeeper refuses its
+> traffic in both directions — the module's `BROADCAST`/`REPORT` are dropped and no
+> `LISTEN`/`ACTION` is sent to it. Because a compliant module boots SILENT and only
+> speaks after `ACTIVATE`, a quarantined module never transmits at all. The user
+> clears it with a one-tap **UPDATE** (a re-install — the handshake re-runs and the
+> contract is re-captured from the new firmware), after which the module activates
+> normally. *(Roger's call, 2026-07-12: a mismatch is a hard rejection, not a
+> warning — the version is only worth carrying if a difference actually withholds
+> trust. This supersedes the initial "surface but keep working" design.)*
+>
+> **The builder's obligation:** treat `version` as the contract's fingerprint.
+> **Bump it whenever anything DASH stored at install changes** — a signal added or
+> removed, a subscription altered, a panel asset changed. Bumping it is what tells
+> DASH to re-capture; *failing* to bump it after changing declarations would leave
+> DASH running on a stale contract with no way to know. A pure logic change that
+> touches none of the declared interface may keep the same version (DASH will
+> re-activate silently), but when in doubt, bump it — the cost is one UPDATE tap.
+> Keep the string **stable across reboots** for a given firmware build: it is read
+> fresh from a constant each boot, never persisted, so it must not vary run to run.
+
 **Absent = DORMANT, not an error, and transport-aware:**
 - A **wired** module (UART/RS485) expected but absent → **fault** indication.
 - A **wireless** module (WiFi/BT) absent → normal dormant, no alarm; auto-
@@ -701,7 +732,7 @@ carrying the **sender's** id.
 | type | 9 | single type word, e.g. `ACCESSORY` (§4a) |
 | name | 24 | builder text |
 | description | 64 | builder text (also a UI tidiness cap) |
-| version | 12 | builder text |
+| version | 12 | firmware version — builder text, but **load-bearing**: DASH re-checks it every reconnect and quarantines a module whose version no longer matches its stored install contract (§6) |
 
 ---
 

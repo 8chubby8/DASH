@@ -130,6 +130,24 @@ class DashController(private val transport: TransportManager, context: Context) 
         }
     )
 
+    /**
+     * One-tap firmware update (roadmap 1.4.13). A module persists nothing (§6), so a firmware update
+     * *is* a reinstall: forget the stale record and re-run the install handshake, which re-seeds from
+     * the module's live `HELLO` identity (the new firmware's) and re-captures its declarations fresh.
+     *
+     * The controller is the one place holding both the [database] and the [install] desk, so this
+     * orchestration lives here rather than in a single desk or the UI. Unlike a user uninstall it sends
+     * **no** `DEACTIVATE` first: this module is about to be reactivated seconds later, and a late
+     * DEACTIVATE retry could otherwise land after the fresh `ACTIVATE` and wrongly silence the
+     * just-updated module. The brief record-absent window is harmless — the module's broadcasts simply
+     * drop-and-log at the gatekeeper until the reinstall commits.
+     */
+    fun updateModule(id: String) {
+        database.uninstall(id)              // drop the stale contract (no wire hush — refreshing, not removing)
+        reconciliation.clearMismatch(id)    // optimistic; a genuine remaining difference re-flags next HELLO
+        install.install(id)                 // re-run §7 → commit → ACTIVATE, seeded from the live identity
+    }
+
     private var started = false
 
     fun start() {

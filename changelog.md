@@ -47,6 +47,42 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.13
+
+**Status:** Complete — verified on real hardware: the `arduino_wifi.ino` "Body WiFi" module was reflashed from `v1.0` to `v1.1` **without uninstalling**. On reconnect DASH recognised it as the installed module but **held it DORMANT** with an amber **UPDATE** chip, and its live data was **refused** — the door/light/cabin signals stopped appearing in the Signal Monitor. One tap of **UPDATE** re-ran the install handshake, re-captured the contract at `v1.1`, and the module came back **ACTIVE** and streaming. Twelfth version of the 1.4.x Transport Layer era.
+
+**Scope:** Firmware version mismatch — DASH notices when a module reports a firmware version different from the one captured at install, and treats the stored install contract as untrustworthy until the module is re-installed.
+
+**The build:**
+
+- **Detection, in the reconciliation desk.** The desk already matched every `HELLO` against the installed database by id to re-assert liveness; it now also compares the sixth `HELLO` field (`version`) against the stored record. **Difference only** — the version is builder free text with no ordering contract (arduino.md §10), so DASH reads it as *same* or *different*, never newer/older. The comparison is taken only from a **well-formed** `HELLO` (via the strict six-field parse), so a truncated line can never raise a phantom mismatch. A new `versionMismatch: StateFlow<Map<id, reportedVersion>>` carries the result.
+
+- **Rejection, not a warning — Roger's call during the bench.** The original plan was "surface but keep working." On hardware Roger saw the mismatched module's data still arriving at the Signal Monitor and ruled that a mismatch must be a **hard rejection** — the version is only worth tracking if a difference actually withholds trust. So a mismatched module is **quarantined**: the desk **does not send it `ACTIVATE`**. That one decision is the entire enforcement — the module is held `DORMANT`, and all four §5 gatekeepers (broadcasts, reports, streams-out, actions-out) already refuse a module that isn't `ACTIVE`, so its traffic is rejected in **both** directions with **no change to any gatekeeper**. And because a compliant module boots SILENT and only speaks after `ACTIVATE`, a quarantined module never transmits at all — the rejection is enforced at the source, not just at the wall. Two defensive guards keep the invariant airtight: `sweep()` forces a mismatched id `DORMANT` regardless of recency, and `onRoger` refuses to let a stray activate-ack wake a quarantined module.
+
+- **One-tap update — `DashController.updateModule(id)`.** A firmware update *is* a reinstall (§6: the module persists nothing): forget the stale record, clear the flag, re-run the install handshake — which re-seeds from the module's live `HELLO` identity (the new firmware's) and re-captures its declarations, then commits and `ACTIVATE`s. The controller is the one place holding both the database and the install desk, so the orchestration lives there. Deliberately sends **no** `DEACTIVATE` first (unlike a user uninstall): the module is about to be reactivated, and a late DEACTIVATE retry could otherwise land after the fresh `ACTIVATE` and wrongly silence the just-updated module. Opening the re-install session sets `installBusy()`, so the sweep holds off on its own during the handshake.
+
+- **Surfacing.** An amber **UPDATE** chip on the installed card (beside the DORMANT/type chips), and in DETAILS a *FIRMWARE VERSION MISMATCH* banner showing `installed` vs `reporting` side by side with the reason — *"Held inactive — its data is refused until it is updated."* — plus a one-tap UPDATE button. The flag **self-heals**: once the module reports the new version that matches the freshly stored record, the next `HELLO` clears it.
+
+- **arduino.md §6 gained the version requirement** (dated additive note): the `version` field is load-bearing, DASH re-checks it every reconnect and quarantines on difference, and the builder must **bump `version` whenever the declared interface changes** (a signal/subscription/asset added, removed, or altered) so DASH knows to re-capture. The §10 field-caps table row for `version` now points at it.
+
+- **Reference module.** `arduino_wifi.ino` "Body WiFi" bumped `MODULE_VERS` `v1.0` → `v1.1` to drive the bench (its stored record was captured at v1.0 in earlier versions, so the reflash produces a genuine mismatch).
+
+**Decisions taken this session (with Roger):**
+- **A version mismatch is a hard rejection**, enforced by withholding `ACTIVATE` — quarantine the module in both directions until updated, rather than flag-and-continue.
+- **Withhold activation rather than gate each desk** — one decision at the wake-up point rejects the module everywhere, with no gatekeeper changes, and stops a compliant module transmitting at the source.
+- **No `DEACTIVATE` on update** — the module is being refreshed, not removed, and a late hush could silence the fresh install.
+
+**Regressions:** None. The change is contained to the reconciliation desk, one new controller method, and the Module Management UI; the wire grammar, the database schema, the install desk, and the four gatekeepers are all untouched.
+
+**Outstanding / deferred (with homes):**
+- **Auto-refresh** (DASH re-running the handshake unprompted on a detected mismatch) remains deferred until the install-failure work (1.4.14) exists — auto-triggering installs with nobody watching invites the wedged-install problem. Revisit after 1.4.14.
+
+**Notes:**
+- The builder-facing "bump your version when the interface changes" rule is a **new module-facing requirement**, captured in arduino.md §6 now; its promotion into transport.md or a module-rules doc rides with the SDK lock at 1.4.15.
+- **Version bump:** `versionName` 1.4.12 → 1.4.13, `versionCode` 16 → 17.
+
+---
+
 ## Version 1.4.12
 
 **Status:** Complete — verified on real hardware: an Espressif ESP32 DevKitC running the new `esp32_bt.ino` "Powertrain BT" reference module reached DASH **over Bluetooth Classic (SPP)** — paired once in Android's settings, then DASH connected out to it and ran the full `DISCOVER → HELLO → INSTALL → ACTIVATE → ROGER` handshake and the live BROADCAST stream, all intact over the air. Run alongside the WiFi "Body" and a USB board it gives the genuine **three-transport bench — USB, WiFi and Bluetooth live at once** — the strongest proof yet that nothing above the transport layer cares which pipe carried a message. Eleventh version of the 1.4.x Transport Layer era.

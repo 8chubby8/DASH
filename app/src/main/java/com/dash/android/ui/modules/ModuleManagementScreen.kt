@@ -50,6 +50,7 @@ private val LABEL = Color(0xFF666666)
 private val MUTED = Color(0xFF888888)
 private val INSTALL_ACCENT = Color(0xFF00695C)
 private val UNINSTALL_ACCENT = Color(0xFF7A2222)
+private val UPDATE_ACCENT = Color(0xFFC98A2B)   // amber — a firmware version mismatch (1.4.13)
 
 /**
  * The Module Management screen — a full-screen instrument reached from the settings panel, mirroring
@@ -73,12 +74,14 @@ fun ModuleManagementScreen(
     install: Install,
     database: ModuleDatabase,
     reconciliation: Reconciliation,
+    onUpdate: (String) -> Unit,
     onDismiss: () -> Unit
 ) {
     val discovered by discovery.modules.collectAsState()
     val installing by install.states.collectAsState()
     val installed by database.modules.collectAsState()
     val activity by reconciliation.activity.collectAsState()
+    val mismatch by reconciliation.versionMismatch.collectAsState()
     val unconfirmed by reconciliation.unconfirmedDeactivation.collectAsState()
     var detailsFor by remember { mutableStateOf<InstalledModule?>(null) }
 
@@ -147,6 +150,7 @@ fun ModuleManagementScreen(
                             ModuleCard(
                                 row = row,
                                 activity = activity[row.id],
+                                reportedVersion = mismatch[row.id],
                                 installing = installing[row.id],
                                 onInstall = { install.install(row.id) },
                                 onDetails = { detailsFor = row.installedRecord }
@@ -161,10 +165,17 @@ fun ModuleManagementScreen(
     detailsFor?.let { module ->
         ModuleDetailsDialog(
             module = module,
+            reportedVersion = mismatch[module.id],
             // Since 1.4.6 uninstall goes through the reconciliation desk: the record is still deleted
             // immediately, but an active module is also sent DEACTIVATE so it stops transmitting.
             onUninstall = {
                 reconciliation.uninstall(module)
+                detailsFor = null
+            },
+            // 1.4.13: a firmware update is a reinstall — the controller forgets the stale record and
+            // re-runs the handshake, re-capturing the contract from the new firmware.
+            onUpdate = {
+                onUpdate(module.id)
                 detailsFor = null
             },
             onDone = { detailsFor = null }
@@ -195,6 +206,7 @@ private data class ModuleRow(
 private fun ModuleCard(
     row: ModuleRow,
     activity: ModuleActivity?,
+    reportedVersion: String?,
     installing: Installing?,
     onInstall: () -> Unit,
     onDetails: () -> Unit
@@ -222,6 +234,7 @@ private fun ModuleCard(
                 fontFamily = FontFamily.Monospace
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isInstalled && reportedVersion != null) MismatchChip()
                 if (isInstalled) ActivityChip(activity ?: ModuleActivity.DORMANT)
                 TypeChip(row.type)
             }
@@ -295,7 +308,9 @@ private fun ActionButton(label: String, colour: Color, onClick: () -> Unit) {
 @Composable
 private fun ModuleDetailsDialog(
     module: InstalledModule,
+    reportedVersion: String?,
     onUninstall: () -> Unit,
+    onUpdate: () -> Unit,
     onDone: () -> Unit
 ) {
     Dialog(onDismissRequest = onDone) {
@@ -318,6 +333,25 @@ private fun ModuleDetailsDialog(
             }
             Text("${module.id}   ${module.version}", color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
 
+            // 1.4.13: when the module reports a version different from the one stored at install, the
+            // stored declarations below can't be trusted — the module is held DORMANT and all its
+            // traffic refused until it's updated. Surface both versions and the reason, never swallow it.
+            if (reportedVersion != null) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(UPDATE_ACCENT.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                        .border(1.dp, UPDATE_ACCENT.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text("FIRMWARE VERSION MISMATCH", color = UPDATE_ACCENT, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+                    Text("installed  ${module.version.ifBlank { "(none)" }}", color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Text("reporting  ${reportedVersion.ifBlank { "(none)" }}", color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+                    Text("Held inactive — its data is refused until it is updated. UPDATE re-runs the install.", color = MUTED, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+
             when (module.type.uppercase()) {
                 "SYSTEM" -> DetailSection("SIGNALS BROADCAST", module.signals.ifEmpty { listOf("(none declared)") })
                 "LISTENER" -> DetailSection("SUBSCRIPTIONS", module.subscriptions.map { it.display() }.ifEmpty { listOf("(none declared)") })
@@ -334,6 +368,13 @@ private fun ModuleDetailsDialog(
                     colors = ButtonDefaults.buttonColors(containerColor = UNINSTALL_ACCENT, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
                 ) { Text("UNINSTALL", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+                if (reportedVersion != null) {
+                    Button(
+                        onClick = onUpdate,
+                        colors = ButtonDefaults.buttonColors(containerColor = UPDATE_ACCENT, contentColor = Color.White),
+                        contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
+                    ) { Text("UPDATE", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+                }
                 Button(
                     onClick = onDone,
                     colors = ButtonDefaults.buttonColors(containerColor = INSTALL_ACCENT, contentColor = Color.White),
@@ -374,6 +415,19 @@ private fun ActivityChip(activity: ModuleActivity) {
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
         Text(label, color = colour, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+    }
+}
+
+/** The 1.4.13 firmware-mismatch marker: the module is reporting a version different from the one
+ *  stored at install, so its stored contract may be stale and a one-tap UPDATE is offered in DETAILS. */
+@Composable
+private fun MismatchChip() {
+    Box(
+        modifier = Modifier
+            .background(UPDATE_ACCENT.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text("UPDATE", color = UPDATE_ACCENT, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
     }
 }
 
