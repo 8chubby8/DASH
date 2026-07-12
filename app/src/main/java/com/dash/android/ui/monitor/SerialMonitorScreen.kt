@@ -74,6 +74,7 @@ fun SerialMonitorScreen(
     var paused by remember { mutableStateOf(false) }
     var sendText by remember { mutableStateOf("") }
     val status by transport.status.collectAsState()
+    val transportStatuses by transport.transportStatuses.collectAsState()
     val devices by transport.devices.collectAsState()
     var selectedDevice by remember { mutableStateOf<TransportDevice?>(null) }  // null = all devices
     var deviceMenuOpen by remember { mutableStateOf(false) }
@@ -130,13 +131,16 @@ fun SerialMonitorScreen(
                 ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
             }
 
-            // Status + log controls
+            // Status + log controls. One status line per transport (roadmap 1.4.11) so every pipe is
+            // visible — the WiFi "Listening on <ip>:3274" no longer hides behind USB's livelier line.
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                StatusChip(status.state, status.detail)
+                Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
+                    transportStatuses.forEach { (tag, s) -> StatusChip(tag, s.state, s.detail) }
+                }
                 Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                     SmallButton(if (paused) "RESUME" else "PAUSE") { paused = !paused }
                     SmallButton("CLEAR") { events.clear() }
@@ -245,7 +249,7 @@ private fun typeColor(line: String): Color = when (line.substringBefore('|').tri
 }
 
 @Composable
-private fun StatusChip(state: TransportState, detail: String) {
+private fun StatusChip(tag: String, state: TransportState, detail: String) {
     val (dot, label) = when (state) {
         TransportState.CONNECTED -> Color(0xFF2E7D32) to "CONNECTED"
         TransportState.CONNECTING -> Color(0xFFF9A825) to "CONNECTING"
@@ -256,7 +260,10 @@ private fun StatusChip(state: TransportState, detail: String) {
     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Box(Modifier.size(10.dp).background(dot, CircleShape))
         Text(
-            text = if (detail.isNotBlank()) "$label  ·  $detail" else label,
+            text = buildString {
+                append(tag.uppercase()).append("  ").append(label)
+                if (detail.isNotBlank()) append("  ·  ").append(detail)
+            },
             color = Color(0xFFAAAAAA),
             fontSize = 11.sp,
             fontFamily = FontFamily.Monospace

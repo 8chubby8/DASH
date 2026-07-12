@@ -4,6 +4,11 @@
     <uses-permission android:name="android.permission.WRITE_SECURE_SETTINGS" />
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
 
+    <!-- WiFi TCP transport (1.4.11). INTERNET is a normal (auto-granted) permission; it lets DASH
+         run its module TCP server. transport.md: the server is just an app on Android's network
+         stack and does not affect concurrent internet use. -->
+    <uses-permission android:name="android.permission.INTERNET" />
+
     <!-- USB serial transport (1.4.x). required=false keeps DASH installable on devices without
          USB host / OTG — the transport simply reports NO DEVICE and degrades gracefully. -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />

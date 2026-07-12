@@ -21,5 +21,8 @@ Thumbs.db
 # Session handoff notes (Roger's personal use, never committed)
 handoff.md
 
+# WiFi module credentials — real SSID/password/DASH IP, never committed to the public repo
+arduino/**/arduino_secrets.h
+
 # CAN research sub-project — large capture logs, kept out of the DASH repo
 x-type_climate/

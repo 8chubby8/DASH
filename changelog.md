@@ -47,6 +47,46 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.11
+
+**Status:** Complete — verified on real hardware: the Arduino Uno R4 WiFi running the new "Body WiFi" reference sketch connected to DASH's TCP server over WiFi (home network, DASH at 192.168.1.77:3274) and came up as a module **over the air** — the first time a module has reached DASH over anything but a cable. Tenth version of the 1.4.x Transport Layer era.
+
+**Scope:** The WiFi TCP transport — the second `DashTransport`, and the version whose entire job is to prove the 1.4.1 pluggable-transport abstraction is genuinely transport-agnostic. A module that arrives over a socket runs the identical lifecycle as one on a cable, because everything above the transport layer routes by module id and neither knows nor cares which pipe carried the bytes.
+
+**The build:**
+
+- **`WifiTcpTransport`.** The inversion vs USB is the heart of it: on USB, DASH is the host that enumerates and opens devices; on TCP, DASH runs a **server** on a fixed port and modules are the **clients that connect in** (transport.md's WiFi model). One accepted socket is one "device," each with its own reader coroutine and — the 1.4.10 hard requirement carried from cables to sockets — **its own `FrameAssembler`**, so an asset BLOCK from one client can't flip another's live bytes into byte-count mode. `send` fans out to all clients, `send(key)` targets one, `incoming` merges, `status`/`devices` aggregate. It binds regardless of network state (WiFi off ⇒ NO_DEVICE "Listening on …", never a hard failure — the graceful-degradation principle), and surfaces the tablet's LAN IP in its status detail so a module author knows where to point firmware. A dropped client closes only that connection; the module goes SILENT and reconciliation re-greets and re-activates it when it returns — the same self-heal a brown-out gets, arriving free from the lifecycle.
+
+- **The port: 3274** — "DASH" on a phone keypad (D-A-S-H → 3-2-7-4). Unprivileged (>1024), honouring the no-root constraint. This is the number every WiFi module's firmware targets from now on (transport.md).
+
+- **`TransportManager` — one line.** Registering the transport in the list is the *entire* change above the transport layer, which is exactly the proof the version set out to give. The controller, sourceless core, install, database and reconciliation are untouched. The `combine`-over-the-list aggregation already handled a second transport with nothing to change.
+
+- **`INTERNET` permission** (normal, auto-granted) added to the manifest.
+
+- **Per-transport status in the Serial Monitor (a fix made mid-session).** The monitor showed a single *merged* status line that collapsed to the liveliest transport — so USB always won it and the WiFi "Listening on <ip>" was invisible whenever a USB board was plugged in (and even when idle, since USB sorts first). It cost a real "I can't see the IP" moment on the bench. Fixed properly: `TransportManager` now exposes each transport's own tagged status and the monitor renders one line per pipe (`USB CONNECTED · …` / `WIFI NO DEVICE · Listening on …`). Correct behaviour for a two-transport world regardless.
+
+- **Reference module — `arduino_wifi.ino` ("Body WiFi", id …EE07).** The WiFi twin of `arduino.ino`: same five signals, same §4b discipline, message layer byte-identical (a `WiFiClient` is an Arduino `Stream`, so only the `DASH_LINK` alias changed from `Serial` to `client`). Its one added job is `maintainLink()` — associate to WiFi, connect to the DASH server, and go **SILENT on any drop** so a reconnect waits for DASH to re-DISCOVER/ACTIVATE (§6 already demands it, so a dropped socket needs no special handling). Serial is freed for human-readable bench debug. A distinct id (…EE07, after EE05 Body-serial and EE06 Powertrain) so it coexists with the serial Body without a §3 clash. Credentials live in `arduino_secrets.h`, **gitignored**, so a real WiFi password never lands in the public repo.
+
+**Decisions taken this session (with Roger):**
+- **Port 3274**, as above.
+- **A distinct module id for the WiFi Body** rather than reusing …EE05, so both transports' Bodies can be present at once without a §3 id clash.
+- **The "MODULE SETUP" convenience button was designed and deliberately parked** to Version 2 (dedicated hardware). A Serial Monitor button emitting a paste-ready `arduino_secrets.h` block: IP and port are readable now, but reading the tablet's *own hotspot SSID/password* needs a system-level permission Android denies a sideloaded (Bronze) app — so it becomes a natural capability-detection feature (auto-fill where privileged, placeholders where not), which belongs with the system-app production hardware. Noted in the roadmap's Version 2 area.
+
+**Regressions:** None. The new transport is additive; the only change above the transport layer is the one-line registration plus the additive per-transport status flow.
+
+**Fixes:** The merged status line masking the WiFi IP (above) — found and fixed within the session, before it could count as a defect in a shipped version.
+
+**Outstanding / deferred (with homes):**
+- **New-client greet latency.** A newly connected WiFi client is greeted by the reconciliation `DISCOVER` sweep. The *first* module in a session is greeted instantly (it flips the aggregate status NO_DEVICE→CONNECTED, firing an immediate sync); a *second* connecting while another is already up waits for the periodic sweep (≤30 s steady-state). Pre-existing and transport-agnostic — USB has it too — so it is noted, not fixed here; the proper fix (sync on device-count change) helps both transports and is its own small job.
+- **The MODULE SETUP button** — parked to Version 2 (above).
+
+**Notes:**
+- **The in-car networking answer, worked out this session.** With the tablet on cellular (SIM) internet and no WiFi network to join, the module network is provided by the *tablet itself*: enable the tablet's WiFi hotspot and the Arduino joins that, while the SIM keeps carrying internet (standard tethering — cellular uplink, local WiFi AP, one radio doing both). Because the tablet is then the access point, its IP is fixed (a stable hotspot gateway such as 192.168.43.1), so `DASH_HOST` stops being a moving target — more stable than joining a shared router. The same idea scales to a dedicated in-car AP or the production board's own SoftAP; wired transports remain the answer for permanently-installed modules. Recorded because it is the real deployment model for every wireless module.
+- **Bench heads-up carried in the sketch comments:** if the R4 is powered from the tablet's own USB it also enumerates as a CDC serial device, so DASH's USB transport opens it and sees its debug chatter (harmless, dropped-and-logged) — a pure-WiFi test powers it elsewhere.
+- **Version bump:** `versionName` 1.4.10 → 1.4.11, `versionCode` 14 → 15.
+
+---
+
 ## Version 1.4.10
 
 **Status:** Complete — verified on the tablet with two real boards on a **powered** hub: an Arduino Uno R4 WiFi (CDC-ACM) and an Espressif ESP32 DevKitC (CP2102) held open **simultaneously** — DASH reading "connected · 2 devices @ 115200 8N1", the first time the multi-device path has ever run. The Signal Monitor shows the standard vocabulary filling from both boards at once (including `ambient_temp` fed by *both* — the sourceless core taking redundant sources by design); the Serial Monitor's SEND TO dropdown lists both boards; and each board, once authorised with "use by default", stops re-prompting on replug. Ninth version of the 1.4.x Transport Layer era.

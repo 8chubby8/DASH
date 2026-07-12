@@ -2,6 +2,7 @@ package com.dash.android.transport
 
 import android.content.Context
 import com.dash.android.transport.usb.UsbSerialTransport
+import com.dash.android.transport.wifi.WifiTcpTransport
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
@@ -13,6 +14,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 
@@ -25,9 +27,10 @@ import kotlinx.coroutines.launch
  * [wire] while the monitor passively observes.
  *
  * Deliberately transport-agnostic: DASH sends to *all* active transports and merges what *all* of
- * them receive, so no message above this layer ever cares which pipe carried it. Today the list holds
- * one USB serial transport; WiFi TCP joins it in 1.4.10 behind the same [DashTransport] contract with
- * nothing here to change.
+ * them receive, so no message above this layer ever cares which pipe carried it. The list holds a USB
+ * serial transport and (since 1.4.11) a WiFi TCP transport, both behind the same [DashTransport]
+ * contract — adding the second one was two lines here and nothing else above this layer, which is
+ * exactly the proof 1.4.11 set out to give.
  *
  * The `wire` flow replays recent history to new collectors, so opening the monitor immediately
  * shows the last of the traffic rather than a blank screen.
@@ -36,9 +39,11 @@ class TransportManager(context: Context) {
 
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
-    /** Every transport DASH can talk over. Nothing above this line is USB-specific. */
+    /** Every transport DASH can talk over. Nothing above this line is transport-specific — the list
+     *  is where a new pipe joins, and the whole of 1.4.11 above this layer is these two lines. */
     private val transports: List<DashTransport> = listOf(
-        UsbSerialTransport(context, scope)
+        UsbSerialTransport(context, scope),
+        WifiTcpTransport(scope)
     )
 
     /**
@@ -49,6 +54,16 @@ class TransportManager(context: Context) {
     val status: StateFlow<TransportStatus> =
         combine(transports.map { it.status }) { statuses -> aggregate(statuses) }
             .stateIn(scope, SharingStarted.Eagerly, TransportStatus.NO_DEVICE)
+
+    /**
+     * Each transport's *own* status, tagged with its pipe (roadmap 1.4.11). The merged [status] above
+     * collapses to the single liveliest line, which is right for a one-glance summary but hides the
+     * others — a WiFi transport's "Listening on <ip>:3274" would be masked whenever USB is the livelier
+     * pipe. The Serial Monitor renders this list so every transport is visible, IP and all.
+     */
+    val transportStatuses: StateFlow<List<Pair<String, TransportStatus>>> =
+        combine(transports.map { t -> t.status.map { s -> t.tag to s } }) { it.toList() }
+            .stateIn(scope, SharingStarted.Eagerly, transports.map { it.tag to TransportStatus.NO_DEVICE })
 
     /** Every physical device across every transport (roadmap 1.4.10) — the merged list the Serial
      *  Monitor's device selector renders. Each [TransportDevice] carries its own transport tag, so a
