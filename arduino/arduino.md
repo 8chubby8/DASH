@@ -811,6 +811,82 @@ mistaken for locked spec.
 
 ---
 
+## 12. Transports — how a module reaches DASH
+
+> *Added 2026-07-12 (roadmap 1.4.12, Bluetooth). DASH is deliberately
+> transport-agnostic — a message is a message once the bytes arrive, and the
+> transport is **never** part of the grammar (there is no transport field in
+> `HELLO`; DASH knows the pipe from the connection, §4). Everything in §1–§11
+> is identical on every pipe. But the **builder** has a few per-transport duties
+> at the physical layer — how the board presents itself and connects. This
+> section is that per-transport checklist. It is additive: nothing here changes
+> a single message. The full reconcile and promotion of these facts is roadmap
+> 1.4.15's job; this section captures what a builder needs today.*
+
+Whichever pipe you choose, the module logic is the same: boot **SILENT**, answer
+`DISCOVER` with `HELLO`, run the install handshake, and only stream once
+`ACTIVATE`d (§6). What differs is purely how the board gets onto the wire.
+
+### USB serial
+
+The simplest pipe and the one the reference sketches default to. The board
+presents as a **USB CDC serial device** (native on every ESP32, and via the
+on-board bridge on the Arduino Uno R4 WiFi). **DASH is the host** — it enumerates
+the bus and opens you at **115200 8N1**. You do nothing but `Serial.begin(115200)`.
+Wired, so DASH treats a silent USB module as a potential **fault**, not a quiet
+dormant (§6).
+
+### WiFi (TCP)
+
+**DASH is the server; the module is the client.** DASH listens on a fixed TCP
+port — **3274** (`D-A-S-H` on a phone keypad) — and your module opens a socket to
+`DASH_HOST:3274` on boot, then talks the ordinary line grammar over it. On a
+dropped socket, reconnect and go back to SILENT until DASH `DISCOVER`s you again.
+`DASH_HOST` is the tablet's address on the module network (fixed when the tablet
+is the hotspot). Wireless, so absence is **dormant, never a fault** (§6). *(See
+arduino_wifi.ino.)*
+
+### Bluetooth Classic (SPP)
+
+The wireless sibling of WiFi, over a Bluetooth serial link. Four things a builder
+must get right:
+
+1. **Classic SPP, not BLE — and a Classic-capable board.** Use the Serial Port
+   Profile (`BluetoothSerial` on the ESP32). BLE is a different, later transport
+   and does **not** apply here. Only the **original ESP32** (WROOM-32 etc.) has a
+   Classic radio; the **ESP32-S3 / C3 / C6 are BLE-only** and cannot run an SPP
+   module. Pick a classic ESP32 DevKitC for a Bluetooth module.
+
+2. **The name marker — your Bluetooth name must contain `D.A.S.H`.** Classic
+   Bluetooth has no friendly service-UUID advertisement like BLE, so **DASH
+   identifies its modules by device name**: it dials only bonded devices whose
+   name carries the token `D.A.S.H` (the Classic analogue of BLE's DASH service
+   UUID). That token is the product name and is effectively unique — no phone,
+   headset or dashcam carries it — so it lets DASH find its own modules and leave
+   everything else you've paired untouched. Name your module `D.A.S.H-Powertrain`,
+   `D.A.S.H Climate`, or anything you like *as long as it contains `D.A.S.H`*.
+   Set it in `SerialBT.begin("D.A.S.H-…")`. **A module without the token in its
+   name will never be found.** The handshake is still the final judge — DASH sends
+   `DISCOVER` and only a real module answers `HELLO` — so the name marker is the
+   cheap first filter, not the whole story.
+
+3. **Bond once in Android settings — DASH never pairs for you.** SPP requires the
+   device to be **bonded (paired)** before a connection can open. You do that once,
+   the normal way, in the Android device's own Bluetooth settings. DASH then
+   connects **out** to the bonded module on every sweep (like USB, DASH initiates;
+   unlike WiFi, where the module dials in). Your module runs the SPP **server** —
+   `SerialBT.begin(name)` and wait to be connected to.
+
+4. **Go SILENT the instant the link drops.** A wireless link drops normally (out
+   of range, powered down). When it does, reset your module to SILENT so that when
+   DASH reconnects and re-`ACTIVATE`s you (it re-asserts activation every sweep,
+   §6/1.4.6) you resume from a clean state rather than a stale clock. On the ESP32,
+   `SerialBT.hasClient()` going false is your cue. Absence is **dormant, never a
+   fault** (§6). *(See esp32_bt.ino — the Bluetooth twin of esp32.ino, identical
+   but for the transport object.)*
+
+---
+
 ## Open Items
 
 Still to settle before the SDK is fully locked:

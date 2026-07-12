@@ -47,6 +47,48 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.12
+
+**Status:** Complete — verified on real hardware: an Espressif ESP32 DevKitC running the new `esp32_bt.ino` "Powertrain BT" reference module reached DASH **over Bluetooth Classic (SPP)** — paired once in Android's settings, then DASH connected out to it and ran the full `DISCOVER → HELLO → INSTALL → ACTIVATE → ROGER` handshake and the live BROADCAST stream, all intact over the air. Run alongside the WiFi "Body" and a USB board it gives the genuine **three-transport bench — USB, WiFi and Bluetooth live at once** — the strongest proof yet that nothing above the transport layer cares which pipe carried a message. Eleventh version of the 1.4.x Transport Layer era.
+
+**Scope:** The Bluetooth Classic (SPP) transport — the third `DashTransport`, the wireless sibling of WiFi. Its job is the same proof WiFi gave, one level stronger: a third, differently-shaped pipe slotting in behind the 1.4.1 abstraction with a single line changed above the transport layer.
+
+**The build:**
+
+- **`BluetoothSppTransport`.** The shape is **USB's, not WiFi's**: Bluetooth Classic has no inbound listener, so — like USB — DASH connects *out*, but with no bus to enumerate the "which devices?" answer is the set of **bonded (paired)** devices. Pairing happens once in Android's own Bluetooth settings (transport.md); DASH never pairs programmatically. So the transport runs the same idempotent re-sweep USB does: every few seconds it looks at the bonded set, keeps the DASH modules, and opens an RFCOMM socket to any not already connected. One RFCOMM link is one "device," each with its own reader coroutine and — the 1.4.10 hard requirement carried from cables and sockets to RFCOMM — **its own `FrameAssembler`**. `send` fans out, `send(key)` targets one, `incoming` merges, `status`/`devices` aggregate. The first connect to an ESP32 often fails once (`read failed … ret: -1`) and succeeds on the sweep's retry — normal RFCOMM behaviour, handled by the retry loop, no special-casing.
+
+- **The name marker — `D.A.S.H`.** Classic Bluetooth doesn't advertise a service UUID the friendly way BLE does, and querying one needs a flaky SDP round-trip, so DASH identifies its modules by **device name**: it dials only bonded devices whose name contains the token `D.A.S.H` (the Classic analogue of BLE's DASH service-UUID filter that transport.md describes). The token is the product name — effectively unique, so it excludes every non-module bonded device (phones, headsets, and crucially in a car, **dashcams**, which a bare "DASH" substring would have caught). A builder names their module `D.A.S.H-Powertrain` or similar; the handshake is still the final judge, so a mis-named device costs at most one wasted connect attempt. Chosen with Roger over the plain word and over an SPP-UUID filter.
+
+- **Capability detection / graceful degradation.** On API 31+ `BLUETOOTH_CONNECT` is a runtime (dangerous) permission — requested once on start from `MainScreen`; if denied the transport reports PERMISSION_REQUIRED and keeps sweeping, recovering the moment it's granted. No adapter ⇒ "Bluetooth unavailable"; radio off ⇒ "Bluetooth off"; every path is a quiet status and a running transport, never a crash. **`BLUETOOTH_SCAN` was deliberately not requested** — DASH only ever touches already-bonded devices and never scans, so it isn't needed (a reasoned trim of the roadmap's "CONNECT/SCAN" wording).
+
+- **`TransportManager` — one line.** Registering the transport in the list is the *entire* change above the transport layer, exactly as WiFi was in 1.4.11. Controller, sourceless core, install, database and reconciliation untouched; the Serial Monitor's per-transport status flow (built in 1.4.11) rendered the third `BT` chip with no UI change at all — the payoff of that generic loop.
+
+- **Manifest:** `BLUETOOTH_CONNECT` (runtime, API 31+), legacy `BLUETOOTH` (`maxSdkVersion="30"`), and a non-required `android.hardware.bluetooth` feature so DASH stays installable on Bluetooth-less devices (degrading to "unavailable").
+
+- **Reference module — `esp32_bt.ino` ("Powertrain BT", id …EE08).** The Bluetooth twin of `esp32.ino`: identical Powertrain logic, message layer byte-identical, only the transport object swapped (`Serial` → a `BluetoothSerial` running SPP). Names itself `D.A.S.H-Powertrain`, and goes **SILENT the instant `SerialBT.hasClient()` drops** so a reconnect waits for DASH to re-DISCOVER/ACTIVATE (§6). Carries a board note: Classic SPP exists only on the original ESP32 (WROOM-32) — the S3/C3/C6 are BLE-only and cannot run it.
+
+- **arduino.md gained §12, "Transports — how a module reaches DASH"** — the per-pipe builder checklist (USB, WiFi, and the substantive Bluetooth part: Classic-only board, the `D.A.S.H` name marker, bond-in-Android-settings, go-SILENT-on-drop). Additive, dated; nothing above it changed. (Full reconcile and promotion of these facts remains roadmap 1.4.15's job.)
+
+**Decisions taken this session (with Roger):**
+- **The `D.A.S.H` name marker**, as above — over the bare word "DASH" (dashcam collision) and over an SPP-UUID filter (flaky SDP; a name marker excludes non-modules more precisely and for free).
+- **`BLUETOOTH_SCAN` not requested** — bonding is done in Android settings, so DASH never scans.
+- **BLE deliberately not this version** — its GATT/characteristic/MTU-chunk model doesn't fit the line grammar; it is its own later, more complex transport.
+
+**Regressions:** None. The transport is additive; the only change above the transport layer is the one-line registration.
+
+**The bench bug — an id collision in the reference sketch, found and fixed during on-hardware verification.** On the bench the BT module connected and streamed cleanly but **SYNC never revealed it**. Live logcat proved the transport was correct end-to-end (clean HELLO, ACTIVATE, ROGER, BROADCAST over SPP) and pointed at the real cause: the `esp32_bt.ino` sketch had been given `…EE07`, the id the WiFi "Body" already owned. DASH keys everything by module id, so the two wireless boards were one identity — the WiFi Body had installed first and claimed the record, so reconciliation just re-`ACTIVATE`d the BT board as that module instead of surfacing it as a new discovery. Fixed by moving the BT sketch to `…EE08` (bench map now: Body USB …EE05, Powertrain USB …EE06, Body WiFi …EE07, Powertrain BT …EE08). The transport code was never at fault. A one-off `eng`-truncated BROADCAST seen early did not recur across sustained streaming — a transient, not a framing fault.
+
+**Outstanding / deferred (with homes):**
+- **New-device greet latency** — carried from 1.4.11 and transport-agnostic (a second device connecting while another is up waits for the periodic sweep); its fix (sync on device-count change) is filed under the 1.4.16 cleanup pass.
+- **BLE** — a future transport of its own, not scheduled here.
+
+**Notes:**
+- **The name marker is a new module-facing rule** (how a BT module must be named to be found). It is captured in arduino.md §12 now; its promotion into transport.md or a module-rules doc rides with the SDK lock at 1.4.15.
+- **Assigned bench ids must be kept unique by hand** — the collision above is a bench-only artifact; real modules read a factory-unique MAC (§3), so ids never clash in the field. The `esp32_bt.ino` id comment now spells out the whole bench map to stop it recurring.
+- **Version bump:** `versionName` 1.4.11 → 1.4.12, `versionCode` 15 → 16.
+
+---
+
 ## Version 1.4.11
 
 **Status:** Complete — verified on real hardware: the Arduino Uno R4 WiFi running the new "Body WiFi" reference sketch connected to DASH's TCP server over WiFi (home network, DASH at 192.168.1.77:3274) and came up as a module **over the air** — the first time a module has reached DASH over anything but a cable. Tenth version of the 1.4.x Transport Layer era.

@@ -1,6 +1,7 @@
 package com.dash.android.transport
 
 import android.content.Context
+import com.dash.android.transport.bluetooth.BluetoothSppTransport
 import com.dash.android.transport.usb.UsbSerialTransport
 import com.dash.android.transport.wifi.WifiTcpTransport
 import kotlinx.coroutines.CoroutineScope
@@ -28,9 +29,9 @@ import kotlinx.coroutines.launch
  *
  * Deliberately transport-agnostic: DASH sends to *all* active transports and merges what *all* of
  * them receive, so no message above this layer ever cares which pipe carried it. The list holds a USB
- * serial transport and (since 1.4.11) a WiFi TCP transport, both behind the same [DashTransport]
- * contract — adding the second one was two lines here and nothing else above this layer, which is
- * exactly the proof 1.4.11 set out to give.
+ * serial transport, a WiFi TCP transport (1.4.11) and a Bluetooth Classic SPP transport (1.4.12), all
+ * three behind the same [DashTransport] contract — adding each new one was a single line here and
+ * nothing else above this layer, which is exactly the proof 1.4.11 and 1.4.12 set out to give.
  *
  * The `wire` flow replays recent history to new collectors, so opening the monitor immediately
  * shows the last of the traffic rather than a blank screen.
@@ -40,10 +41,11 @@ class TransportManager(context: Context) {
     private val scope = CoroutineScope(SupervisorJob() + Dispatchers.Default)
 
     /** Every transport DASH can talk over. Nothing above this line is transport-specific — the list
-     *  is where a new pipe joins, and the whole of 1.4.11 above this layer is these two lines. */
+     *  is where a new pipe joins, and the whole of 1.4.11/1.4.12 above this layer is these lines. */
     private val transports: List<DashTransport> = listOf(
         UsbSerialTransport(context, scope),
-        WifiTcpTransport(scope)
+        WifiTcpTransport(scope),
+        BluetoothSppTransport(context, scope)
     )
 
     /**

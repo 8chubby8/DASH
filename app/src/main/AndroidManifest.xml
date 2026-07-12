@@ -9,6 +9,20 @@
          stack and does not affect concurrent internet use. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Bluetooth Classic (SPP) transport (1.4.12). On API 31+ BLUETOOTH_CONNECT is a runtime
+         (dangerous) permission — DASH requests it and degrades gracefully if denied (the transport
+         reports unavailable and DASH carries on). We connect out to *already-bonded* devices only
+         (pairing happens in Android's own Bluetooth settings, transport.md) and never scan for new
+         ones, so BLUETOOTH_SCAN is not required. On API <=30 the legacy BLUETOOTH permission (normal,
+         auto-granted) covers RFCOMM connect to a bonded device. -->
+    <uses-permission android:name="android.permission.BLUETOOTH_CONNECT" />
+    <uses-permission
+        android:name="android.permission.BLUETOOTH"
+        android:maxSdkVersion="30" />
+    <uses-feature
+        android:name="android.hardware.bluetooth"
+        android:required="false" />
+
     <!-- USB serial transport (1.4.x). required=false keeps DASH installable on devices without
          USB host / OTG — the transport simply reports NO DEVICE and degrades gracefully. -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />

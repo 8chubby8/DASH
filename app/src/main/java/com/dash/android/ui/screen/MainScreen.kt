@@ -1,12 +1,17 @@
 package com.dash.android.ui.screen
 
+import android.Manifest
 import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
 import android.content.pm.ActivityInfo
+import android.content.pm.PackageManager
+import android.os.Build
 import androidx.core.content.ContextCompat
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.spring
@@ -94,6 +99,24 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         onDispose {
             controller.stop()
             transport.stop()
+        }
+    }
+
+    // Bluetooth Classic (SPP) transport permission (1.4.12). On API 31+ BLUETOOTH_CONNECT is a runtime
+    // grant; we ask once on start. This only *raises the dialog* — the transport does its own
+    // capability detection every sweep, so if the grant is given the next sweep connects, and if it is
+    // denied the transport simply reports unavailable and DASH carries on (CLAUDE.md graceful
+    // degradation). Below API 31 the legacy BLUETOOTH permission is auto-granted, so there is nothing
+    // to ask for.
+    val btPermissionLauncher = rememberLauncherForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { /* result handled by the transport's next sweep — nothing to do here */ }
+    LaunchedEffect(Unit) {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
+            ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) !=
+            PackageManager.PERMISSION_GRANTED
+        ) {
+            btPermissionLauncher.launch(Manifest.permission.BLUETOOTH_CONNECT)
         }
     }
 
