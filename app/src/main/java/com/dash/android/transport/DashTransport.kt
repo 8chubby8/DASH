@@ -39,11 +39,21 @@ interface DashTransport {
     val tag: String
 
     /**
-     * Complete inbound units (module → DASH), framed by the transport: ordinary [Inbound.Line]s with
-     * the trailing newline removed, and length-prefixed [Inbound.Block]s for asset payloads. Both
-     * arrive on this one stream, in the order the module sent them.
+     * Whether this is a *wired* transport (roadmap 1.4.14). A wired pipe (USB) that goes silent is a
+     * fault — a cable or a board has failed. A wireless pipe (WiFi, Bluetooth) going silent is
+     * ordinary — the module drove out of range or powered down. The reconciliation desk uses this to
+     * word a "not responding" module honestly rather than treat every absence the same.
      */
-    val incoming: Flow<Inbound>
+    val wired: Boolean
+
+    /**
+     * Complete inbound units (module → DASH), framed by the transport and stamped with their origin
+     * (roadmap 1.4.14): ordinary [Inbound.Line]s with the trailing newline removed, and
+     * length-prefixed [Inbound.Block]s for asset payloads, each wrapped in an [InboundFrame] carrying
+     * the transport tag and the source device key. Both arrive on this one stream, in the order the
+     * module sent them.
+     */
+    val incoming: Flow<InboundFrame>
 
     /** Live connection status. */
     val status: StateFlow<TransportStatus>

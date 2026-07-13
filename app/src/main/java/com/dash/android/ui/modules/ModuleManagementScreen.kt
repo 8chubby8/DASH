@@ -33,8 +33,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.window.Dialog
 import com.dash.android.transport.Discovery
+import com.dash.android.transport.FailReason
 import com.dash.android.transport.Install
-import com.dash.android.transport.Installing
+import com.dash.android.transport.InstallState
 import com.dash.android.transport.InstalledModule
 import com.dash.android.transport.ModuleActivity
 import com.dash.android.transport.ModuleDatabase
@@ -51,6 +52,8 @@ private val MUTED = Color(0xFF888888)
 private val INSTALL_ACCENT = Color(0xFF00695C)
 private val UNINSTALL_ACCENT = Color(0xFF7A2222)
 private val UPDATE_ACCENT = Color(0xFFC98A2B)   // amber — a firmware version mismatch (1.4.13)
+private val NO_REPLY_ACCENT = Color(0xFFE67E22) // orange — an installed module that has gone silent (1.4.14)
+private val FAIL_ACCENT = Color(0xFFD9534F)     // red — a failed install (1.4.14)
 
 /**
  * The Module Management screen — a full-screen instrument reached from the settings panel, mirroring
@@ -78,7 +81,7 @@ fun ModuleManagementScreen(
     onDismiss: () -> Unit
 ) {
     val discovered by discovery.modules.collectAsState()
-    val installing by install.states.collectAsState()
+    val installStates by install.states.collectAsState()
     val installed by database.modules.collectAsState()
     val activity by reconciliation.activity.collectAsState()
     val mismatch by reconciliation.versionMismatch.collectAsState()
@@ -115,26 +118,26 @@ fun ModuleManagementScreen(
                 ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
             }
 
-            // SYNC runs the reconciliation sweep right now instead of waiting out its timer — the §6
-            // manual "check now" after fixing wiring or plugging something in. The sweep broadcasts to
-            // every module on every active transport, so this screen is about the whole bus of modules,
-            // not any one device — there is deliberately no single-device status here (that belongs to
-            // the Devices view and Serial Monitor). Always pressable: with nothing connected it simply
-            // finds nothing. (This button was DISCOVER until 1.4.6, when the sweep became persistent.)
+            // REFRESH re-scans the bus right now — the §6 manual "check now" after fixing wiring or
+            // plugging something in. Beyond an immediate sweep it *tidies* (roadmap 1.4.14): discovered
+            // cards that no longer answer are dropped, and installed modules that have gone silent turn
+            // orange (NOT_RESPONDING). The sweep broadcasts to every module on every active transport, so
+            // this screen is about the whole bus of modules, not any one device. Always pressable: with
+            // nothing connected it simply finds nothing. (DISCOVER until 1.4.6, SYNC until 1.4.14.)
             Button(
-                onClick = { reconciliation.sync() },
+                onClick = { reconciliation.refresh() },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = Color(0xFF1A237E),
                     contentColor = Color.White
                 ),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-            ) { Text("SYNC", fontSize = 14.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp) }
+            ) { Text("REFRESH", fontSize = 14.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp) }
 
             // List
             Box(modifier = Modifier.fillMaxWidth().weight(1f).background(LIST_BG)) {
                 if (rows.isEmpty()) {
                     Text(
-                        text = "No modules yet.\n\nPlug a module in and it appears here within moments.\nSYNC checks the bus right now instead of waiting.",
+                        text = "No modules yet.\n\nPlug a module in and it appears here within moments.\nREFRESH checks the bus right now instead of waiting.",
                         color = MUTED,
                         fontSize = 13.sp,
                         fontFamily = FontFamily.Monospace,
@@ -151,8 +154,11 @@ fun ModuleManagementScreen(
                                 row = row,
                                 activity = activity[row.id],
                                 reportedVersion = mismatch[row.id],
-                                installing = installing[row.id],
+                                installState = installStates[row.id],
                                 onInstall = { install.install(row.id) },
+                                onCancel = { install.cancel(row.id) },
+                                onRetry = { install.install(row.id) },
+                                onDismiss = { install.dismiss(row.id) },
                                 onDetails = { detailsFor = row.installedRecord }
                             )
                         }
@@ -166,6 +172,8 @@ fun ModuleManagementScreen(
         ModuleDetailsDialog(
             module = module,
             reportedVersion = mismatch[module.id],
+            activity = activity[module.id],
+            wired = reconciliation.isWired(module.id),
             // Since 1.4.6 uninstall goes through the reconciliation desk: the record is still deleted
             // immediately, but an active module is also sent DEACTIVATE so it stops transmitting.
             onUninstall = {
@@ -207,8 +215,11 @@ private fun ModuleCard(
     row: ModuleRow,
     activity: ModuleActivity?,
     reportedVersion: String?,
-    installing: Installing?,
+    installState: InstallState?,
     onInstall: () -> Unit,
+    onCancel: () -> Unit,
+    onRetry: () -> Unit,
+    onDismiss: () -> Unit,
     onDetails: () -> Unit
 ) {
     val isInstalled = row.installedRecord != null
@@ -249,19 +260,38 @@ private fun ModuleCard(
             }
         }
 
-        // Action area — the pane's status object: Install → progress → Details.
+        // Action area — the pane's status object: Install → progress (with Cancel) → Details, or a
+        // designed Failed state with Retry/Dismiss (roadmap 1.4.14).
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            horizontalArrangement = Arrangement.End,
+            horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            when {
-                installing != null -> InstallingBar(installing.progress, Modifier.weight(1f))
-                isInstalled -> ActionButton("DETAILS", INACTIVE, onDetails)
-                else -> ActionButton("INSTALL", INSTALL_ACCENT, onInstall)
+            when (val state = installState) {
+                is InstallState.Installing -> {
+                    InstallingBar(state.progress, Modifier.weight(1f))
+                    ActionButton("CANCEL", UNINSTALL_ACCENT, onCancel)
+                }
+                is InstallState.Failed -> FailedContent(state.reason, Modifier.weight(1f), onRetry, onDismiss)
+                null -> if (isInstalled) ActionButton("DETAILS", INACTIVE, onDetails)
+                        else ActionButton("INSTALL", INSTALL_ACCENT, onInstall)
             }
         }
     }
+}
+
+/** The designed install-failure state (roadmap 1.4.14): an honest reason with RETRY and DISMISS —
+ *  never a silent snap-back to the plain card. */
+@Composable
+private fun FailedContent(reason: FailReason, modifier: Modifier, onRetry: () -> Unit, onDismiss: () -> Unit) {
+    val message = when (reason) {
+        FailReason.STALLED -> "Install stalled — no response"
+        FailReason.DISCONNECTED -> "Module disconnected during install"
+        FailReason.CORRUPT -> "Corrupt asset — install aborted"
+    }
+    Text(message, color = FAIL_ACCENT, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = modifier)
+    ActionButton("DISMISS", INACTIVE, onDismiss)
+    ActionButton("RETRY", INSTALL_ACCENT, onRetry)
 }
 
 /** The in-progress bar. Determinate once an ACCESSORY MANIFEST gives a total; indeterminate otherwise. */
@@ -309,6 +339,8 @@ private fun ActionButton(label: String, colour: Color, onClick: () -> Unit) {
 private fun ModuleDetailsDialog(
     module: InstalledModule,
     reportedVersion: String?,
+    activity: ModuleActivity?,
+    wired: Boolean?,
     onUninstall: () -> Unit,
     onUpdate: () -> Unit,
     onDone: () -> Unit
@@ -349,6 +381,27 @@ private fun ModuleDetailsDialog(
                     Text("installed  ${module.version.ifBlank { "(none)" }}", color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     Text("reporting  ${reportedVersion.ifBlank { "(none)" }}", color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
                     Text("Held inactive — its data is refused until it is updated. UPDATE re-runs the install.", color = MUTED, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                }
+            }
+
+            // 1.4.14: a module that was here this session and went silent. The state is the same orange
+            // whether wired or wireless; the reason is worded by how it last reached DASH.
+            if (activity == ModuleActivity.NOT_RESPONDING) {
+                val reason = when (wired) {
+                    true -> "It last connected over a wired link, so this looks like a fault — check the module's power and cable."
+                    false -> "It last connected wirelessly, so it may simply be out of range or powered down."
+                    null -> "It has stopped answering DASH."
+                }
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(NO_REPLY_ACCENT.copy(alpha = 0.12f), RoundedCornerShape(6.dp))
+                        .border(1.dp, NO_REPLY_ACCENT.copy(alpha = 0.5f), RoundedCornerShape(6.dp))
+                        .padding(horizontal = 12.dp, vertical = 10.dp),
+                    verticalArrangement = Arrangement.spacedBy(3.dp)
+                ) {
+                    Text("NOT RESPONDING", color = NO_REPLY_ACCENT, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+                    Text(reason, color = MUTED, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
                 }
             }
 
@@ -402,11 +455,14 @@ private fun com.dash.android.transport.Subscription.display(): String {
 }
 
 /** An installed module's liveness (arduino.md §6): green ACTIVE — it answered the sweep and ROGERed
- *  its ACTIVATE — or grey DORMANT. The designed wired-fault visual is later 1.4.x failure work. */
+ *  its ACTIVATE — grey DORMANT, or orange NO REPLY (roadmap 1.4.14) for a module that was here this
+ *  session and then went silent. Why it went silent (wired fault vs wireless range) is spelt out in
+ *  DETAILS. */
 @Composable
 private fun ActivityChip(activity: ModuleActivity) {
     val (label, colour) = when (activity) {
         ModuleActivity.ACTIVE -> "ACTIVE" to INSTALLED_BORDER
+        ModuleActivity.NOT_RESPONDING -> "NO REPLY" to NO_REPLY_ACCENT
         ModuleActivity.DORMANT -> "DORMANT" to MUTED
     }
     Box(

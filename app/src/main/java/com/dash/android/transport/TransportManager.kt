@@ -69,10 +69,15 @@ class TransportManager(context: Context) {
 
     /** Every physical device across every transport (roadmap 1.4.10) — the merged list the Serial
      *  Monitor's device selector renders. Each [TransportDevice] carries its own transport tag, so a
-     *  targeted send routes back to the pipe that owns it. */
+     *  targeted send routes back to the pipe that owns it. Since 1.4.14 the install desk also watches
+     *  this to fail a handshake whose device leaves the bus. */
     val devices: StateFlow<List<TransportDevice>> =
         combine(transports.map { it.devices }) { lists -> lists.toList().flatten() }
             .stateIn(scope, SharingStarted.Eagerly, emptyList())
+
+    /** Tags of the wired transports (roadmap 1.4.14). The reconciliation desk uses this to tell a
+     *  wired absence (a fault) from a wireless one (ordinary out-of-range), and to word the card. */
+    val wiredTags: Set<String> = transports.filter { it.wired }.map { it.tag }.toSet()
 
     private val _wire = MutableSharedFlow<WireEvent>(
         replay = WIRE_REPLAY,
@@ -88,11 +93,11 @@ class TransportManager(context: Context) {
      * replay; this is the live one-direction feed for the brain, with no replay so a restarted
      * collector never re-processes stale frames as new modules.
      */
-    private val _inbound = MutableSharedFlow<Inbound>(
+    private val _inbound = MutableSharedFlow<InboundFrame>(
         extraBufferCapacity = 256,
         onBufferOverflow = BufferOverflow.DROP_OLDEST
     )
-    val inbound: SharedFlow<Inbound> = _inbound.asSharedFlow()
+    val inbound: SharedFlow<InboundFrame> = _inbound.asSharedFlow()
 
     private var started = false
 
@@ -104,16 +109,16 @@ class TransportManager(context: Context) {
         // note — never the raw payload as text, which would spew binary into the monitor.
         transports.forEach { t ->
             scope.launch {
-                t.incoming.collect { frame ->
+                t.incoming.collect { env ->
                     val now = System.currentTimeMillis()
-                    when (frame) {
+                    when (val frame = env.frame) {
                         is Inbound.Line -> _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.text))
                         is Inbound.Block -> {
                             _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.header))
                             _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.note))
                         }
                     }
-                    _inbound.tryEmit(frame)
+                    _inbound.tryEmit(env)   // origin (tag + device key) rides up to the controller (1.4.14)
                 }
             }
         }

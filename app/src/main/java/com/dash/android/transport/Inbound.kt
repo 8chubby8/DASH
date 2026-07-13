@@ -28,3 +28,33 @@ sealed interface Inbound {
         val note: String get() = "«${bytes.size} bytes»"
     }
 }
+
+/**
+ * A framed [Inbound] unit plus its **origin** — which transport, and which device on that transport,
+ * delivered it (roadmap 1.4.14). The origin is stamped where the frame is assembled (inside the
+ * per-device/per-socket connection, which already knows its key) and travels up with the frame, so
+ * the layers above can do two things they couldn't before:
+ *
+ *  - **Attribute a module to its pipe** — the wired-vs-wireless distinction the reconciliation desk
+ *    uses to word a "not responding" module correctly (a dead cable reads differently from a
+ *    wireless module out of range).
+ *  - **Fail the right install on a disconnect** — when the device carrying an in-flight install
+ *    handshake leaves the bus, the install desk can abort *that* session at once, instead of waiting
+ *    out the idle timeout.
+ *
+ * [deviceKey] pairs with [transportTag] to identify a [TransportDevice]. A transport that never
+ * distinguishes devices may leave it null and rely on the tag alone.
+ */
+data class InboundFrame(
+    val frame: Inbound,
+    val transportTag: String,
+    val deviceKey: String?
+)
+
+/**
+ * A specific device on a specific transport (roadmap 1.4.14) — the pair that identifies where an
+ * install's declarations are arriving from, and, matched against the live device list, which device
+ * leaving the bus should fail an in-flight install. Distinct from [TransportDevice]: this is the bare
+ * identity used for matching, not the richer object the Serial Monitor renders.
+ */
+data class DeviceRef(val transportTag: String, val deviceKey: String)

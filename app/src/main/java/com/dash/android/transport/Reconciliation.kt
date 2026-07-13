@@ -3,6 +3,7 @@ package com.dash.android.transport
 import android.util.Log
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableSharedFlow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -39,11 +40,18 @@ import kotlinx.coroutines.withTimeoutOrNull
  * sweep: it serves the user's SYNC button and a transport coming up. The sweep holds off while an
  * install handshake is in flight so a broadcast never interleaves a declaration run.
  *
- * **Active/Dormant.** [activity] is the per-installed-module state Module Management renders. ACTIVE
- * means a `ROGER|id|activate` has been heard and the module has answered a sweep within [ABSENT_MS];
- * everything else is DORMANT — including "answers HELLO but never confirms", which is logged. The
- * §6 wired-fault-vs-wireless-quiet distinction is deferred with the rest of the designed failure
- * surface (per the 1.4.4 note); today absent is absent.
+ * **Active / Dormant / Not-responding.** [activity] is the per-installed-module state Module
+ * Management renders. ACTIVE means a `ROGER|id|activate` has been heard and the module has answered a
+ * sweep within [ABSENT_MS]. A module that was **heard this session and then went silent** past
+ * [ABSENT_MS] is NOT_RESPONDING — the orange "it was here and vanished" state (roadmap 1.4.14): it
+ * *was* present, so its absence is worth flagging, whereas a module never seen this session is a calm
+ * DORMANT (not plugged in yet / out of range — nothing is wrong). A quarantined version-mismatch
+ * module is forced DORMANT regardless (1.4.13).
+ *
+ * **Wired vs wireless (roadmap 1.4.14).** [wiredTags] lets the desk tell where a module last spoke
+ * from, so the UI can word a NOT_RESPONDING module honestly: a wired module going silent is a fault
+ * (a dead cable or board), a wireless one is ordinary (drove out of range). The state is the same
+ * orange; only the explanation differs. See [isWired].
  *
  * **Uninstall** now has a wire half: an uninstalled module that is (or recently was) present is sent
  * `DEACTIVATE`, acknowledged and retried. Per §6 the record is deleted *immediately* — DASH
@@ -56,7 +64,8 @@ class Reconciliation(
     private val send: (String) -> Unit,
     private val database: ModuleDatabase,
     private val installBusy: () -> Boolean,
-    private val pruneDiscovered: (cutoffMs: Long) -> Unit
+    private val pruneDiscovered: (cutoffMs: Long) -> Unit,
+    private val wiredTags: Set<String> = emptySet()
 ) {
 
     private val _activity = MutableStateFlow<Map<String, ModuleActivity>>(emptyMap())
@@ -78,6 +87,15 @@ class Reconciliation(
 
     /** When each id last answered the bus (HELLO or ROGER), for absence aging and prune cutoffs. */
     private val lastSeen = mutableMapOf<String, Long>()
+
+    /** Which transport tag each id last spoke over (roadmap 1.4.14), so a NOT_RESPONDING module can be
+     *  worded as a wired fault or a wireless out-of-range. Set from the HELLO's stamped origin. */
+    private val lastTransport = mutableMapOf<String, String>()
+
+    /** Whether a module last reached DASH over a wired pipe (roadmap 1.4.14). Null when it has never
+     *  been heard (no pipe recorded) — the UI treats that as "unknown, keep it neutral". */
+    @Synchronized
+    fun isWired(id: String): Boolean? = lastTransport[id]?.let { it in wiredTags }
 
     /**
      * Monotonic count of ROGERs per "id|which". Ack-waits watch for the count to *rise past* a
@@ -105,9 +123,27 @@ class Reconciliation(
         }
     }
 
-    /** Sweep now — the SYNC button, and a transport coming up. The loop's timer resumes after. */
+    /** Sweep now — a transport coming up (boot, replug, permission granted). The loop's timer resumes
+     *  after. The automatic path: a plain immediate sweep, no pruning beyond the sweep's own aging. */
     fun sync() {
         syncRequests.tryEmit(Unit)
+    }
+
+    /**
+     * The REFRESH button (roadmap 1.4.14) — the user's explicit "who is here *now*". A plain [sync]
+     * asks the bus and lets stale cards age out on the slow [ABSENT_MS] clock; refresh is harder: it
+     * sweeps, then after a short grace for the `HELLO`s to arrive it **prunes every discovered
+     * (not-installed) card that did not answer this round** — so a module that once replied but is gone
+     * disappears promptly rather than lingering. Installed modules are untouched by the prune; the same
+     * sweep's aging is what turns a silent installed module orange (NOT_RESPONDING).
+     */
+    fun refresh() {
+        val moment = System.currentTimeMillis()
+        sync()
+        scope.launch {
+            delay(REFRESH_GRACE_MS)
+            pruneDiscovered(moment)   // drop discovered cards not heard since the refresh began
+        }
     }
 
     @Synchronized
@@ -117,14 +153,23 @@ class Reconciliation(
             return
         }
         val now = System.currentTimeMillis()
-        // Age first: rebuild the activity map from the current installed list, keeping ACTIVE only
-        // for modules heard from recently. Adds new installs as DORMANT, drops uninstalled ids.
+        // Age first: rebuild the activity map from the current installed list. Adds new installs as
+        // DORMANT, drops uninstalled ids.
         _activity.value = database.modules.value.keys.associateWith { id ->
-            if (id in _versionMismatch.value) {
-                ModuleActivity.DORMANT   // quarantined: never reads ACTIVE, whatever its recency (1.4.13)
-            } else if (now - (lastSeen[id] ?: Long.MIN_VALUE) <= ABSENT_MS) {
-                _activity.value[id] ?: ModuleActivity.DORMANT
-            } else ModuleActivity.DORMANT
+            val current = _activity.value[id]
+            when {
+                // Quarantined: never reads ACTIVE, whatever its recency (1.4.13).
+                id in _versionMismatch.value -> ModuleActivity.DORMANT
+                // Heard recently: keep a proven-ACTIVE module active (a stream between sweeps mustn't
+                // age it out); anything else is DORMANT while it waits on its ROGER.
+                now - (lastSeen[id] ?: Long.MIN_VALUE) <= ABSENT_MS ->
+                    if (current == ModuleActivity.ACTIVE) ModuleActivity.ACTIVE else ModuleActivity.DORMANT
+                // Silent past the absence horizon, but *was* heard this session ⇒ it vanished on us.
+                // Orange NOT_RESPONDING (roadmap 1.4.14) — worth flagging, unlike a never-seen module.
+                lastSeen.containsKey(id) -> ModuleActivity.NOT_RESPONDING
+                // Never heard this session — not plugged in yet / out of range. Nothing is wrong.
+                else -> ModuleActivity.DORMANT
+            }
         }
         // Drop mismatch flags for ids no longer installed, so an uninstalled module never leaves a
         // stale UPDATE chip behind — the same honesty the activity rebuild above keeps.
@@ -142,12 +187,14 @@ class Reconciliation(
     }
 
     /** Every `HELLO` lands here as well as at the discovery desk. An installed id gets re-asserted,
-     *  and — since 1.4.13 — its reported firmware version checked against the stored install contract. */
+     *  and — since 1.4.13 — its reported firmware version checked against the stored install contract.
+     *  [transportTag] is the pipe it arrived on (1.4.14), remembered for the wired/wireless wording. */
     @Synchronized
-    fun onHello(line: String) {
+    fun onHello(line: String, transportTag: String?) {
         val id = line.split('|').getOrNull(1)?.trim().orEmpty()
         if (id.isEmpty()) return
         lastSeen[id] = System.currentTimeMillis()
+        if (transportTag != null) lastTransport[id] = transportTag
         val stored = database.modules.value[id] ?: return   // unknown id ⇒ install candidate, not this desk's
 
         // The same id-match that re-asserts liveness now also compares the reported firmware version
@@ -269,6 +316,11 @@ class Reconciliation(
          *  is back within half a minute. */
         const val SLOW_SWEEP_MS = 30_000L
 
+        /** After a REFRESH sweep, wait this long for `HELLO`s to arrive before pruning the discovered
+         *  cards that didn't answer. Long enough for a real reply on any transport, short enough that
+         *  the list tidies while the user is still looking. */
+        const val REFRESH_GRACE_MS = 2_500L
+
         /** Not heard from for this long ⇒ absent (≈ two missed slow sweeps, with margin). Doubles as
          *  the discovery-list prune horizon so both views of the bus age on the same clock. */
         const val ABSENT_MS = 75_000L
@@ -280,6 +332,8 @@ class Reconciliation(
     }
 }
 
-/** Liveness of an installed module (arduino.md §6): ACTIVE is confirmed by a `ROGER`; DORMANT is
- *  everything else — never-seen, aged-out, or answering but unconfirmed. */
-enum class ModuleActivity { ACTIVE, DORMANT }
+/** Liveness of an installed module (arduino.md §6). ACTIVE is confirmed by a `ROGER`. NOT_RESPONDING
+ *  (roadmap 1.4.14) is a module that *was* heard this session and then went silent — the orange
+ *  "vanished on us" state. DORMANT is everything calm: never seen this session, quarantined, or
+ *  answering but not yet confirmed active. */
+enum class ModuleActivity { ACTIVE, NOT_RESPONDING, DORMANT }

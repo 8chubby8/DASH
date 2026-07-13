@@ -267,6 +267,11 @@ bool maintainLink() {
     WiFi.begin(SECRET_SSID, SECRET_PASS);
     if (WiFi.status() != WL_CONNECTED) return false;   // try again next window
     DBG.print(F("[wifi] up, IP ")); DBG.println(WiFi.localIP());
+    // DASH_HOST is the DASH *device's* IP on this network, NOT the gateway. When DASH and this module
+    // both join a shared AP (a phone hotspot, a router), DASH is another client — read its IP off the
+    // DASH WiFi status line ("Listening on <ip>:3274"). The gateway below is the AP (phone/router),
+    // shown only to help sanity-check you're on the network you expect.
+    DBG.print(F("[wifi] gateway (the AP, not DASH) ")); DBG.println(WiFi.gatewayIP());
   }
 
   DBG.print(F("[link] connecting to DASH ")); DBG.print(DASH_HOST);

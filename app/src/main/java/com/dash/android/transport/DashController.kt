@@ -65,8 +65,11 @@ class DashController(private val transport: TransportManager, context: Context) 
         scope = scope,
         send = transport::send,
         database = database,
-        installBusy = { install.states.value.isNotEmpty() },
-        pruneDiscovered = discovery::prune
+        // Busy means a handshake genuinely in flight — never a lingering Failed badge (1.4.14), so a
+        // failed install can't freeze the sweep (the 1.4.6 wedged-install item).
+        installBusy = { install.isBusy() },
+        pruneDiscovered = discovery::prune,
+        wiredTags = transport.wiredTags
     )
 
     /** The sourceless core's system state (1.4.7) — the §5a state store and event bus. The interface
@@ -121,6 +124,7 @@ class DashController(private val transport: TransportManager, context: Context) 
      *  list; a completed handshake commits into the [database], then goes straight to activation —
      *  the §7 flow ends `INSTALL_END` → save → `ACTIVATE`. */
     val install: Install = Install(
+        scope = scope,
         send = transport::send,
         identityOf = { id -> discovery.modules.value.firstOrNull { it.id == id } },
         isInstalled = { id -> database.modules.value.containsKey(id) },
@@ -157,10 +161,14 @@ class DashController(private val transport: TransportManager, context: Context) 
         reconciliation.start()
         streams.start()
         scope.launch {
-            transport.inbound.collect { frame ->
-                when (frame) {
-                    is Inbound.Line -> route(frame.text)
-                    is Inbound.Block -> install.onBlock(frame)   // asset payload → straight to the desk
+            transport.inbound.collect { env ->
+                // The origin (which device on which transport) rides with every frame (1.4.14): HELLO
+                // uses the tag for wired/wireless wording, install uses the device to fail the right
+                // handshake on a disconnect.
+                val origin = env.deviceKey?.let { DeviceRef(env.transportTag, it) }
+                when (val frame = env.frame) {
+                    is Inbound.Line -> route(frame.text, env.transportTag, origin)
+                    is Inbound.Block -> install.onBlock(frame, origin)   // asset payload → straight to the desk
                 }
             }
         }
@@ -173,21 +181,30 @@ class DashController(private val transport: TransportManager, context: Context) 
                 .filter { it }
                 .collect { reconciliation.sync() }
         }
+        // Device presence drives the install disconnect-trip (1.4.14): whenever the physical device
+        // list changes, tell the install desk who is still on the bus so it can fail any handshake
+        // whose module just left.
+        scope.launch {
+            transport.devices.collect { devices ->
+                install.devicesPresent(devices.map { DeviceRef(it.transportTag, it.key) }.toSet())
+            }
+        }
     }
 
-    /** Sort an inbound line by its TYPE word and hand it to the desk that owns that message type. */
-    private fun route(line: String) {
+    /** Sort an inbound line by its TYPE word and hand it to the desk that owns that message type.
+     *  [transportTag] is the pipe it arrived on and [origin] the specific device (both 1.4.14). */
+    private fun route(line: String, transportTag: String, origin: DeviceRef?) {
         when (line.substringBefore('|').trim()) {
             "HELLO" -> {
                 discovery.onHello(line)
-                reconciliation.onHello(line)
+                reconciliation.onHello(line, transportTag)
             }
             "ROGER" -> reconciliation.onRoger(line)
             "BROADCAST" -> broadcasts.onBroadcast(line)
             "REPORT" -> moduleReports.onReport(line)
-            "SYSTEM_SIGNAL" -> install.onSignal(line)
-            "SUBSCRIBE" -> install.onSubscribe(line)
-            "MANIFEST" -> install.onManifest(line)
+            "SYSTEM_SIGNAL" -> install.onSignal(line, origin)
+            "SUBSCRIBE" -> install.onSubscribe(line, origin)
+            "MANIFEST" -> install.onManifest(line, origin)
             "INSTALL_END" -> install.onInstallEnd(line)
             // BLOCK headers arrive as Inbound.Block (header + bytes together), so no branch is needed
             // here; they still show on the wire tap. No desk for other TYPE words yet — added one per

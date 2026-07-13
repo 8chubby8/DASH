@@ -47,6 +47,52 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.14
+
+**Status:** Complete — verified on real hardware over USB. A new reference sketch, `test_accessory_big.ino` "Big Test Accessory", ships a ~100 KB icon pack (24 icons × 4 KB + a generated layout) so the install runs ~9 s on the wire — long enough to interrupt. On the bench **CANCEL** was pressed mid-transfer and the card **reverted cleanly with no fail badge**, the reconciliation sweep freed immediately. The **DISCONNECTED** (pull the cable mid-install) and **STALLED** (`WEDGE_AFTER_BLOCKS` freezes the module mid-handshake) paths are built and exercised through the same module. Thirteenth version of the 1.4.x Transport Layer era.
+
+**Scope:** Designed install failure — the home for the failure work parked since 1.4.4, when only the unavoidable bad-CRC abort was built. An install that stalls, loses its device, or is cancelled now ends with a *designed* surface — a reason and a retry — instead of hanging forever or snapping back silently; and a failed install can no longer freeze reconciliation. Two things were worked out with Roger and folded in: a **CANCEL** button, and Roger's **physical-disconnect trip**. Plus a bonus pass on Module Management: **SYNC became REFRESH**, discovered modules that stop answering are pruned on demand, and installed modules that go silent turn orange.
+
+**The build:**
+
+- **The install desk got a clock.** A per-session **idle** watchdog: silence for `IDLE_TIMEOUT_MS` (10 s) aborts the handshake as **STALLED**. Idle, not a total-duration cap — every declaration and every completed block resets it, so a large asset transfer that is genuinely progressing is never killed. The desk gained a `CoroutineScope` for this; `Install.kt`'s old "there is deliberately no timeout" note is retired.
+
+- **A designed fail state.** `states` broadened from `Map<id, Installing>` to `Map<id, InstallState>` where `InstallState` is a sealed `Installing(progress) | Failed(reason)`, and `FailReason` is `STALLED | DISCONNECTED | CORRUPT`. A failure now leaves a **persistent badge** the card renders with an honest message plus **RETRY** and **DISMISS** — never a silent revert. The 1.4.4 CRC/length abort was promoted from its silent `abort()` to a visible **CORRUPT** fail.
+
+- **CANCEL — a clean revert, not a failure.** A user stop is deliberate, so `cancel(id)` drops the session and returns the card to its plain discovered state with no badge. The module keeps streaming its declaration run to the end; those strays drop-and-log against the now-absent session (the well-mannered path already built). Actually halting the module mid-stream would need a new wire message — deferred to the 1.4.15 SDK lock rather than invented here.
+
+- **The disconnect trip (Roger's idea) — the fast, precise path.** Every inbound frame now carries its **origin**: a new `InboundFrame(frame, transportTag, deviceKey)` envelope, stamped where the frame is assembled (inside the per-device/per-socket connection, which already knows its key) and threaded up through all three transports and the controller. An install session captures its source device on the first declaration; when that device leaves the aggregated transport device list, the session fails **DISCONNECTED at once**, instead of waiting out the idle timeout. The timeout is the backstop for a module that wedges *without* dropping its link. `deviceKey` matches the `TransportDevice.key` each transport already publishes (USB `deviceId`, TCP socket id, RFCOMM address), so the two line up for free.
+
+- **Busy means in-flight, not badged — the 1.4.6 fix.** `installBusy` now reads the live `sessions` map (`install.isBusy()`), never the `states` projection that carries lingering `Failed` badges. A failed or cancelled install can no longer keep the reconciliation sweep paused — closing the "a wedged install pauses the sweep forever" item outstanding since 1.4.6.
+
+- **Wired vs wireless absence.** `DashTransport` gained `val wired` (USB true; WiFi, BT false), surfaced as `TransportManager.wiredTags`. The reconciliation desk remembers each id's last transport (from the HELLO's stamped origin), so a not-responding module's DETAILS words the reason honestly: a wired module reads as a fault ("check power and cable"), a wireless one as ordinary ("may be out of range"). This is where the §6 wired/wireless distinction, parked since 1.4.6, finally lives.
+
+- **NOT_RESPONDING — the orange "vanished on us" state (the REFRESH bonus).** A new `ModuleActivity.NOT_RESPONDING`: an installed module **heard this session and then gone silent** past `ABSENT_MS`. Distinct from DORMANT, which stays calm for a module never seen this session (not plugged in yet / out of range — nothing is wrong). Rendered as an orange **NO REPLY** chip; the wired/wireless wording above explains it in DETAILS. Reconciled with Roger's "orange for any installed non-responder" instruction: the orange is the same for wired and wireless; only the DETAILS reason differs.
+
+- **SYNC → REFRESH.** The Module Management button was renamed and given teeth: beyond an immediate sweep, `refresh()` waits a short grace for the `HELLO`s then **prunes every discovered (not-installed) card that didn't answer this round** — a module that once replied but is gone disappears promptly instead of lingering the full `ABSENT_MS`. Installed cards are never pruned; the same sweep's aging is what turns a silent installed module orange. The automatic sweep on transport-up stays gentle (no hard prune), so a just-connected module isn't pruned before it can answer.
+
+- **Reference sketch — `test_accessory_big.ino` ("Big Test Accessory", …EE0A).** An ACCESSORY that exists to make the transfer interruptible. The icon bytes are **generated** from a hash of (icon index, byte offset), so a ~100 KB transfer costs almost no flash or RAM (the §8 streaming discipline) and spans the full 0–255 byte range (a binary-safe-framing test for free). Tunable `ICON_COUNT` / `ICON_BYTES` for a longer window, and `WEDGE_AFTER_BLOCKS` to freeze the module mid-install so the STALLED path can be seen over USB (a cable-pull gives DISCONNECTED, the fast path). Compiles at 20 % flash / 39 % RAM on the R4 WiFi.
+
+**Decisions taken this session (with Roger):**
+- **A physical disconnect stops the install** (Roger's call) — the fast, precise trip, with the idle timeout as the backstop for a link-holding wedge.
+- **CANCEL is a clean revert, not a failure** — a deliberate stop wears no fail badge.
+- **The REFRESH bonus** — rename, prune discovered non-responders on demand, and turn silent installed modules orange. Orange applies to any installed module seen-then-silent; the wired/wireless split only words the DETAILS reason, not the colour.
+- **CANCEL does not message the module** — a wire-level `INSTALL_ABORT` is an SDK-contract change, deferred to the 1.4.15 lock rather than invented ad hoc.
+
+**Regressions:** None. The origin envelope is threaded behind the existing `DashTransport` contract; the wire grammar, the database schema, and the four §5 gatekeepers are untouched. The Serial Monitor (which rides `wire`/`devices`, not `inbound`) needed no change.
+
+**Outstanding / deferred (with homes):**
+- **The idle watchdog resets per completed block, not per raw byte.** A single block longer than the 10 s timeout would false-STALL even while its bytes flow. Mitigated by the many-medium-blocks shape (real accessories ship several assets anyway), so the "Big Test Accessory" never trips it. Whether to leave it per-block or reset on raw-byte progress from the frame assembler is a noted design point — leaning leave-it (a >10 s single block is pathological).
+- **Failed-update edge.** `updateModule` (1.4.13) uninstalls then reinstalls; if that reinstall now fails, the module is left uninstalled with a fail badge (RETRY recovers it). Honest and recoverable, but the copy isn't update-aware yet — a small follow-up.
+- **1.4.13 auto-refresh** is now **unlocked** — the designed fail state it waited on exists — but still deferred, available to pick up.
+- **DISCONNECTED and STALLED** are built and benchable via the big test accessory; **CANCEL** was the path hardware-confirmed this session. Full confirmation of the other two rides the next bench pass.
+
+**Notes:**
+- Also committed: a small informational **gateway-print** in `arduino_wifi.ino` (debug only, no behaviour change) added while working out the phone-hotspot bench model — `arduino_secrets.h` stays gitignored, so no credentials are committed.
+- **Version bump:** `versionName` 1.4.13 → 1.4.14, `versionCode` 17 → 18.
+
+---
+
 ## Version 1.4.13
 
 **Status:** Complete — verified on real hardware: the `arduino_wifi.ino` "Body WiFi" module was reflashed from `v1.0` to `v1.1` **without uninstalling**. On reconnect DASH recognised it as the installed module but **held it DORMANT** with an amber **UPDATE** chip, and its live data was **refused** — the door/light/cabin signals stopped appearing in the Signal Monitor. One tap of **UPDATE** re-ran the install handshake, re-captured the contract at `v1.1`, and the module came back **ACTIVE** and streaming. Twelfth version of the 1.4.x Transport Layer era.

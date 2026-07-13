@@ -13,6 +13,7 @@ import androidx.core.content.ContextCompat
 import com.dash.android.transport.DashTransport
 import com.dash.android.transport.FrameAssembler
 import com.dash.android.transport.Inbound
+import com.dash.android.transport.InboundFrame
 import com.dash.android.transport.TransportDevice
 import com.dash.android.transport.TransportState
 import com.dash.android.transport.TransportStatus
@@ -83,8 +84,11 @@ class BluetoothSppTransport(
 
     override val tag: String = "bt"
 
-    private val _incoming = MutableSharedFlow<Inbound>(extraBufferCapacity = 256)
-    override val incoming: SharedFlow<Inbound> = _incoming.asSharedFlow()
+    // Bluetooth is wireless: a module falling silent is ordinary (out of range / off), not a fault (1.4.14).
+    override val wired: Boolean = false
+
+    private val _incoming = MutableSharedFlow<InboundFrame>(extraBufferCapacity = 256)
+    override val incoming: SharedFlow<InboundFrame> = _incoming.asSharedFlow()
 
     private val _status = MutableStateFlow(TransportStatus.NO_DEVICE)
     override val status: StateFlow<TransportStatus> = _status.asStateFlow()
@@ -308,8 +312,10 @@ class BluetoothSppTransport(
         private val socket: BluetoothSocket
     ) : java.io.Closeable {
 
-        // This device's private framing state — the heart of the per-device guarantee.
-        private val assembler = FrameAssembler { frame -> _incoming.tryEmit(frame) }
+        // This device's private framing state — the heart of the per-device guarantee. Each frame
+        // carries this RFCOMM link's address as it leaves the assembler (1.4.14), so an install can be
+        // failed the instant its device drops off.
+        private val assembler = FrameAssembler { frame -> _incoming.tryEmit(InboundFrame(frame, tag, address)) }
         private val output: OutputStream = socket.outputStream
         private var readerJob: Job? = null
 

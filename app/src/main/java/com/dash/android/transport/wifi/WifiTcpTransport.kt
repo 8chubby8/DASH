@@ -4,6 +4,7 @@ import android.util.Log
 import com.dash.android.transport.DashTransport
 import com.dash.android.transport.FrameAssembler
 import com.dash.android.transport.Inbound
+import com.dash.android.transport.InboundFrame
 import com.dash.android.transport.TransportDevice
 import com.dash.android.transport.TransportState
 import com.dash.android.transport.TransportStatus
@@ -62,8 +63,11 @@ class WifiTcpTransport(
 
     override val tag: String = "wifi"
 
-    private val _incoming = MutableSharedFlow<Inbound>(extraBufferCapacity = 256)
-    override val incoming: SharedFlow<Inbound> = _incoming.asSharedFlow()
+    // WiFi is wireless: a client falling silent is ordinary (out of range / powered down), not a fault (1.4.14).
+    override val wired: Boolean = false
+
+    private val _incoming = MutableSharedFlow<InboundFrame>(extraBufferCapacity = 256)
+    override val incoming: SharedFlow<InboundFrame> = _incoming.asSharedFlow()
 
     private val _status = MutableStateFlow(TransportStatus.NO_DEVICE)
     override val status: StateFlow<TransportStatus> = _status.asStateFlow()
@@ -221,8 +225,10 @@ class WifiTcpTransport(
 
         val label: String = socket.inetAddress?.hostAddress ?: id
 
-        // This client's private framing state — the heart of the per-client guarantee.
-        private val assembler = FrameAssembler { frame -> _incoming.tryEmit(frame) }
+        // This client's private framing state — the heart of the per-client guarantee. Each frame
+        // carries this socket's key as it leaves the assembler (1.4.14), so an install can be failed
+        // the instant its client disconnects.
+        private val assembler = FrameAssembler { frame -> _incoming.tryEmit(InboundFrame(frame, tag, id)) }
         private val output: OutputStream = socket.getOutputStream()
         private var readerJob: Job? = null
 

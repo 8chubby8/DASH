@@ -12,6 +12,7 @@ import androidx.core.content.ContextCompat
 import com.dash.android.transport.DashTransport
 import com.dash.android.transport.FrameAssembler
 import com.dash.android.transport.Inbound
+import com.dash.android.transport.InboundFrame
 import com.dash.android.transport.TransportDevice
 import com.dash.android.transport.TransportState
 import com.dash.android.transport.TransportStatus
@@ -78,8 +79,11 @@ class UsbSerialTransport(
 
     override val tag: String = "usb"
 
-    private val _incoming = MutableSharedFlow<Inbound>(extraBufferCapacity = 256)
-    override val incoming: SharedFlow<Inbound> = _incoming.asSharedFlow()
+    // USB is a wired pipe: a device going silent is a fault, not an out-of-range wireless module (1.4.14).
+    override val wired: Boolean = true
+
+    private val _incoming = MutableSharedFlow<InboundFrame>(extraBufferCapacity = 256)
+    override val incoming: SharedFlow<InboundFrame> = _incoming.asSharedFlow()
 
     private val _status = MutableStateFlow(TransportStatus.NO_DEVICE)
     override val status: StateFlow<TransportStatus> = _status.asStateFlow()
@@ -323,8 +327,12 @@ class UsbSerialTransport(
         private val port: UsbSerialPort
     ) : SerialInputOutputManager.Listener {
 
-        // This device's private framing state — the heart of the per-device guarantee.
-        private val assembler = FrameAssembler { frame -> _incoming.tryEmit(frame) }
+        // This device's private framing state — the heart of the per-device guarantee. Each frame is
+        // stamped with this device's key as it leaves the assembler (1.4.14), so the layers above can
+        // fail this exact install if the board is unplugged mid-handshake.
+        private val assembler = FrameAssembler { frame ->
+            _incoming.tryEmit(InboundFrame(frame, tag, deviceId.toString()))
+        }
         private val ioManager = SerialInputOutputManager(port, this)
 
         fun start() = ioManager.start()
