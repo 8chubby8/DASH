@@ -13,8 +13,8 @@ android {
         applicationId = "com.dash.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 18
-        versionName = "1.4.14"
+        versionCode = 19
+        versionName = "1.4.15"
     }
 
     buildTypes {

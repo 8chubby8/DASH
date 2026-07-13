@@ -11,6 +11,25 @@ Once the SDK is locked, the agreed rules will be promoted — either into
 transport.md (on Roger's express instruction) or into a dedicated module-rules
 document.
 
+> **SDK LOCKED & PROMOTED — DASH 1.4.15 (2026-07-13).** The transport/lifecycle/
+> message SDK (§1–§10, §12) has been built and hardware-verified across
+> 1.4.1–1.4.14 and is now **locked**, and the normative rules have been promoted
+> into a dedicated Bible document, **`module-sdk.md`** — the clean, public,
+> locked SDK reference community builders copy. `module-sdk.md` is authoritative
+> from here on; **this document remains the working record** — the history, the
+> reasoning, the open items — and is still edited freely.
+>
+> **What is NOT locked (and stays here as live design):** §11 (ACCESSORY panel /
+> layout — aspect ratios, overlay vocabulary, the real layout format) and the
+> **Open Items** below. These depend on the 1.6.x module panel actually being
+> rendered and lock in the panel era, not now. `module-sdk.md` documents the
+> asset-*transfer* mechanism (§8) as locked, and points here for the panel spec.
+>
+> **Decisions banked at the lock (2026-07-13):** CRC stays **CRC32** (the CRC16-
+> for-weak-boards idea dropped unless a real need appears); **no `INSTALL_ABORT`**
+> (§7); the firmware library fills `SUBSCRIBE` defaults from the signal table,
+> generated from `system_commands.md` so the vocabulary has one source.
+
 ---
 
 ## Purpose
@@ -82,7 +101,7 @@ trailing fields optional. `id` = the 12-hex MAC.
 | Message | Dir | Purpose |
 |---|---|---|
 | `SYSTEM_SIGNAL\|id\|function` | mod→DASH | SYSTEM declares a signal it will broadcast — one per line. |
-| `SUBSCRIBE\|id\|function\|rate\|threshold\|gate\|gate_value` | mod→DASH | LISTENER subscribes to a signal — one per line. Trailing fields optional; their defaults (event-driven for boolean/multi-state, a sensible rate+threshold for continuous) come from the signal's type in `system_commands.md`, not the builder. |
+| `SUBSCRIBE\|id\|function\|rate\|threshold\|gate\|gate_value` | mod→DASH | LISTENER subscribes to a signal — one per line. Trailing fields optional; when blank, the **firmware library** fills the type-appropriate default (event-driven for boolean/multi-state, a sensible rate+threshold for continuous) from `system_commands.md` *before the line is sent* — never the builder, never DASH (§4c). |
 | `MANIFEST\|id\|blocks\|bytes` | mod→DASH | ACCESSORY asset table-of-contents + total size. |
 | `BLOCK\|id\|name\|length\|crc` + raw bytes | mod→DASH | ACCESSORY one asset (icon/panel), length-prefixed, CRC-checked. |
 | `INSTALL_END\|id` | mod→DASH | Ends the handshake. |
@@ -531,7 +550,17 @@ booter is picked up whenever it appears (the Arduino Uno Q's full Linux boot of
 - A **wired** module (UART/RS485) expected but absent → **fault** indication.
 - A **wireless** module (WiFi/BT) absent → normal dormant, no alarm; auto-
   reconnects when it returns.
-- A **SYNC** button offers a manual "check now" (e.g. after fixing wiring).
+- A **REFRESH** button offers a manual "check now" (e.g. after fixing wiring).
+
+> **Built and reconciled (DASH 1.4.14, 2026-07-13).** The transport-aware
+> distinction above is now real. An installed module *heard this session and then
+> gone silent* reads as an orange **NOT_RESPONDING** state; a module never seen
+> this session stays a calm **DORMANT** (not plugged in yet / out of range —
+> nothing wrong). The wired/wireless split words the *reason* shown in DETAILS —
+> a wired module reads as a fault ("check power and cable"), a wireless one as
+> ordinary ("may be out of range"). The manual "check now" button, called **SYNC**
+> here originally, was renamed **REFRESH** in 1.4.14 and additionally prunes
+> discovered (not-installed) modules that no longer answer.
 
 **Acknowledgements:**
 - Live data (`BROADCAST`/`REPORT`) is **fire-and-forget** — stateless and
@@ -541,12 +570,16 @@ booter is picked up whenever it appears (the Arduino Uno Q's full Linux boot of
 - The install handshake is self-acknowledging — it ends with `INSTALL_END`.
 
 **Uninstall robustness:** because the module remembers nothing, it cannot return
-as a zombie after a reboot. A lost `DEACTIVATE` ack is at worst transient; DASH
-deletes the record immediately and retries. If still unconfirmed, a **FORCE
-UNINSTALL** is offered, with the warning: *"If you do this the module could still
-send misleading data, so either disconnect the module or power-cycle the module
-after force uninstall."* (Power-cycle the **module**, not DASH — DASH cannot stop
-a powered module that's already running.)
+as a zombie after a reboot. A lost `DEACTIVATE` ack is at worst transient.
+
+> **Reconciled with the built behaviour (DASH 1.4.6, 2026-07-13).** The shipped
+> model is *not* a blocking FORCE UNINSTALL step. DASH **deletes the record
+> immediately** — forgetting *is* the uninstall — then retries `DEACTIVATE`
+> behind it, and raises the warning only **after the fact** if no `ROGER` ever
+> comes: *"…the module could still send misleading data, so either disconnect the
+> module or power-cycle the module."* (Power-cycle the **module**, not DASH —
+> DASH cannot stop a powered module already running.) There is no separate FORCE
+> UNINSTALL button; the uninstall is never blocked waiting on an ack.
 
 ## 7. Discovery & install handshake (the flow)
 
@@ -612,6 +645,20 @@ firmware that sends from timers or interrupts must suspend them for the
 duration. (The mirror-image DASH-side guarantees — per-device frame assembly on
 point-to-point transports, bus quiescing on a future shared bus — are DASH
 1.4.10 work, not module-facing protocol.)
+
+> **Install failure is DASH-side; the module contract is unchanged (DASH 1.4.14,
+> 2026-07-13).** DASH now gives a stalled, disconnected, or user-cancelled
+> install a *designed* failure surface — an idle-timeout, a fast disconnect trip,
+> a CANCEL button, each shown with a reason and a retry. **None of this is
+> module-facing.** A module still just answers `INSTALL` by streaming its
+> declarations to `INSTALL_END`, exactly as before. If DASH cancels or the install
+> fails mid-run, the module simply finishes its monologue into a closed session —
+> DASH drops-and-logs the stray lines harmlessly, and re-`DISCOVER`s the module
+> for a fresh attempt. **There is deliberately no `INSTALL_ABORT` message
+> (decided 2026-07-13):** making the handshake interruptible mid-send would force
+> non-blocking asset streaming on every module to save a couple of seconds of
+> harmless monologue — not worth it. The blocking handshake stays the model, and
+> the firmware library implements exactly that.
 
 ## 8. Asset transfer (the install payload)
 

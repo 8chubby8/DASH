@@ -47,6 +47,44 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.15
+
+**Status:** Complete — **the module firmware library**. SYSTEM and LISTENER shipped as a real Arduino library; the ACCESSORY type deferred to after 1.6.x (see below). **Compile-verified** on the Arduino Uno R4 WiFi *and* a classic Uno R3 (AVR) — but **not flash-tested on hardware**: recorded unverified at Roger's explicit instruction (2026-07-13), on the reasoning that the refactored examples reproduce, message-for-message, the wire output of the hand-written reference sketches that *were* hardware-verified across 1.4.1–1.4.14. Any issue surfaces on the next flash and is fixed then. The SDK-consolidation version of the 1.4.x Transport Layer era.
+
+**Scope:** The three acts of roadmap 1.4.15 — reconcile the working record, lock the SDK, write the library — with the ACCESSORY library split out to follow 1.6.x.
+
+**Act 1 — reconciled `arduino/arduino.md`** with dated additive notes (nothing erased): §6's transport-aware absence is now-built (the orange NOT_RESPONDING state, 1.4.14) and the manual button is **REFRESH**, not SYNC; §6's FORCE UNINSTALL wording corrected to the shipped 1.4.6 model (delete immediately, retry `DEACTIVATE` behind it, warn only after the fact — no blocking step); §7 gained the note that install failure is entirely DASH-side and the module contract is unchanged, and that there is deliberately **no `INSTALL_ABORT`** (decided this version); the cheat-sheet `SUBSCRIBE` line tightened to say the *library* fills defaults; and a lock/promotion header added at the top.
+
+**Act 2 — locked the SDK and promoted it to `module-sdk.md`** (a new Bible document). The transport/lifecycle/message SDK (§1–§10, §12) — built and hardware-verified across 1.4.1–1.4.14 — is locked and rewritten as clean present-tense rules (the amendment archaeology folded into the plain text). Registered in the CLAUDE.md document set with Bible weight. **Deliberately left open:** the ACCESSORY panel/layout spec (§11) and the Open Items, which depend on the module panel (1.6.x) and lock in the panel era — they stay in `arduino.md` as the working record.
+
+**Act 3 — the library, `arduino/DashModule/`** (a proper Arduino library):
+- **`DashModule` (core)** — line framing over any Arduino `Stream` (so USB `Serial`, `Serial1`, `WiFiClient`, `BluetoothSerial` all work unchanged), the pipe split, HELLO-on-DISCOVER, the install-handshake wrapper (subclass emits declarations, base always closes with `INSTALL_END`), the SILENT→ACTIVE→SILENT lifecycle with `ROGER`, and forbidden-character stripping on every sent field. Data-only-while-active is enforced for free — every send is gated on `isActive()`.
+- **`DashSystem`** — `addSignal()` for the install declarations, and an `onReport()` the library calls on the activation dump and every 5 s heartbeat (§4b). The builder never tracks change or manages the heartbeat clock. `broadcast()` / `event()` for immediacy.
+- **`DashListener`** — `subscribe()` (the library fills a blank rate/threshold from the signal table before sending, §4c), and the whole change-detection store absorbed — the builder writes only `onSignal` (called on change) and `onEvent` (event-only on fire).
+- **`dash_signals.h`** — the `SUBSCRIBE`-defaults table mirrored from `system_commands.md`. Only the 8 continuous signals need entries (everything else defaults to blank/event-driven, and inbound `LISTEN` distinguishes event-only by value-absence), so it is tiny. Hand-mirrored with a "keep in step with system_commands.md" note; a generator is a future nicety.
+- **Examples = the refactored reference modules** — `examples/BodySystem/` (the Body SYSTEM module, id …EE05) and `examples/LedListener/` (a LISTENER, id …EE0B). The diff is the point: all the protocol boilerplate is gone into the library; the builder writes only their hardware. This *is* the SDKable proof — the built-ins use the same library a community builder would.
+
+**Footprint (the leanness proof):** BodySystem builds at **20 % flash / 27 % RAM on a bare Uno R3**; LedListener at 13 % / 45 % (the subscription array reserves `DASH_MAX_SUBSCRIPTIONS` slots up front — tunable). So a SYSTEM/LISTENER module built on the library fits the smallest AVR, no special-casing.
+
+**Decisions taken this session (with Roger):**
+- **Promote to a dedicated `module-sdk.md`**, not into `transport.md` — the module SDK is the module-facing contract for community builders, a different audience and concern from DASH's internal transport doc.
+- **Lock §1–§10/§12 now, leave §11 + Open Items to the panel era** — you can't lock a panel format you haven't rendered.
+- **No `INSTALL_ABORT`** — the blocking handshake stays the model; a cancelled install just finishes into a closed session harmlessly.
+- **CRC stays CRC32**; SUBSCRIBE defaults come from a signal table generated from `system_commands.md` (one source of truth).
+- **ACCESSORY SDK deferred to after 1.6.x** — its `DashAccessory` helper and the §11 lock ride with the module panel.
+
+**Regressions:** None — this version adds documentation and firmware; no DASH (Android) code changed, so the app is functionally unchanged.
+
+**Outstanding / deferred (with homes):**
+- **Hardware flash-test of the library** (SYSTEM + LISTENER) — recorded unverified per above; confirm on the next bench (flash `BodySystem` + `LedListener`, watch the LED follow `headlights_on` relayed through DASH).
+- **The ACCESSORY SDK** — `DashAccessory` + locking §11 — after 1.6.x.
+- **`dash_signals.h` generator** — nice-to-have; hand-mirrored for now.
+
+**Notes:**
+- **Version bump:** `versionName` 1.4.14 → 1.4.15, `versionCode` 18 → 19. No functional Android change — the version tracks the project so build.gradle stays in step with the changelog; the tablet needs no reflash for 1.4.15 (it is verified by flashing Arduinos).
+
+---
+
 ## Version 1.4.14
 
 **Status:** Complete — **all three failure paths verified on real hardware over USB** (2026-07-13). A new reference sketch, `test_accessory_big.ino` "Big Test Accessory", ships a ~100 KB icon pack (24 icons × 4 KB + a generated layout) so the install runs ~9 s on the wire — long enough to interrupt. Confirmed on the bench: **CANCEL** mid-transfer reverts the card cleanly with no fail badge and frees the sweep at once; **DISCONNECTED** — pulling the USB cable mid-install fails the card immediately (the fast path, no waiting on the timeout); **STALLED** — with `WEDGE_AFTER_BLOCKS` freezing the module mid-handshake (still connected), the card goes to the stalled fail state after the idle timeout. Thirteenth version of the 1.4.x Transport Layer era.
