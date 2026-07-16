@@ -24,19 +24,24 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Set up JDK 17
+      - name: Set up JDK 21
         uses: actions/setup-java@v4
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'   # the build resolves to a JDK 21 toolchain
 
       - name: Set up Gradle
         uses: gradle/actions/setup-gradle@v4
 
       - name: Build debug APK
+        # gradle.properties pins Gradle to local JDK paths with auto-detect off (fine on Roger's
+        # machine, absent in CI). Point Gradle at the runner's JDK 21 instead, and re-enable
+        # auto-detect, both as command-line overrides so gradle.properties stays untouched.
         run: |
           chmod +x gradlew
-          ./gradlew assembleDebug --no-daemon
+          ./gradlew assembleDebug --no-daemon \
+            -Dorg.gradle.java.installations.auto-detect=true \
+            -Dorg.gradle.java.installations.paths="$JAVA_HOME"
 
       - name: Stage the APK
         run: |
