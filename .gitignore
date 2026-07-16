@@ -13,6 +13,9 @@ captures/
 *.aab
 *.keystore
 *.jks
+# ...but the nightly debug key IS committed on purpose — CI signs the tester APK with it.
+# It is a throwaway debug key with no security value, never a release/Play signing key.
+!app/nightly.keystore
 
 # OS
 .DS_Store

@@ -47,6 +47,50 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.4.16
+
+**Status:** Complete — **the cleanup pass that closes the Transport Layer era**, verified on real hardware (2026-07-16): after a cold tablet reboot the modules come alive with **no delay** — the discrete signals change on their normal cadence from the first second instead of frozen for a minute — and the Serial Monitor's per-device labels and swapped arrows read correctly. The fourteenth and final version of the 1.4.x Transport Layer era.
+
+**Scope:** The three deferred niceties from the build — USB hot-plug reconnection reliability, per-device labelling of inbound wire-log lines, and greet-on-device-count-change. What began as "harden the USB reconnection path" turned, under instrumentation, into the discovery that the reconnection was never the problem — the real bug was in the module firmware, and the fix landed in the SDK library, not the transport.
+
+**The headline — the reconnection "bug" was a module-side ACTIVATE-idempotency bug.**
+The reported symptom (a board sometimes "takes ages" / seems absent after a reboot) was chased into the USB transport with on-wire logging and *ruled out there*: the transport connects and has the module's `HELLO` in ~2 seconds, cleanly, every time. The delay was elsewhere — and the tell was that only the *discrete, occasional* signals (gear, headlights, door) lagged while the *continuous* ones (speed, ambient) stayed fresh. On the wire: the module heartbeats every 5 s like clockwork and DASH's change detection is flawless — but the value simply didn't change for ~52 s, then broke free at exactly the 60 s mark.
+
+Root cause: the reconciliation desk **re-asserts `ACTIVATE` every sweep** (every 5 s for the first 60 s, then 30 s) as its proof-of-life ping — by design (1.4.6), and DASH's own code calls it "idempotent for the module." But the module wasn't idempotent: on **every** `ACTIVATE` it re-ran its whole activation — the §4b dump, the heartbeat-clock reset, and the builder's `onActivate` hook that reseeds the send-timers (`lastGear`, `lastLights`, `nextDoorFlip`). So during the fast-sweep phase, `ACTIVATE` every 5 s kept resetting those timers, and any signal whose change interval is longer than a sweep never reached it — frozen for the whole ~60 s fast phase after every connect, cold-boot, or reconnect.
+
+**The fix — in the `DashModule` library, not the app:**
+- **`onActivated()` now runs only on the SILENT→ACTIVE transition** (`if (!wasActive)`); the module always `ROGER`s (that *is* the liveness proof DASH wants), but a redundant re-assert no longer disturbs it. One guard, in the one place every library module inherits — the SDKable payoff: it fixes every future community module at once. The 5 s heartbeat already re-sends state, so DASH's store stays fresh without a per-activate dump.
+- **`linkLost()` added** — a wireless socket/client drop sends no `DEACTIVATE`, so the WiFi/BT sketches call this on the drop: the module forgets it was active (running the safe-state `onDeactivated` hook) and clears its inbound assembler, so on reconnect it is SILENT until DASH re-DISCOVERs and re-ACTIVATEs it (§6). USB never needs it — a cable pull is a full reboot.
+
+**The reference sketches, rewritten onto the fixed library:**
+- All old hand-written reference sketches moved to `arduino/old/` (they carry the same bug, but are deprecated).
+- Four new library-based sketches in `arduino/current_sketches/` (one folder each, so the Arduino IDE builds them as separate sketches): **BodyUsb** (Uno R4, USB serial), **BodyWifi** (Uno R4 WiFi, TCP client), **PowertrainUsb** (ESP32, USB serial), **PowertrainBt** (ESP32 classic, BT SPP) — same signals and ids as before, so DASH treats them as drop-in replacements. All four compile (arduino-cli); **PowertrainBt flash-verified on hardware** (the cold-reboot test above).
+- The `DashModule` library was symlinked into `~/Arduino/libraries/` so the IDE resolves `<Dash.h>` — a setup step the README/examples work will document for community builders.
+
+**Per-device labelling of inbound wire-log lines (+ arrow swap):**
+- `WireEvent` gained a `deviceKey`, threaded from the origin already riding on every inbound frame (1.4.14) and from the target of a per-device `sendTo`. The Serial Monitor resolves it to the device's friendly name (falling back to the raw key), shown as `tag·device` — so with two boards on one pipe their lines can finally be told apart. A broadcast to all devices shows the bare transport tag. This is the inbound half of the addressing the SEND-TO dropdown gave outbound (deferred since 1.4.10).
+- **The direction arrows were swapped** at Roger's request: inbound (module → DASH) now points **→ right**, outbound **← left** — how it reads from a bystander's view of the wire. Colours still track direction (outbound cyan, inbound green).
+
+**Greet-on-device-count-change:**
+- A new device joining an already-CONNECTED transport doesn't change the aggregate status, so the existing status→CONNECTED sweep trigger never fired for it — the new module waited out the reconciliation timer (up to 30 s in the slow phase). Now `DashController` tracks the present device set and fires `reconciliation.sync()` (→ an immediate `DISCOVER`) the moment a new device key appears. Transport-agnostic — it helps a second USB board, a WiFi module dialling in, and a BT module coming into range alike. The existing install-busy guard still holds, so a greet sweep can never interleave an in-flight install.
+
+**Regressions:** None found. The app changes are additive (a wire-log field, an arrow flip, a sweep trigger); the behavioural fix is in the firmware library.
+
+**Decisions taken this session (with Roger):**
+- **Fix the module, not DASH.** DASH's re-assert-every-sweep is the deliberate 1.4.6 liveness design and stays; the module honouring the idempotency DASH already assumed is the correct fix — and it makes the re-assert genuinely harmless where before it silently corrupted timers.
+- **Instrument before hardening.** The USB reconnection was chased with temporary on-wire logging (`DashUsb`, `DashBroadcast`) rather than fixed by theory — which is what proved the transport innocent and localised the bug. The logging was stripped once the fix was verified.
+- **Arrows follow the bystander's-eye convention** — inbound right, outbound left.
+
+**Outstanding / deferred (with homes):**
+- **SDK docs** — the ACTIVATE-idempotency rule and the `linkLost()` responsibility need writing into `module-sdk.md` / `arduino.md` §6 (the contract now describes just-corrected behaviour). The next task, before the README rewrite.
+- **`arduino_secrets.h.example`** — a committed template so a fresh clone can build the WiFi sketch (the real secrets are gitignored).
+- **The old hand-written sketches in `arduino/old/`** still carry the bug — deprecated, not fixed.
+
+**Notes:**
+- **Version bump:** `versionName` 1.4.15 → 1.4.16, `versionCode` 19 → 20.
+
+---
+
 ## Version 1.4.15
 
 **Status:** Complete — **the module firmware library**. SYSTEM and LISTENER shipped as a real Arduino library; the ACCESSORY type deferred to after 1.6.x (see below). **Compile-verified** on the Arduino Uno R4 WiFi *and* a classic Uno R3 (AVR) — but **not flash-tested on hardware**: recorded unverified at Roger's explicit instruction (2026-07-13), on the reasoning that the refactored examples reproduce, message-for-message, the wire output of the hand-written reference sketches that *were* hardware-verified across 1.4.1–1.4.14. Any issue surfaces on the next flash and is fixed then. The SDK-consolidation version of the 1.4.x Transport Layer era.

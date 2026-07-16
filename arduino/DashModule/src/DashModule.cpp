@@ -34,6 +34,11 @@ void DashModule::loop() {
   if (_active) onTick(millis());
 }
 
+void DashModule::linkLost() {
+  if (_active) { _active = false; onDeactivated(); }  // go SILENT, run safe-state hook
+  _rxLen = 0;                                          // drop any half-read line
+}
+
 // Split one line on '|' in place and dispatch by TYPE (§2, §4).
 void DashModule::dispatch(char* line) {
   char* argv[DASH_MAX_FIELDS];
@@ -62,9 +67,18 @@ void DashModule::dispatch(char* line) {
     startMsg(F("INSTALL_END"));
     endMsg();
   } else if (strcmp(type, "ACTIVATE") == 0) {
+    // ACTIVATE is idempotent (Reconciliation re-asserts it every sweep as a
+    // liveness ping — 1.4.6). Always ROGER (that IS the proof of life DASH wants),
+    // but run the activation logic — the §4b dump, the heartbeat-clock reset, the
+    // builder's onActivate hook — ONLY on the real SILENT->ACTIVE transition. Doing
+    // it on every re-assertion resets the builder's own send-timers every sweep, so
+    // during the fast-sweep phase (every 5 s for the first 60 s) any signal whose
+    // change interval is longer than a sweep never advances — it appears frozen for
+    // ~a minute after every connect. Guarding on the transition fixes that (1.4.16).
+    bool wasActive = _active;
     _active = true;
     sendRoger("activate");
-    onActivated();
+    if (!wasActive) onActivated();
   } else if (strcmp(type, "DEACTIVATE") == 0) {
     _active = false;
     sendRoger("deactivate");

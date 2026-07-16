@@ -17,5 +17,9 @@ data class WireEvent(
     val timestamp: Long,
     val direction: WireDirection,
     val transportTag: String,
-    val line: String
+    val line: String,
+    // Which device on [transportTag] this line came from / went to, when known (roadmap 1.4.16).
+    // Inbound: the origin device (from InboundFrame). Outbound: the target of a per-device send;
+    // null for a broadcast that went to every device on the transport.
+    val deviceKey: String? = null
 )

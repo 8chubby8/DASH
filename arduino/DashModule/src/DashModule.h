@@ -51,6 +51,14 @@ class DashModule {
   // work (e.g. the SYSTEM heartbeat) while active. Call every loop().
   void loop();
 
+  // Wireless transports only. A USB unplug is a full reboot, but a dropped WiFi
+  // socket or Bluetooth client sends no DEACTIVATE — so the builder's maintainLink
+  // calls this the moment the link goes down. The module forgets it was active
+  // (running the onDeactivated safe-state hook if it had been) and clears its
+  // inbound assembler, so on reconnect it is SILENT again until DASH re-DISCOVERs
+  // and re-ACTIVATEs it (§6). Harmless to call when already down.
+  void linkLost();
+
   bool isActive() const { return _active; }
   const char* id() const { return _id; }
 

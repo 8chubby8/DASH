@@ -181,12 +181,21 @@ class DashController(private val transport: TransportManager, context: Context) 
                 .filter { it }
                 .collect { reconciliation.sync() }
         }
-        // Device presence drives the install disconnect-trip (1.4.14): whenever the physical device
-        // list changes, tell the install desk who is still on the bus so it can fail any handshake
-        // whose module just left.
+        // Device presence drives two things, both transport-agnostic (USB, WiFi, BT alike):
+        //   1. the install disconnect-trip (1.4.14): tell the install desk who is still on the bus so
+        //      it can fail any handshake whose module just left;
+        //   2. greet-on-arrival (1.4.16): a *new* device joining an already-CONNECTED transport does
+        //      not change the aggregate status, so the status→CONNECTED sweep above never fires for it
+        //      — it would otherwise wait out the timer (up to a slow-phase 30 s). Any newly-present
+        //      device wakes an immediate DISCOVER sweep, so a second board plugged in later (or a
+        //      module that dials in over WiFi/BT while another is already up) is greeted at once.
         scope.launch {
+            var known = emptySet<DeviceRef>()
             transport.devices.collect { devices ->
-                install.devicesPresent(devices.map { DeviceRef(it.transportTag, it.key) }.toSet())
+                val present = devices.map { DeviceRef(it.transportTag, it.key) }.toSet()
+                install.devicesPresent(present)
+                if ((present - known).isNotEmpty()) reconciliation.sync()
+                known = present
             }
         }
     }

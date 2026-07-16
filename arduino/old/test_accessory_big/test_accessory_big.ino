@@ -89,7 +89,7 @@
    --------------------------------------------------------------------------- */
 #define ICON_COUNT          24
 #define ICON_BYTES          4096
-#define WEDGE_AFTER_BLOCKS  0
+#define WEDGE_AFTER_BLOCKS  5
 
 /* ---------------------------------------------------------------------------
    MODULE IDENTITY  (arduino/arduino.md §3, field caps §10)

@@ -1,0 +1,62 @@
+name: Nightly build
+
+# A rolling "nightly" APK for testers (roadmap 1.4.16 follow-up, GitHub issue #1).
+# Every push to main rebuilds the debug APK and replaces the single `nightly` pre-release,
+# so testers bookmark one link and always get the latest. Debug-signed with the committed
+# nightly key so an update installs in place rather than needing an uninstall.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:   # allow a manual rebuild from the Actions tab
+
+permissions:
+  contents: write      # needed to (re)create the nightly release
+
+concurrency:
+  group: nightly       # a burst of pushes only publishes the last one
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      - name: Set up Gradle
+        uses: gradle/actions/setup-gradle@v4
+
+      - name: Build debug APK
+        run: |
+          chmod +x gradlew
+          ./gradlew assembleDebug --no-daemon
+
+      - name: Stage the APK
+        run: |
+          mkdir -p out
+          VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          cp app/build/outputs/apk/debug/app-debug.apk "out/dash-nightly.apk"
+          echo "VERSION=$VERSION" >> "$GITHUB_ENV"
+          echo "BUILT=$(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
+
+      - name: Publish rolling nightly release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # Delete the previous nightly (release + tag) so the new one points at this commit,
+          # keeping a single stable download URL: releases/download/nightly/dash-nightly.apk
+          gh release delete nightly --yes --cleanup-tag || true
+          gh release create nightly out/dash-nightly.apk \
+            --title "DASH Nightly (v${VERSION})" \
+            --prerelease \
+            --target "${GITHUB_SHA}" \
+            --notes "Rolling nightly build of DASH — the latest commit on \`main\` (v${VERSION}, built ${BUILT}).
+
+          Debug-signed for sideload testing; updates install in place. Not a finished head unit yet — see the README for what works today. Bug reports and feedback very welcome in Issues."

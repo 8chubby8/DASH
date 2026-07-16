@@ -112,10 +112,10 @@ class TransportManager(context: Context) {
                 t.incoming.collect { env ->
                     val now = System.currentTimeMillis()
                     when (val frame = env.frame) {
-                        is Inbound.Line -> _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.text))
+                        is Inbound.Line -> _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.text, env.deviceKey))
                         is Inbound.Block -> {
-                            _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.header))
-                            _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.note))
+                            _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.header, env.deviceKey))
+                            _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.note, env.deviceKey))
                         }
                     }
                     _inbound.tryEmit(env)   // origin (tag + device key) rides up to the controller (1.4.14)
@@ -148,7 +148,7 @@ class TransportManager(context: Context) {
      */
     fun sendTo(device: TransportDevice, line: String) {
         val transport = transports.firstOrNull { it.tag == device.transportTag } ?: return
-        _wire.tryEmit(WireEvent(System.currentTimeMillis(), WireDirection.OUT, transport.tag, line))
+        _wire.tryEmit(WireEvent(System.currentTimeMillis(), WireDirection.OUT, transport.tag, line, device.key))
         transport.send(line, device.key)
     }
 

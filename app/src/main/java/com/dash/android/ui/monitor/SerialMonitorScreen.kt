@@ -11,6 +11,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.rememberLazyListState
@@ -38,6 +39,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.transport.TransportDevice
@@ -154,7 +156,7 @@ fun SerialMonitorScreen(
                     modifier = Modifier.fillMaxSize().padding(8.dp),
                     verticalArrangement = Arrangement.spacedBy(2.dp)
                 ) {
-                    items(events) { ev -> WireRow(ev) }
+                    items(events) { ev -> WireRow(ev, originLabel(ev, devices)) }
                 }
             }
 
@@ -226,15 +228,31 @@ fun SerialMonitorScreen(
 }
 
 @Composable
-private fun WireRow(ev: WireEvent) {
+private fun WireRow(ev: WireEvent, origin: String) {
     val outbound = ev.direction == WireDirection.OUT
-    val arrow = if (outbound) "→" else "←"
+    // Arrows are from a bystander's view of the wire: inbound (module → DASH) points right, outbound
+    // (DASH → module) points left. Colour still tracks direction (outbound cyan, inbound green).
+    val arrow = if (outbound) "←" else "→"
     val arrowColor = if (outbound) Color(0xFF4FC3F7) else Color(0xFF81C784)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(TIME_FMT.format(Date(ev.timestamp)), color = Color(0xFF555555), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
         Text(arrow, color = arrowColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        Text(
+            origin, color = Color(0xFF6A6A7A), fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+            maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(104.dp)
+        )
         Text(ev.line, color = typeColor(ev.line), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
     }
+}
+
+/** The origin label for one wire line: the transport tag, plus the specific device when known —
+ *  the device's friendly name if it's in the live list, else its raw key. A broadcast that went to
+ *  every device (no target key) shows the bare transport tag. This is the inbound half of the
+ *  per-device addressing the SEND-TO dropdown gave outbound (roadmap 1.4.16). */
+private fun originLabel(ev: WireEvent, devices: List<TransportDevice>): String {
+    val key = ev.deviceKey ?: return ev.transportTag
+    val name = devices.firstOrNull { it.key == key && it.transportTag == ev.transportTag }?.label ?: key
+    return "${ev.transportTag}·$name"
 }
 
 /** Colour-code a line by its TYPE word (the first pipe-separated field) for at-a-glance scanning. */

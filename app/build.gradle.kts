@@ -13,8 +13,21 @@ android {
         applicationId = "com.dash.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 19
-        versionName = "1.4.15"
+        versionCode = 20
+        versionName = "1.4.16"
+    }
+
+    // A fixed key for debug/nightly builds so every build (local and the CI nightly) shares one
+    // signature — testers can update a nightly in place instead of uninstall-reinstall. This is a
+    // throwaway debug key with no security value (like Android's public default debug key); it is NOT
+    // a release/Play signing key. A real release would use a keystore held as a CI secret instead.
+    signingConfigs {
+        getByName("debug") {
+            storeFile = file("nightly.keystore")
+            storePassword = "dashnightly"
+            keyAlias = "dash"
+            keyPassword = "dashnightly"
+        }
     }
 
     buildTypes {
