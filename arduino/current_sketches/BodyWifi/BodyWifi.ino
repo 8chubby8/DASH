@@ -16,8 +16,9 @@
      death sends no DEACTIVATE), waiting for DASH to re-DISCOVER and re-ACTIVATE.
      dash.linkLost() does that reset for us; on reconnect we are SILENT again (§6).
 
-   Set your network + DASH host in arduino_secrets.h (gitignored):
-     SECRET_SSID, SECRET_PASS, DASH_HOST (the DASH device's IP), DASH_PORT (3274).
+   FIRST BUILD: copy arduino_secrets.h.example to arduino_secrets.h in this
+   folder and fill it in — SECRET_SSID, SECRET_PASS, DASH_HOST (the DASH
+   device's IP), DASH_PORT (3274). Your copy is gitignored; the .example is not.
    =========================================================================== */
 #include <Dash.h>
 #include <WiFiS3.h>            // Uno R4 WiFi radio (onboard ESP32-S3)

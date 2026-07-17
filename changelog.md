@@ -81,10 +81,31 @@ Root cause: the reconciliation desk **re-asserts `ACTIVATE` every sweep** (every
 - **Instrument before hardening.** The USB reconnection was chased with temporary on-wire logging (`DashUsb`, `DashBroadcast`) rather than fixed by theory — which is what proved the transport innocent and localised the bug. The logging was stripped once the fix was verified.
 - **Arrows follow the bystander's-eye convention** — inbound right, outbound left.
 
-**Outstanding / deferred (with homes):**
-- **SDK docs** — the ACTIVATE-idempotency rule and the `linkLost()` responsibility need writing into `module-sdk.md` / `arduino.md` §6 (the contract now describes just-corrected behaviour). The next task, before the README rewrite.
-- **`arduino_secrets.h.example`** — a committed template so a fresh clone can build the WiFi sketch (the real secrets are gitignored).
-- **The old hand-written sketches in `arduino/old/`** still carry the bug — deprecated, not fixed.
+**Outstanding / deferred (with homes) — ALL CLOSED 2026-07-17, see the closing note below:**
+- ~~**SDK docs**~~ — **done 2026-07-17.** The ACTIVATE-idempotency rule and the `linkLost()` responsibility are now written into `module-sdk.md` / `arduino.md` §6.
+- ~~**`arduino_secrets.h.example`**~~ — **done 2026-07-17.** Committed beside `BodyWifi`.
+- **The old hand-written sketches in `arduino/old/`** still carry the bug — **deprecated, not fixed, and staying that way.** Not a 1.5.x hangup: they are superseded by `current_sketches/`, referenced by nothing, and exist only as historical record.
+
+---
+
+### Closing the 1.4.x era — the deferred doc pass (2026-07-17)
+
+The two deferred items above were completed in a docs-only session. **No DASH code changed** — no version bump, no rebuild, no APK. `versionName` stays 1.4.16 / `versionCode` 20.
+
+**The SDK docs — the idempotency rule and the link-drop rule, now stated:**
+- **`module-sdk.md` §6** (the locked contract) gained two present-tense rules: **"`ACTIVATE` is idempotent — the module honours the re-assert"** (always `ROGER`; run the activation work *only* on the real SILENT→ACTIVE transition) placed directly after the boot-reconciliation paragraph that describes the re-assert, so a builder reads the behaviour and its obligation together; and **"A dropped wireless link — the module returns itself to SILENT"** placed after "Absent = DORMANT". Both additive — 36 lines added, nothing removed.
+- **`arduino.md` §6** (the working record) gained two dated blockquote notes in the existing 1.4.6/1.4.13/1.4.14 style, carrying the *why*: the frozen-signals symptom, the 60 s tell, the blind alley through the USB transport, and Roger's "fix the module, not DASH" call. 49 lines added, nothing removed.
+- **Why this mattered more than tidying:** the library fix only protects modules that inherit `DashModule`. A community builder writing firmware from scratch works from the document — and the document described DASH's re-assert without ever stating the module's obligation to tolerate it. It would have led them to rebuild the exact bug, faithfully. The SDKable principle cuts both ways: the contract has to state the duty, not just the behaviour.
+- **Judgement call:** `module-sdk.md` is locked at Bible weight, but neither addition changes the contract — both describe behaviour DASH has always had and always assumed. Writing down an implicit obligation is not reopening a decision. Roger approved the drafts before they were applied.
+
+**`arduino_secrets.h.example` — committed, and caught broken by verification:**
+- Lives at `arduino/current_sketches/BodyWifi/arduino_secrets.h.example` — **beside the sketch, not in `DashModule/examples/`**, because `BodyWifi.ino` includes it with quotes and the toolchain resolves that relative to the sketch folder. The `.gitignore` rule is `arduino/**/arduino_secrets.h`, which matches the exact filename only, so the `.example` is committable with no change to the ignore rules.
+- **The first draft did not compile.** It pasted the gitignore glob `arduino/**/arduino_secrets.h` into a C block comment — the `*/` inside that glob closed the comment early and everything below it was compiled as code. Caught by actually building a simulated fresh clone rather than eyeballing the file; the template now describes the rule in words instead of pasting the glob. Had it shipped, the template would have failed on first use — exactly the problem it exists to prevent.
+- **Verified** by copying the sketch to a scratch dir with the real secrets removed: template copied per its own instruction → compiles clean (72116 bytes, `DashModule` 1.0.0 + `WiFiS3`); template *not* copied → fails at `BodyWifi.ino:25` with `fatal error: arduino_secrets.h: No such file or directory`, pointing straight at the include and the FIRST BUILD note above it. `BodyWifi.ino`'s header comment now names the template as step one.
+
+**Raised and declined:** a reorganisation was discussed — gitignoring `current_sketches/`, `old/` and `x-type_steeringwheel/`, and copying the sketches into `DashModule/examples/`. Two findings came out of it and are recorded here so they are not rediscovered: **(1)** all three are already tracked, so gitignoring them alone does nothing — untracking needs `git rm -r --cached`; **(2)** `examples/BodySystem` and `current_sketches/BodyUsb` are already the same module (id `...EE05`, same five signals) at two different vintages, so the sketches have already drifted once, unnoticed. Roger's call: leave it. **Not a 1.4.x hangup** — nothing is broken, the shipped sketches are the ones in `current_sketches/`, and the examples question belongs to whenever the Arduino library is properly published.
+
+**1.4.x is CLOSED.** Every version 1.4.1 → 1.4.16 is complete and hardware-verified. Nothing outstanding carries into 1.5.x — the Settings Panel starts clean.
 
 **Notes:**
 - **Version bump:** `versionName` 1.4.15 → 1.4.16, `versionCode` 19 → 20.

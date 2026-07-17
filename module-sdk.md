@@ -325,6 +325,25 @@ zombie.
 picked up whenever it appears, and re-asserts `ACTIVATE` each sweep (a fresh `ROGER` is
 the only proof a module is genuinely active *now* — this heals a brown-out reboot).
 
+### `ACTIVATE` is idempotent — the module honours the re-assert
+
+DASH re-asserts `ACTIVATE` on **every** reconciliation sweep — every 5 s for the first
+60 s after a connect, then every 30 s — and reads the returning `ROGER` as its proof of
+life. **A module must therefore treat a repeat `ACTIVATE` as a no-op.**
+
+- **Always `ROGER`.** The ack *is* what DASH is asking for; never suppress it.
+- **Run the activation work only on the real SILENT→ACTIVE transition** — the §4b state
+  dump, the heartbeat clock, and any send-timers the firmware keeps. An already-ACTIVE
+  module re-runs none of it.
+
+A module that re-runs its activation on every `ACTIVATE` resets its own timers every
+sweep, so any signal whose change interval is longer than a sweep never advances — it
+sits frozen for the whole ~60 s fast-sweep phase after every connect, cold boot, or
+reconnect. Nothing is lost by staying still: an ACTIVE module's ordinary heartbeat
+already re-sends its state.
+
+*(The `DashModule` library does this for you — the guard is in the base class.)*
+
 ### The firmware `version` field — a required freshness check
 
 The sixth `HELLO` field is the module's **firmware version** — builder free text,
@@ -355,6 +374,23 @@ boot, never persisted).
 - A module **never seen this session** stays a calm **DORMANT** — nothing is wrong.
 - A **REFRESH** button offers a manual "check now" (after fixing wiring / plugging in),
   and prunes discovered-but-not-installed modules that no longer answer.
+
+### A dropped wireless link — the module returns itself to SILENT
+
+A wired module that loses its pipe loses power with it and reboots SILENT — clean by
+construction. **A wireless module does not.** A dropped TCP socket or BT client sends no
+`DEACTIVATE`: the board stays powered, still believing it is ACTIVE, with no way to
+learn DASH has gone.
+
+So a wireless module **detects the drop itself and returns to SILENT** — forgetting it
+was active, running its own safe-state routine, and discarding any half-received inbound
+line. On reconnect it waits to be re-`DISCOVER`ed and re-`ACTIVATE`d, exactly like a
+fresh boot. This is what keeps DASH the single source of truth: the module never decides
+for itself that it is still installed. The per-transport cues are in §12 — a failed
+socket write, or `hasClient()` going false.
+
+*(In the `DashModule` library this is one call — `linkLost()` — from the sketch's
+link-maintenance loop. Harmless when already down. USB sketches never need it.)*
 
 ### Acknowledgements
 

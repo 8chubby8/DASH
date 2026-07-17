@@ -515,6 +515,35 @@ data) → back to `SILENT` (after `DEACTIVATE`).
 booter is picked up whenever it appears (the Arduino Uno Q's full Linux boot of
 ~20–30 s is the worst case — a fixed "3 tries then give up" would miss it).
 
+> **`ACTIVATE` idempotency — the module's obligation (added 2026-07-17, built and
+> hardware-verified in DASH 1.4.16).** The low-rate re-sweep above does more than
+> pick up a slow booter: it **re-asserts `ACTIVATE` every sweep** as a liveness
+> ping (1.4.6), because a fresh `ROGER` is the only proof a module is genuinely
+> active *now* — it heals a brown-out reboot. That design is deliberate and it
+> stays. But it only works if the module treats a repeat `ACTIVATE` as a no-op,
+> which the SDK had always *assumed* and never *stated*.
+>
+> Ours didn't. Until 1.4.16 the library re-ran its whole activation on every
+> `ACTIVATE` — the §4b dump, the heartbeat clock, and the builder's `onActivate`
+> hook, which reseeds the send-timers. During the fast-sweep phase (every 5 s for
+> the first 60 s) that reset the timers faster than they could run, so any signal
+> whose change interval exceeded a sweep never advanced. The tell on the wire: the
+> discrete signals (gear, headlights, door) sat frozen while the continuous ones
+> (speed, ambient) stayed fresh, and everything broke free at exactly 60 s — the
+> moment the sweep drops to 30 s. It read as a USB reconnection fault and was
+> chased into the transport before instrumentation proved the transport innocent.
+>
+> **The rule, now stated:** always `ROGER` (that *is* the proof of life), but run
+> the activation work **only on the real SILENT→ACTIVE transition**. Nothing is
+> lost by standing still — an ACTIVE module's 5 s heartbeat already re-sends state.
+>
+> *(Roger's call, 2026-07-16: fix the module, not DASH. DASH honouring its own
+> 1.4.6 liveness design is correct; the module honouring the idempotency DASH
+> already assumed is the fix — and it makes the re-assert genuinely harmless where
+> before it silently corrupted timers. The guard lives in the `DashModule` base
+> class, so every library module and every future community module inherits it —
+> the SDKable principle paying out.)*
+
 > **The firmware `version` field — a required freshness check (added 2026-07-12,
 > built and hardware-verified in DASH 1.4.13).** The sixth `HELLO` field
 > (`HELLO|id|type|name|description|version`) is the module's **firmware version** —
@@ -568,6 +597,26 @@ booter is picked up whenever it appears (the Arduino Uno Q's full Linux boot of
 - `ACTIVATE`/`DEACTIVATE` are **acknowledged and retried** (the module sends
   `ROGER`), so DASH can be sure a module actually started/stopped.
 - The install handshake is self-acknowledging — it ends with `INSTALL_END`.
+
+> **`linkLost()` — the wireless module's own drop detection (added 2026-07-17,
+> built in DASH 1.4.16).** The ack rules above cover the orderly path: DASH says
+> `DEACTIVATE`, the module `ROGER`s and stops. A **wireless** module has a path
+> with no ack at all — the link simply vanishes. A dropped TCP socket or BT client
+> sends no `DEACTIVATE`, and unlike a USB module (where a cable pull is a full
+> reboot) the board stays powered, still believing it is ACTIVE.
+>
+> So the wireless module detects the drop and **returns itself to SILENT**:
+> forgetting it was active, running the safe-state `onDeactivated` hook, and
+> clearing its inbound assembler so a half-received line can't be spliced onto the
+> next connection. On reconnect it is SILENT until DASH re-`DISCOVER`s and
+> re-`ACTIVATE`s it — the ordinary boot path, and the thing that keeps DASH the
+> single source of truth. §12 already stated this per-transport ("go back to
+> SILENT until DASH `DISCOVER`s you again"; `hasClient()` going false); it is a
+> lifecycle rule, so it belongs here too.
+>
+> *(In the `DashModule` library it is one call — `linkLost()` — made from the
+> sketch's link-maintenance loop, and harmless when already down. USB sketches
+> never call it.)*
 
 **Uninstall robustness:** because the module remembers nothing, it cannot return
 as a zombie after a reboot. A lost `DEACTIVATE` ack is at worst transient.
