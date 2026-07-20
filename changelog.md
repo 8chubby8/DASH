@@ -47,6 +47,37 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.1
+
+**Status:** Complete — planning and documentation only, no code. The **first version of the 1.5.x Settings Panel era**: a reconciliation pass that settles the settings tree before any of it is built. No compile, no APK, no reflash — verified by review of the two Bible documents.
+
+**Scope:** Reconcile the settings structure against everything actually built in 1.1.x–1.4.x and against the 1.5.x implementation plan, edit the two Bible documents to match, and resolve the four handoff observations raised when the 1.4.x era closed. Prompted by discovering that a full settings tree already existed in interface.md and had drifted from both the code and the plan.
+
+**What was done:**
+
+- **roadmap.md — the 1.5.x section rewritten** (old entry deleted). The flat "what gets built" bullet list became the reconciled top-level tree plus a twelve-version build sequence (1.5.1 reconciliation → 1.5.12 cleanup), governed by one principle: **a work-in-progress tab is a placeholder, not a version.** The full navigation tree is built once in the shell version (1.5.2); numbered versions after it go only to tabs with a live feature to wire; each placeholder lights up at its own feature's version (Module Panel 1.6.x, Viewport 1.7.x, App Launcher 1.8.x, Elements 1.9.x, theming/overlays/audio/notifications/apps across v2, vehicle/CAN in v3). No reserved-empty slots — refinements renumber, as 1.4.x did when Bluetooth took 1.4.12.
+
+- **interface.md — a dated reconciliation addendum added** beneath the original settings tree (the original kept, per the additive-docs rule). It records six changes and why each: **(1)** a new top-level **Layout** category holding the five placeable surfaces (System Bar, Module Panel, App Launcher, Elements, Overlays), lifted out of Appearance; **(2)** the old `Appearance → Panels` node dissolved into Layout; **(3)** Overlays split by concern — appearance under Layout → Overlays, trigger mapping under Notifications; **(4)** the System Bar settings entry corrected to *Position + Edit Bar Layout entry* (height/zones/element sizing live inside edit mode, per 1.3.9/1.3.13); **(5)** the redundant Spacing subcategory dropped; **(6)** the WIP-placeholder convention recorded. It closes with the reconciled top-level structure as a self-contained tree.
+
+- **The four handoff observations, resolved:** the Transports tab is now a generic list off `TransportManager` (not a hardcoded two/three); "enable/disable per module" is recognised as a new stored-intent concept and filed at 1.5.7 with its design decision flagged; the stale Appearance bar-height line is corrected to the edit-mode entry point; and Module Management is scoped as a *rehome, not a rebuild* (1.5.6).
+
+**Decisions taken this session (with Roger):**
+- **Layout as a new top-level category, not a nested "UI" subcategory** — nesting it under Appearance would have added a fourth navigation tier the three-level model can't show, and pushed System Bar two taps deep. Top-level keeps the nav honest and de-loads Appearance (which was carrying eleven subcategories). This is the Module Mantra as a settings tree — the panel is a wall DASH owns (Layout), the module is the king inside it (Modules).
+- **A WIP tab is a placeholder, not a version** — the tidying principle that took the plan from 35 versions to twelve, each doing verifiable work.
+- **Notification suppression → Notifications, capability-detected** — moved out of Appearance; it needs elevated access a Bronze sideload lacks, so it unlocks on Silver/Gold and degrades silently on Bronze. Not a plain preference toggle.
+- **The System category re-added** (Android deep-links + About DASH) at 1.5.11, near the end of the era. Vehicle, Audio, Notifications and Apps also re-included from interface.md as WIP shells.
+
+**Regressions:** None — no code changed. `versionName`/`versionCode` bumped and two Markdown documents edited; the app is byte-for-byte unchanged in behaviour.
+
+**Outstanding / deferred (with homes):**
+- **1.5.7 module-disable semantics** — the user-facing disable (a stored intent that withholds ACTIVATE, close to the 1.4.13 quarantine) needs its design pinned down before that version starts.
+- **Viewport settings home** — Viewport has no settings subcategory for now; its mode/corner-radius/shadow controls arrive with 1.7.x, and whether they land in Appearance (as a look) or Layout (as a surface) is decided then.
+
+**Notes:**
+- **Version bump:** `versionName` 1.4.16 → 1.5.1, `versionCode` 20 → 21. No functional Android change — the version tracks the project so build.gradle stays in step with the changelog (the 1.4.15 precedent); the tablet needs no reflash.
+
+---
+
 ## Version 1.4.16
 
 **Status:** Complete — **the cleanup pass that closes the Transport Layer era**, verified on real hardware (2026-07-16): after a cold tablet reboot the modules come alive with **no delay** — the discrete signals change on their normal cadence from the first second instead of frozen for a minute — and the Serial Monitor's per-device labels and swapped arrows read correctly. The fourteenth and final version of the 1.4.x Transport Layer era.

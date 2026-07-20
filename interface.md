@@ -577,6 +577,45 @@ DASH Settings
     └── Version and build info
 ```
 
+> **Reconciliation addendum — 2026-07-20 (roadmap 1.5.1).** The tree above is the original settings structure. Ahead of building the settings panel (1.5.x) it was walked against everything actually built in 1.1.x–1.4.x and against the 1.5.x implementation plan, and reconciled. The tree above is kept for the record; **the reconciled structure below is the one 1.5.x implements.** Nothing here changes a *feature* — only where its settings live in the tree, and how the tree maps to the three-level navigation.
+>
+> **What changed, and why:**
+>
+> 1. **New top-level category: Layout.** The five *placeable surfaces* — System Bar, Module Panel, App Launcher, Elements, Overlays — are lifted out of Appearance into their own top-level **Layout** category. *Why:* these are the discrete things DASH draws and positions (where they dock, how big, what reveals them), which is a different concern from the cross-cutting visual skin (colours, fonts, density). This is the Module Mantra as a settings tree — the panel is a *wall* DASH owns (Layout), the module is the *king* inside it (Modules). It also keeps the three-level navigation honest: nesting these under Appearance would have added a fourth tier the major→subcategory→content model can't show, and it de-loads Appearance, which was carrying eleven subcategories. Appearance keeps only the visual skin: Density, Splash Screen, Colours, Fonts, Presets, Ambient Mode.
+>
+> 2. **Panels dissolved into Layout.** The old `Appearance → Panels → {Module Panel, App Launcher}` grouping is flattened: Module Panel and App Launcher become direct Layout subcategories, siblings of System Bar. *Why:* with Layout as the surfaces category, the intermediate "Panels" node is redundant, and it keeps every surface at the same navigable depth. The stacking rule (a floating module panel and a floating launcher cannot share an edge) is still configured in one place — both now sit in Layout.
+>
+> 3. **Overlays split by concern.** Overlay *appearance* (shape, size, position, opacity, durations, dismiss behaviour) lives in **Layout → Overlays**. Overlay *trigger mapping* (what system signal, module trigger, or Android notification fires an overlay) lives in **Notifications → Overlay trigger mapping**. *Why:* these are two genuinely different jobs — styling a surface vs. wiring an event to it — and the trigger side was always described as living in Notification settings (see the Overlays section of this document). One feature, two correct homes.
+>
+> 4. **System Bar entry corrected.** In settings, System Bar is **Position + an Edit Bar Layout entry point + Reset** — not flat height/zone/element sliders. *Why:* 1.3.9 and 1.3.13 deliberately moved bar height, zone count, and element sizing *inside* edit mode so the user sees the result live while editing. The settings subcategory is the door to that workspace, not a duplicate set of controls.
+>
+> 5. **Spacing subcategory dropped.** The old `Appearance → Spacing` (element vertical position within bar, zone padding) is removed as redundant — its contents duplicate the System Bar element-positioning that now lives in edit mode. If a genuine cross-cutting spacing control emerges later it can return as its own thing.
+>
+> 6. **The work-in-progress convention.** The tree is complete and navigable from the shell version (1.5.2), but most tabs are placeholders for features not yet built. A placeholder is honestly labelled ("arrives with vX.x") and navigable, not a dead control. Each lights up at its own feature's version — Module Panel at 1.6.x, Viewport at 1.7.x, App Launcher at 1.8.x, Elements at 1.9.x, the theming/overlays/audio/notifications/apps tabs across version 2, vehicle/CAN in version 3. Viewport currently has **no** settings subcategory at all (removed here); its mode/corner-radius/shadow controls arrive with 1.7.x and a Viewport home is decided then (Appearance-as-look vs Layout-as-surface).
+>
+> **The reconciled top-level structure:**
+>
+> ```
+> DASH Settings
+> ├── Appearance    — the visual skin: Density, Splash Screen, Colours, Fonts, Presets, Ambient Mode
+> ├── Layout        — the placeable surfaces: System Bar, Module Panel, App Launcher, Elements, Overlays
+> ├── Modules       — Discovery; Installed Modules (per module: enable/disable, transport assignment,
+> │                   relay subscriptions, uninstall)
+> ├── Transports    — a generic list driven off TransportManager (USB, WiFi, Bluetooth today; future
+> │                   transports auto-listed), each with enable/disable + its own configuration
+> ├── Vehicle       — CAN Patch Bay, OBD2, Signal Slots, DBC Profiles, Vehicle Profile   (v3)
+> ├── Audio         — output selection, routing, volume behaviour, per-app audio permissions   (v2)
+> ├── Notifications — notification suppression (capability-detected), overlay trigger mapping,
+> │                   per-app management, durations, driving-mode rules, history   (v2)
+> ├── Apps          — installed apps, default assignments, permissions, storage   (v2/v3)
+> ├── System        — Android deep-links (WiFi/Bluetooth/Display/Storage/Accessibility/Date&Time)
+> │                   + About DASH
+> └── Developer     — safety acknowledgement, Serial Monitor, Signal Monitor, transport diagnostics,
+>                     log viewer, CAN Logger (v3), SDK tools (v3)
+> ```
+>
+> **Notification suppression** (a master toggle making DASH the sole notification surface) is filed under Notifications, not Appearance, and is a capability-detected feature — it needs elevated access a Bronze sideload lacks, so it unlocks on Silver/Gold system-app hardware and degrades silently on Bronze. It is not a mere preference toggle; it gets its own designed capability path when built.
+
 ### Developer Tab
 
 The Developer tab is openly accessible — no passcode, no gesture, no hidden unlock sequence. DASH trusts its users with all of its tools.

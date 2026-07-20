@@ -163,16 +163,23 @@ Every version increment — including third number refinements — must have a c
 
 **What it is:** The user-facing configuration interface. Minimal at this stage — only settings that support features already implemented. Grows as each subsequent feature is added.
 
-**What gets built:**
-- Full screen settings panel layout — system bar remains visible above
-- Three level progressive navigation — major categories, subcategories, content area
-- Animated category slide transition — major column slides left on subcategory selection
-- Settings visual identity — inherits system bar theme tokens
-- Appearance tab — density presets, scale presets (from 1.1.x), system bar height and position
-- Transports tab — USB serial enable/disable, WiFi TCP enable/disable and port
-- Modules tab — installed module list, enable/disable per module
-- Developer tab — safety acknowledgement, basic transport diagnostics, log viewer
-- Settings button on system bar wired to open settings panel
+**The settings tree** is defined in full in interface.md (see the 2026-07-20 reconciliation addendum there — this version implements that reconciled tree). Top-level categories: **Appearance** (the visual skin — Density, Splash, Colours, Fonts, Presets, Ambient Mode), **Layout** (the placeable surfaces — System Bar, Module Panel, App Launcher, Elements, Overlays), **Modules**, **Transports**, **Vehicle**, **Audio**, **Notifications**, **Apps**, **System**, and **Developer**.
+
+**The governing principle — a work-in-progress tab is a placeholder, not a version.** The full navigation tree is built once, in the shell version (1.5.2): every category and subcategory present and navigable, the live ones empty-but-ready, the future ones showing an honest "arrives with vX.x" label. After that, numbered 1.5.x versions go **only** to tabs with a live feature to wire. Each placeholder lights up at its own feature's version — Module Panel at 1.6.x, Viewport at 1.7.x, App Launcher at 1.8.x, Elements at 1.9.x, the theming/overlays/audio/notifications/apps tabs across version 2, and the vehicle/CAN tabs in version 3. This is the roadmap's own rule ("only settings that support features already implemented; grows as each feature is added") made literal: the tree is complete and honest from 1.5.2, and each tab becomes functional when its feature ships. No reserved-empty slots — refinements slot in by renumbering, exactly as 1.4.x did when Bluetooth took 1.4.12.
+
+**Build order — one piece per version:**
+- **1.5.1** — Reconciliation & planning *(no code)*. Update roadmap.md and interface.md: introduce the **Layout** top-level category and move System Bar, Module Panel, App Launcher, Elements and Overlays into it; split Overlays (appearance → Layout, trigger mapping → Notifications); correct the System Bar entry to *Position + Edit Bar Layout entry* (height/zones/element sizing live inside edit mode, per 1.3.9/1.3.13); drop the redundant Spacing subcategory; record the WIP-placeholder convention; resolve the four handoff observations. A Bible edit to two documents — the deliberate change interface.md requires, discussed and agreed before writing.
+- **1.5.2** — Settings shell + full navigation tree. Full-screen panel below the system bar; three-level progressive navigation (major → subcategory → content) with the animated category slide; visual identity inherited from the system bar theme tokens; settings button on the bar wired to open it. Every category and subcategory in the tree present and navigable — live ones empty-but-ready, future ones honest WIP placeholders. Verified as: the tree navigates, the slide animates, the labels are correct.
+- **1.5.3** — Appearance › Density & Scale. App density presets and DASH UI scale presets rehomed from the 1.1.x scaffold.
+- **1.5.4** — Appearance › Splash Screen. Image-or-colour selection and display duration, exposing the 1.2.x splash feature.
+- **1.5.5** — Layout › System Bar. Position toggle, the EDIT BAR LAYOUT entry point, and Reset — rehomed from the current flat settings.
+- **1.5.6** — Modules › Module Management rehomed. The full 1.4.x Module Management screen (install/uninstall, DETAILS, fail badges, UPDATE chip, REFRESH, ACTIVE/DORMANT/NO REPLY chips) migrated into the Modules tab. No rebuild.
+- **1.5.7** — Modules › Enable/disable + transport assignment. The new per-module user-intent layer: a user-facing disable distinct from DORMANT (a stored intent that withholds ACTIVATE, close to the 1.4.13 quarantine mechanism), plus transport assignment for a module reachable over more than one pipe. Design decision on the disable semantics required before this version starts.
+- **1.5.8** — Transports › Generic transport list. A list driven off `TransportManager` — enable/disable per transport, WiFi port/host, Bluetooth paired devices — rendering exactly the transports that exist and gaining future ones for free.
+- **1.5.9** — Developer › Serial Monitor + Signal Monitor rehomed. The two dev instruments (1.4.1, 1.4.10) migrated from their standalone routes into the Developer tab.
+- **1.5.10** — Developer › Transport diagnostics, log viewer, and the safety-acknowledgement gate shown once on first entry.
+- **1.5.11** — System › Android deep-links + About DASH. Deep links out to Android's own WiFi/Bluetooth/Display/Storage/Accessibility/Date&Time settings (capability-appropriate — DASH links out rather than reimplementing), and an About DASH surface (version, licence).
+- **1.5.12** — Cleanup & polish. Remove the old flat settings scaffold entirely; confirm every live feature from 1.1.x through 1.4.x has a correct home; confirm every WIP placeholder is navigable and honestly labelled. Final version before 1.6.x.
 
 **Why fifth:** Users need to be able to configure what has been built before building more on top of it. The settings panel also needs to exist before module panel and launcher settings can be added in subsequent features.
 
