@@ -31,13 +31,15 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.MainActivity
 import com.dash.android.density.DensityManager
 import com.dash.android.density.DensityPreset
 import com.dash.android.prefs.DashPreferences
+import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
+import com.dash.android.ui.motion.TransitionSpeed
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.launch
 
@@ -84,6 +86,7 @@ fun SettingsPanel(
     val splashColour by prefs.splashColour.collectAsState(initial = 0xFF000000L)
     val splashImageUri by prefs.splashImageUri.collectAsState(initial = "")
     val barConfig by prefs.systemBarConfig.collectAsState(initial = SystemBarConfig.default())
+    val transitionMillis by prefs.transitionMillis.collectAsState(initial = TRANSITION_MILLIS_DEFAULT)
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -112,12 +115,12 @@ fun SettingsPanel(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("DASH SETTINGS", color = Color.White, fontSize = 16.sp, fontFamily = FontFamily.Monospace, letterSpacing = 3.sp)
+                Text("DASH SETTINGS", color = Color.White, fontSize = 16.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 3.sp)
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             // System Bar
@@ -126,7 +129,22 @@ fun SettingsPanel(
                     onClick = { onEnterEditMode() },
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("EDIT BAR LAYOUT", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("EDIT BAR LAYOUT", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
+            }
+
+            // Transition length — how quickly DASH's own chrome animates (the settings panel today,
+            // more surfaces as they are built). Belongs in Appearance; lives here in the legacy panel
+            // for now and gains its shell home when Appearance is built out (roadmap 1.5.3).
+            Section("TRANSITIONS") {
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    TransitionSpeed.entries.forEach { speed ->
+                        SettingButton(
+                            label = speed.label,
+                            active = transitionMillis == speed.millis,
+                            onClick = { scope.launch { prefs.saveTransitionMillis(speed.millis) } }
+                        )
+                    }
+                }
             }
 
             // App Density
@@ -149,7 +167,7 @@ fun SettingsPanel(
                         text = "Current: ${densityManager.formatDpi(currentDpi)}",
                         color = Color(0xFF888888),
                         fontSize = 12.sp,
-                        fontFamily = FontFamily.Monospace
+                        fontFamily = LocalDashTheme.current.font
                     )
                     Button(
                         onClick = {
@@ -166,7 +184,7 @@ fun SettingsPanel(
                         },
                         colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                    ) { Text("Open Display Size Settings →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+                    ) { Text("Open Display Size Settings →", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
                 }
             }
 
@@ -219,7 +237,7 @@ fun SettingsPanel(
                         Text(
                             if (splashImageUri.isNotEmpty()) "Change Image →" else "Choose Image →",
                             fontSize = 13.sp,
-                            fontFamily = FontFamily.Monospace
+                            fontFamily = LocalDashTheme.current.font
                         )
                     }
                 }
@@ -227,7 +245,7 @@ fun SettingsPanel(
                     onClick = onPreviewSplash,
                     colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A237E), contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("PREVIEW SPLASH", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("PREVIEW SPLASH", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             // Launcher
@@ -236,7 +254,7 @@ fun SettingsPanel(
                     onClick = { activity.openChangeLauncher() },
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) { Text("CHANGE LAUNCHER →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("CHANGE LAUNCHER →", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             // Modules — discovery and (later) install/enable management. Becomes the Modules tab
@@ -246,7 +264,7 @@ fun SettingsPanel(
                     onClick = onOpenModules,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) { Text("MANAGE MODULES →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("MANAGE MODULES →", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             // Serial Monitor — persistent transport diagnostic (1.4.x). Migrates into the
@@ -256,7 +274,7 @@ fun SettingsPanel(
                     onClick = onOpenSerialMonitor,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) { Text("OPEN SERIAL MONITOR →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("OPEN SERIAL MONITOR →", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             // Signal Monitor — live board of system messages + state in the sourceless core (1.4.10).
@@ -266,12 +284,12 @@ fun SettingsPanel(
                     onClick = onOpenSignalMonitor,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) { Text("OPEN SIGNAL MONITOR →", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("OPEN SIGNAL MONITOR →", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             // Exit
             TextButton(onClick = onExit) {
-                Text("EXIT DASH", color = Color(0xFF555555), fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+                Text("EXIT DASH", color = Color(0xFF555555), fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
             }
         }
     }
@@ -284,7 +302,7 @@ private fun Section(title: String, content: @Composable () -> Unit) {
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        Text(title, color = LABEL_COLOR, fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+        Text(title, color = LABEL_COLOR, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
         content()
     }
 }
@@ -301,5 +319,5 @@ private fun SettingButton(label: String, active: Boolean = false, enabled: Boole
             disabledContentColor = Color(0xFF444444)
         ),
         contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-    ) { Text(label, fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+    ) { Text(label, fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
 }

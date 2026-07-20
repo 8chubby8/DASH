@@ -37,7 +37,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.TextStyle
-import androidx.compose.ui.text.font.FontFamily
+import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.text.input.ImeAction
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -125,12 +125,12 @@ fun SerialMonitorScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("SERIAL MONITOR", color = Color.White, fontSize = 15.sp, fontFamily = FontFamily.Monospace, letterSpacing = 3.sp)
+                Text("SERIAL MONITOR", color = Color.White, fontSize = 15.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 3.sp)
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             // Status + log controls. One status line per transport (roadmap 1.4.11) so every pipe is
@@ -167,24 +167,24 @@ fun SerialMonitorScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("SEND TO", color = LABEL, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+                Text("SEND TO", color = LABEL, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
                 Box {
                     SmallButton("${selectedDevice?.label ?: "ALL DEVICES"}  ▾") { deviceMenuOpen = true }
                     DropdownMenu(expanded = deviceMenuOpen, onDismissRequest = { deviceMenuOpen = false }) {
                         DropdownMenuItem(
-                            text = { Text("All devices", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                            text = { Text("All devices", fontFamily = LocalDashTheme.current.font, fontSize = 12.sp) },
                             onClick = { selectedDevice = null; deviceMenuOpen = false }
                         )
                         devices.forEach { d ->
                             DropdownMenuItem(
-                                text = { Text("${d.label}  ·  ${d.transportTag}", fontFamily = FontFamily.Monospace, fontSize = 12.sp) },
+                                text = { Text("${d.label}  ·  ${d.transportTag}", fontFamily = LocalDashTheme.current.font, fontSize = 12.sp) },
                                 onClick = { selectedDevice = d; deviceMenuOpen = false }
                             )
                         }
                     }
                 }
                 if (devices.isEmpty()) {
-                    Text("(none connected — broadcasts)", color = LABEL, fontSize = 10.sp, fontFamily = FontFamily.Monospace)
+                    Text("(none connected — broadcasts)", color = LABEL, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font)
                 }
             }
 
@@ -199,8 +199,8 @@ fun SerialMonitorScreen(
                     onValueChange = { sendText = it.replace("\n", "") },
                     modifier = Modifier.weight(1f),
                     singleLine = true,
-                    placeholder = { Text("type a line, e.g. DISCOVER", fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = LABEL) },
-                    textStyle = TextStyle(fontFamily = FontFamily.Monospace, fontSize = 13.sp, color = Color.White),
+                    placeholder = { Text("type a line, e.g. DISCOVER", fontFamily = LocalDashTheme.current.font, fontSize = 13.sp, color = LABEL) },
+                    textStyle = TextStyle(fontFamily = LocalDashTheme.current.font, fontSize = 13.sp, color = Color.White),
                     keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                     keyboardActions = KeyboardActions(onSend = { send() }),
                     colors = TextFieldDefaults.colors(
@@ -221,7 +221,7 @@ fun SerialMonitorScreen(
                         disabledContentColor = Color(0xFF444444)
                     ),
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 12.dp)
-                ) { Text("SEND", fontSize = 13.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("SEND", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
             }
         }
     }
@@ -235,13 +235,13 @@ private fun WireRow(ev: WireEvent, origin: String) {
     val arrow = if (outbound) "←" else "→"
     val arrowColor = if (outbound) Color(0xFF4FC3F7) else Color(0xFF81C784)
     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-        Text(TIME_FMT.format(Date(ev.timestamp)), color = Color(0xFF555555), fontSize = 11.sp, fontFamily = FontFamily.Monospace)
-        Text(arrow, color = arrowColor, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        Text(TIME_FMT.format(Date(ev.timestamp)), color = Color(0xFF555555), fontSize = 11.sp, fontFamily = LocalDashTheme.current.font)
+        Text(arrow, color = arrowColor, fontSize = 12.sp, fontFamily = LocalDashTheme.current.font)
         Text(
-            origin, color = Color(0xFF6A6A7A), fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+            origin, color = Color(0xFF6A6A7A), fontSize = 11.sp, fontFamily = LocalDashTheme.current.font,
             maxLines = 1, overflow = TextOverflow.Ellipsis, modifier = Modifier.width(104.dp)
         )
-        Text(ev.line, color = typeColor(ev.line), fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+        Text(ev.line, color = typeColor(ev.line), fontSize = 12.sp, fontFamily = LocalDashTheme.current.font)
     }
 }
 
@@ -284,7 +284,7 @@ private fun StatusChip(tag: String, state: TransportState, detail: String) {
             },
             color = Color(0xFFAAAAAA),
             fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace
+            fontFamily = LocalDashTheme.current.font
         )
     }
 }
@@ -295,5 +295,5 @@ private fun SmallButton(label: String, onClick: () -> Unit) {
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
         contentPadding = PaddingValues(horizontal = 14.dp, vertical = 6.dp)
-    ) { Text(label, fontSize = 11.sp, fontFamily = FontFamily.Monospace) }
+    ) { Text(label, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font) }
 }

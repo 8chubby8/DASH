@@ -47,6 +47,48 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.2
+
+**Status:** Complete — the first *built* version of the 1.5.x Settings Panel era. Hardware-tested by Roger on the tablet, 2026-07-20.
+
+**Scope:** The settings shell and the full navigation tree — the chrome every later 1.5.x version drops real controls into. Built visuals-first and deliberately empty of real settings (Option B): the shell is what is being tested, the tree is honest placeholders, and the pre-1.5.2 flat panel stays reachable underneath so nothing is lost.
+
+**Implemented:**
+
+- **The shell** — a two-pane settings panel (not the three-column model interface.md originally described; the cleaner two-pane one was agreed during the build). Left margin shows the main tree of ten categories; tapping one makes its subtree grow in and the main tree drop out; a content box (soft radius, `backgroundColourSecondary`) appears on the right, auto-opening the first subcategory. A back button pinned bottom-left walks up one level and closes at the top. The settings tree is declared as data (`SettingsTree.kt`) so later versions fill one content slot without touching navigation.
+- **Grow-from-bar animation** — the panel rolls out from the bar's edge like a blind, on the shared `backgroundColourPrimary` fill so there is no seam, with the bar floating above and staying reachable.
+- **User-configurable transition length** — a new Appearance setting (`LocalTransitionMillis`; presets INSTANT / FAST / NORMAL / SLOW / CINEMATIC, default 450 ms), driving the panel open/close and the subtree slide. In the legacy panel for now; gains its shell home at 1.5.3.
+- **Theme token reconciliation** — `DashColors` → `DashTheme` (colours **and** font). Nine tokens: background/text/icon/accent × primary/secondary, plus `font`. The old four `bar*` tokens retired and every call site swept over. A documented primary/secondary pairing rule.
+- **Font tied together** — every DASH chrome string moved onto the `font` token (the module-panel placeholder and the token default excepted, both deliberately), so a single v2 font setting will change all typography with no per-screen work.
+- **Settings button rewrite** — a real vector gear (`ic_settings_gear.xml`) filling its cell, tinted `iconColourPrimary`, replacing the small text glyph; it now toggles the panel open/closed.
+- **Module-panel placeholder** — a throwaway dark box (`ModulePanelPlaceholder.kt`) with an expand/minimise toggle, so the panel can demonstrate conforming to the module panel: it covers a minimised panel and yields to an expanded one. Deleted wholesale at 1.6.x. Its own font is intentionally *not* DASH-themed — the module is king in its domain.
+- **Legacy bridge** — a temporary LEGACY SETTINGS button in the shell opens the old flat panel, keeping the 1.1.x–1.4.x controls reachable until rehomed. Removed at 1.5.12.
+- **Font-scale-aware nav** — the left column width, row spacing and row padding scale with Android's font-size setting so labels never wrap or crowd at large fonts.
+
+**Regressions:**
+
+- The first grow animation ignored the transition-length setting entirely — INSTANT and CINEMATIC looked identical.
+- The close felt like it lingered after the fade was removed from the open.
+
+**Fixes:**
+
+- **Transition duration ignored** — root cause was `AnimatedVisibility` + `expandVertically` not honouring its tween when the container is forced to `fillMaxSize` (the fixed max-height constraint defeats the expand, so it snaps). Replaced with an explicit measured-height reveal (`BoxWithConstraints` + `animateDpAsState`, clipped) that is genuinely duration-bound. INSTANT → CINEMATIC now spread correctly.
+- **Lingering close** — was a full-length opaque shrink once the fade was gone; now open and close both use the transition length symmetrically (earlier settled on a quick close first, then made symmetric at Roger's request).
+
+**Outstanding:**
+
+- The settings-panel landing is intentionally bare (the **settings hero** — a living silhouette / weather / art-deco god-ray scene — was designed this session and parked to version 2; see roadmap v2).
+- The DASH UI Scale token is plumbed but unconsumed and has no slider — deferred to 1.5.3 (Appearance › Density & Scale); new surfaces should bind to it as they are built.
+- Real settings content is deliberately absent — arrives per the 1.5.3+ rehoming sequence.
+
+**Notes:**
+
+- **Version bump:** `versionName` 1.5.1 → 1.5.2, `versionCode` 21 → 22.
+- **interface.md** gained two dated 1.5.2 addenda (additive, originals kept): the reconciled nine-token set with the pairing rule under Theme Tokens, and the two-pane navigation + roll-out + panel-bounds notes under Settings Panel.
+- **Element font sizing** was clarified as the element author's domain (recorded): `sp` tracks Android's font scale, `dp.toSp()` frees it — DASH must not impose a policy. The alerts area still tracks the Android font size by default; releasable any time by unit choice, no architectural change.
+
+---
+
 ## Version 1.5.1
 
 **Status:** Complete — planning and documentation only, no code. The **first version of the 1.5.x Settings Panel era**: a reconciliation pass that settles the settings tree before any of it is built. No compile, no APK, no reflash — verified by review of the two Bible documents.

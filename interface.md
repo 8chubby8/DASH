@@ -257,6 +257,24 @@ The token set is defined in `DashColors` and provided via `LocalDashTheme`. One 
 
 When a new component requires a colour that does not fit an existing token semantically, add a new token to `DashColors` with a sensible default and a clear name. Do not reuse an existing token for a purpose it was not intended for. Do not hardcode a colour value in a component. The token set is the single source of truth for all DASH chrome colours — keeping it complete and accurate is what makes future theming viable.
 
+> **Token set update — 2026-07-20 (roadmap 1.5.2).** Building the settings panel, the token set above was reconciled and extended, and `DashColors` renamed to **`DashTheme`** — it now carries a **font** as well as colours (all still provided via `LocalDashTheme`). The original four `bar*` colour tokens are **retired**; their roles are absorbed into a fuller, cleanly-named set with the same defaults-flipped-to-light values 1.3.11 introduced. Nothing about the mechanism changes: one default set, and version 2 presets still work by providing a different `DashTheme` at the top of the tree.
+>
+> **The 1.5.2 token set:**
+>
+> | Token | Default | Role |
+> |-------|---------|------|
+> | `backgroundColourPrimary` | `0xFFE5E5EA` | Primary surface — system bar fill **and** the settings-panel background (shared, so the panel grows seamlessly from the bar). Was `barBackground`. |
+> | `backgroundColourSecondary` | `0xFF848482` | Raised surface on the primary — the settings content box. |
+> | `textColourPrimary` | `0xFF000000` | Text on the primary surface. Absorbs the old `barText`. |
+> | `textColourSecondary` | `0xFFE5E5EA` | Text on the secondary surface. |
+> | `iconColourPrimary` | `0xFF000000` | Icons on the primary surface — e.g. the settings-button gear. |
+> | `iconColourSecondary` | `0xFFE5E5EA` | Icons on the secondary surface. |
+> | `accentColourPrimary` | `0xFFD1D1D6` | Subtle structure on the primary — bar zone dividers, nav-row selection. Was `barAccent`. |
+> | `accentColourSecondary` | `0xFF8E8E93` | Visible interactive structure — edit-ruler track, detents, element outlines. Was `barAccent2`. |
+> | `font` | Monospace | The one typeface for all DASH chrome text. A single setting (the v2 font picker) changes every label at once — no DASH text hardcodes a font. Font *size* is a separate axis and, for elements, belongs to the element author, not DASH. |
+>
+> **The pairing rule (must not be crossed):** the colours come in matched primary/secondary pairs. Primary text/icons sit on the primary background; secondary text/icons sit on the secondary background. Secondary text on the primary background — both currently the same light grey — would be invisible. Two full sets exist deliberately, so a surface and its content always have contrast and the user keeps control of both.
+
 ---
 
 ## The Viewport
@@ -615,6 +633,14 @@ DASH Settings
 > ```
 >
 > **Notification suppression** (a master toggle making DASH the sole notification surface) is filed under Notifications, not Appearance, and is a capability-detected feature — it needs elevated access a Bronze sideload lacks, so it unlocks on Silver/Gold system-app hardware and degrades silently on Bronze. It is not a mere preference toggle; it gets its own designed capability path when built.
+
+> **Settings panel build — 2026-07-20 (roadmap 1.5.2).** The shell was built and two things in the sections above settled differently in practice; recorded here per the additive-docs rule (the originals are kept).
+>
+> **Navigation is two-pane, not three-column.** The "Navigation Structure" above describes three columns (major stays visible, subcategory to its right, content on a third). In build it became a cleaner two-pane model, agreed with Roger: the left margin shows the **main tree** (the ten categories); tapping a category makes its **subcategories grow in and the main tree drop out of view** — never three columns at once, only the main tree *or* one subtree. The **content box** appears on the right when a category is chosen (soft-radius, `backgroundColourSecondary` fill), auto-opening the first subcategory. A **back button pinned to the bottom of the left margin** walks up one level — subtree → main tree — and closes the panel when there is no level left to climb. This supersedes the three-column description for version 1. The left column's width and row spacing scale with Android's font-size setting so labels never wrap or crowd.
+>
+> **The panel rolls out from the bar.** It grows from the bar's edge like a blind — an explicitly animated height, not a fade — on the same `backgroundColourPrimary` fill so there is no seam, with the bar floating above it and staying reachable. Open and close both take the **user-configurable transition length**: a new Appearance setting (`LocalTransitionMillis`, presets INSTANT → CINEMATIC), because DASH has no opinion on how fast the user's interface should move. The **settings button toggles** the panel — a press opens it, a second press closes it — and is now a real vector icon that fills its cell, tinted from `iconColourPrimary`.
+>
+> **Panel bounds — the panel is not always full screen.** It covers the launcher and the viewport, sits **below** the bar (never over it), and **conforms to the module panel**: it yields to a persistent (non-retractable) module panel, keeping it fully visible, and covers a retracted one. This is the Module Mantra as layout — DASH's own settings chrome never sits on top of the king's castle.
 
 ### Developer Tab
 

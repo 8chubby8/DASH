@@ -6,10 +6,12 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.dash.android.density.DensityPreset
+import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.flow.Flow
@@ -34,6 +36,7 @@ class DashPreferences(private val context: Context) {
     private val splashColourKey = longPreferencesKey("splash_colour")
     private val splashImageUriKey = stringPreferencesKey("splash_image_uri")
     private val systemBarKey = stringPreferencesKey("system_bar_config")
+    private val transitionMillisKey = intPreferencesKey("transition_millis")
 
     val densityPreset: Flow<DensityPreset?> = context.dataStore.data.map { prefs ->
         prefs[densityKey]?.let { name -> DensityPreset.entries.find { it.name == name } }
@@ -69,6 +72,10 @@ class DashPreferences(private val context: Context) {
             ?: SystemBarConfig.default()
     }
 
+    val transitionMillis: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[transitionMillisKey] ?: TRANSITION_MILLIS_DEFAULT
+    }
+
     suspend fun saveDensityPreset(preset: DensityPreset) {
         context.dataStore.edit { it[densityKey] = preset.name }
     }
@@ -99,6 +106,10 @@ class DashPreferences(private val context: Context) {
 
     suspend fun saveSystemBarConfig(config: SystemBarConfig) {
         context.dataStore.edit { it[systemBarKey] = json.encodeToString(config) }
+    }
+
+    suspend fun saveTransitionMillis(millis: Int) {
+        context.dataStore.edit { it[transitionMillisKey] = millis }
     }
 
     /** Clears the stored bar config so it falls back to [SystemBarConfig.default]. */

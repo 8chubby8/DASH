@@ -9,7 +9,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.text.font.FontFamily
 import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -39,15 +38,15 @@ object AlertsAreaElement : DashElement {
             modifier = Modifier
                 .height(scope.heightDp)
                 .clip(RoundedCornerShape(4.dp))
-                .background(theme.barAccent)
+                .background(theme.accentColourPrimary)
                 .padding(horizontal = (h * 0.28f).dp, vertical = (h * 0.11f).dp),
             contentAlignment = androidx.compose.ui.Alignment.Center
         ) {
             Text(
                 text = "ALERTS",
-                color = theme.barText.copy(alpha = 0.55f),
+                color = theme.textColourPrimary.copy(alpha = 0.55f),
                 fontSize = (h * 0.30f).sp,
-                fontFamily = FontFamily.Monospace,
+                fontFamily = theme.font,
                 letterSpacing = (h * 0.06f).sp
             )
         }

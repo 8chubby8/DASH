@@ -14,6 +14,7 @@ import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -24,6 +25,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -48,9 +50,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -62,13 +64,19 @@ import com.dash.android.prefs.DashPreferences
 import com.dash.android.transport.DashController
 import com.dash.android.transport.TransportManager
 import com.dash.android.ui.debug.DiagnosticOverlay
+import com.dash.android.ui.motion.LocalTransitionMillis
+import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.LocalDashScale
 import com.dash.android.ui.modules.ModuleManagementScreen
 import com.dash.android.ui.monitor.SerialMonitorScreen
 import com.dash.android.ui.signal.SignalMonitorScreen
+import com.dash.android.ui.modulepanel.MODULE_PANEL_EXPANDED_HEIGHT
+import com.dash.android.ui.modulepanel.MODULE_PANEL_MINIMISED_HEIGHT
+import com.dash.android.ui.modulepanel.ModulePanelPlaceholder
 import com.dash.android.ui.settings.SettingsPanel
-import com.dash.android.ui.theme.DashColors
+import com.dash.android.ui.settings.SettingsShell
+import com.dash.android.ui.theme.DashTheme
 import com.dash.android.ui.theme.LocalDashTheme
 import com.dash.android.ui.splash.SplashScreen
 import com.dash.android.ui.systembar.BarPosition
@@ -123,6 +131,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var isDefaultLauncher by remember { mutableStateOf(mainActivity.isDefaultLauncher()) }
     var showSplash by remember { mutableStateOf(isColdBoot) }
     var showSettings by remember { mutableStateOf(false) }
+    var showLegacySettings by remember { mutableStateOf(false) }
+    var modulePanelExpanded by remember { mutableStateOf(false) }
     var showModules by remember { mutableStateOf(false) }
     var showSerialMonitor by remember { mutableStateOf(false) }
     var showSignalMonitor by remember { mutableStateOf(false) }
@@ -157,6 +167,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     }
 
     val dashScale by prefs.dashScale.collectAsState(initial = DASH_SCALE_DEFAULT)
+    val transitionMillis by prefs.transitionMillis.collectAsState(initial = TRANSITION_MILLIS_DEFAULT)
     val selectedPreset by prefs.densityPreset.collectAsState(initial = null)
     val autoRotate by prefs.autoRotate.collectAsState(initial = true)
     val lockedOrientation by prefs.lockedOrientation.collectAsState(initial = "LANDSCAPE")
@@ -176,7 +187,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
 
     CompositionLocalProvider(
         LocalDashScale provides dashScale,
-        LocalDashTheme provides DashColors.dark(),
+        LocalTransitionMillis provides transitionMillis,
+        LocalDashTheme provides DashTheme.default(),
     ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
@@ -194,7 +206,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         text = "DASH IS NOT YOUR DEFAULT LAUNCHER  —  TAP TO SET AS DEFAULT",
                         color = Color.White,
                         fontSize = 11.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalDashTheme.current.font,
                         letterSpacing = 1.sp,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.fillMaxWidth()
@@ -210,6 +222,53 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 selectedPreset = selectedPreset
             )
 
+            // Settings shell (roadmap 1.5.2). Drawn *before* the bar so the bar stays on top and
+            // reachable while the panel is open. It rolls out from under the bar like a blind: an
+            // explicitly animated height from 0 to the region's measured full height, clipped so the
+            // content is revealed rather than stretched. This is duration-accurate on purpose —
+            // AnimatedVisibility's expandVertically does not animate when the container is forced to
+            // fillMaxSize, which is why the transition-speed setting had no visible effect.
+            // The bounds conform to the surrounding chrome — below the bar, above the module panel —
+            // so it covers a minimised module panel but yields to an expanded one.
+            val moduleHeight = if (modulePanelExpanded) MODULE_PANEL_EXPANDED_HEIGHT else MODULE_PANEL_MINIMISED_HEIGHT
+            val barIsTop = barConfig.position == BarPosition.TOP
+            val settingsTopInset = if (barIsTop) barConfig.heightDp.dp else 0.dp
+            val settingsBottomInset = (if (!barIsTop) barConfig.heightDp.dp else 0.dp) + moduleHeight
+            BoxWithConstraints(
+                modifier = Modifier
+                    .align(Alignment.TopStart)
+                    .fillMaxSize()
+                    .padding(top = settingsTopInset, bottom = settingsBottomInset)
+            ) {
+                val fullHeight = maxHeight
+                // Open and close both take the chosen transition length, so the blind rolls out and
+                // back at the same speed.
+                val revealed by animateDpAsState(
+                    targetValue = if (showSettings) fullHeight else 0.dp,
+                    animationSpec = tween(transitionMillis),
+                    label = "settingsReveal"
+                )
+                if (revealed > 0.dp) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(revealed)
+                            .align(if (barIsTop) Alignment.TopStart else Alignment.BottomStart)
+                            .clipToBounds(),
+                        // Anchor the full-height content to the bar's edge so the blind uncovers it
+                        // from that edge — content stays put, the clip window grows over it.
+                        contentAlignment = if (barIsTop) Alignment.TopStart else Alignment.BottomStart
+                    ) {
+                        Box(modifier = Modifier.fillMaxWidth().height(fullHeight)) {
+                            SettingsShell(
+                                onClose = { showSettings = false },
+                                onOpenLegacy = { showLegacySettings = true }
+                            )
+                        }
+                    }
+                }
+            }
+
             // Bar + ruler column. Anchored to the same edge as the bar; ruler slides in adjacent
             // to the bar on its inner side (below if top-docked, above if bottom-docked).
             // The Column grows away from the screen edge as the ruler expands — the bar stays
@@ -224,7 +283,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     SystemBar(
                         config = activeConfig,
                         onAction = { action ->
-                            if (!editMode && action is DashAction.OpenSettings) showSettings = true
+                            // The settings button toggles the panel: open when closed, close when open.
+                            if (!editMode && action is DashAction.OpenSettings) showSettings = !showSettings
                         },
                         onElementMeasured = { id, width -> elementWidths = elementWidths + (id to width) },
                         modifier = Modifier.fillMaxWidth()
@@ -275,7 +335,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     SystemBar(
                         config = activeConfig,
                         onAction = { action ->
-                            if (!editMode && action is DashAction.OpenSettings) showSettings = true
+                            // The settings button toggles the panel: open when closed, close when open.
+                            if (!editMode && action is DashAction.OpenSettings) showSettings = !showSettings
                         },
                         onElementMeasured = { id, width -> elementWidths = elementWidths + (id to width) },
                         modifier = Modifier.fillMaxWidth()
@@ -296,7 +357,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         "POSITION",
                         color = Color(0xFF666666),
                         fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalDashTheme.current.font,
                         letterSpacing = 1.sp
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -310,7 +371,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                                 ),
                                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
                             ) {
-                                Text(pos.name, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                                Text(pos.name, fontSize = 13.sp, fontFamily = LocalDashTheme.current.font)
                             }
                         }
                     }
@@ -318,7 +379,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         "ZONES",
                         color = Color(0xFF666666),
                         fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalDashTheme.current.font,
                         letterSpacing = 1.sp
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -332,7 +393,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                                 ),
                                 contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
                             ) {
-                                Text(count.toString(), fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+                                Text(count.toString(), fontSize = 13.sp, fontFamily = LocalDashTheme.current.font)
                             }
                         }
                     }
@@ -340,7 +401,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         "BAR HEIGHT",
                         color = Color(0xFF666666),
                         fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalDashTheme.current.font,
                         letterSpacing = 1.sp
                     )
                     Row(
@@ -357,12 +418,12 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) { Text("−", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
+                        ) { Text("−", fontSize = 16.sp, fontFamily = LocalDashTheme.current.font) }
                         Text(
                             "${editConfig?.heightDp ?: 0}dp",
                             color = Color.White,
                             fontSize = 16.sp,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = LocalDashTheme.current.font,
                             modifier = Modifier.width(80.dp),
                             textAlign = TextAlign.Center
                         )
@@ -374,13 +435,13 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             },
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) { Text("+", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
+                        ) { Text("+", fontSize = 16.sp, fontFamily = LocalDashTheme.current.font) }
                     }
                     Text(
                         "ELEMENT SIZE",
                         color = Color(0xFF666666),
                         fontSize = 10.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalDashTheme.current.font,
                         letterSpacing = 1.sp
                     )
                     Row(
@@ -398,7 +459,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             enabled = !elementAtMin,
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) { Text("−", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
+                        ) { Text("−", fontSize = 16.sp, fontFamily = LocalDashTheme.current.font) }
                         Text(
                             text = when {
                                 elementAtMin -> "min"
@@ -407,7 +468,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             },
                             color = Color.White,
                             fontSize = 16.sp,
-                            fontFamily = FontFamily.Monospace,
+                            fontFamily = LocalDashTheme.current.font,
                             modifier = Modifier.width(80.dp),
                             textAlign = TextAlign.Center
                         )
@@ -421,7 +482,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             enabled = !elementAtMax,
                             colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
                             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) { Text("+", fontSize = 16.sp, fontFamily = FontFamily.Monospace) }
+                        ) { Text("+", fontSize = 16.sp, fontFamily = LocalDashTheme.current.font) }
                     }
                     Button(
                         onClick = { editConfig = editConfig?.let { SystemBarConfig.default().copy(position = it.position) } },
@@ -431,7 +492,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         ),
                         contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
                     ) {
-                        Text("RESET BAR LAYOUT", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                        Text("RESET BAR LAYOUT", fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
                     }
                     Row(
                         horizontalArrangement = Arrangement.spacedBy(16.dp),
@@ -448,7 +509,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             ),
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
                         ) {
-                            Text("CANCEL", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                            Text("CANCEL", fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
                         }
                         Button(
                             onClick = {
@@ -462,14 +523,27 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             ),
                             contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
                         ) {
-                            Text("SAVE", fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+                            Text("SAVE", fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
                         }
                     }
                 }
             }
 
-            // Settings panel overlay
-            if (showSettings) {
+            // Module panel placeholder (throwaway scaffold, roadmap 1.5.2 → deleted at 1.6.x).
+            // Always present so the settings shell has a real surface to conform to. Anchored to
+            // the bottom, sitting above a bottom-docked bar if there is one.
+            ModulePanelPlaceholder(
+                expanded = modulePanelExpanded,
+                onToggle = { modulePanelExpanded = !modulePanelExpanded },
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = if (barIsTop) 0.dp else barConfig.heightDp.dp)
+            )
+
+            // Legacy flat settings — the pre-1.5.2 panel, reached from the shell's temporary
+            // LEGACY SETTINGS button so nothing built in 1.1.x–1.4.x is unreachable while it waits
+            // to be rehomed into the shell. Removed at 1.5.12.
+            if (showLegacySettings) {
                 SettingsPanel(
                     activity = mainActivity,
                     prefs = prefs,
@@ -478,18 +552,22 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     onEnterEditMode = {
                         editConfig = barConfig
                         editMode = true
+                        showLegacySettings = false
                         showSettings = false
                     },
                     onOpenModules = {
                         showModules = true
+                        showLegacySettings = false
                         showSettings = false
                     },
                     onOpenSerialMonitor = {
                         showSerialMonitor = true
+                        showLegacySettings = false
                         showSettings = false
                     },
                     onOpenSignalMonitor = {
                         showSignalMonitor = true
+                        showLegacySettings = false
                         showSettings = false
                     },
                     onExit = {
@@ -497,7 +575,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         activity.finish()
                         exitProcess(0)
                     },
-                    onDismiss = { showSettings = false }
+                    onDismiss = { showLegacySettings = false }
                 )
             }
 

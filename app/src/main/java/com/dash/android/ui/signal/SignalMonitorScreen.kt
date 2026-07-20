@@ -24,7 +24,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.core.SystemCommands
@@ -65,10 +65,10 @@ fun SignalMonitorScreen(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Column {
-                    Text("SIGNAL MONITOR", color = Color.White, fontSize = 16.sp, fontFamily = FontFamily.Monospace, letterSpacing = 3.sp)
+                    Text("SIGNAL MONITOR", color = Color.White, fontSize = 16.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 3.sp)
                     Text(
                         "${values.size} of ${functions.size} live",
-                        color = HINT, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                        color = HINT, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font,
                         modifier = Modifier.padding(top = 4.dp)
                     )
                 }
@@ -76,12 +76,12 @@ fun SignalMonitorScreen(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             Row(modifier = Modifier.fillMaxWidth().padding(top = 16.dp, bottom = 4.dp)) {
-                Text("SYSTEM MESSAGE", color = LABEL, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp, modifier = Modifier.weight(1.6f))
-                Text("STATE", color = LABEL, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp, modifier = Modifier.weight(0.9f))
+                Text("SYSTEM MESSAGE", color = LABEL, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp, modifier = Modifier.weight(1.6f))
+                Text("STATE", color = LABEL, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp, modifier = Modifier.weight(0.9f))
             }
 
             LazyColumn(modifier = Modifier.fillMaxSize()) {
@@ -92,18 +92,18 @@ fun SignalMonitorScreen(
                         Text(
                             function,
                             color = if (live) LIVE_NAME else IDLE,
-                            fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp, fontFamily = LocalDashTheme.current.font,
                             modifier = Modifier.weight(1.6f)
                         )
                         Text(
                             stored?.value ?: "—",
                             color = if (live) Color.White else IDLE,
-                            fontSize = 12.sp, fontFamily = FontFamily.Monospace,
+                            fontSize = 12.sp, fontFamily = LocalDashTheme.current.font,
                             modifier = Modifier.weight(0.9f)
                         )
                         Text(
                             if (live) age(now - stored!!.updatedAt) else "",
-                            color = HINT, fontSize = 11.sp, fontFamily = FontFamily.Monospace,
+                            color = HINT, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font,
                             modifier = Modifier.weight(0.4f)
                         )
                     }

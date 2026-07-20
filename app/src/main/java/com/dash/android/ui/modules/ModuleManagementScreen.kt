@@ -27,7 +27,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontFamily
+import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -110,12 +110,12 @@ fun ModuleManagementScreen(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text("MODULE MANAGEMENT", color = Color.White, fontSize = 15.sp, fontFamily = FontFamily.Monospace, letterSpacing = 3.sp)
+                Text("MODULE MANAGEMENT", color = Color.White, fontSize = 15.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 3.sp)
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = FontFamily.Monospace) }
+                ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
             // REFRESH re-scans the bus right now — the §6 manual "check now" after fixing wiring or
@@ -131,7 +131,7 @@ fun ModuleManagementScreen(
                     contentColor = Color.White
                 ),
                 contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
-            ) { Text("REFRESH", fontSize = 14.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp) }
+            ) { Text("REFRESH", fontSize = 14.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp) }
 
             // List
             Box(modifier = Modifier.fillMaxWidth().weight(1f).background(LIST_BG)) {
@@ -140,7 +140,7 @@ fun ModuleManagementScreen(
                         text = "No modules yet.\n\nPlug a module in and it appears here within moments.\nREFRESH checks the bus right now instead of waiting.",
                         color = MUTED,
                         fontSize = 13.sp,
-                        fontFamily = FontFamily.Monospace,
+                        fontFamily = LocalDashTheme.current.font,
                         textAlign = TextAlign.Center,
                         modifier = Modifier.align(Alignment.Center).padding(32.dp)
                     )
@@ -242,7 +242,7 @@ private fun ModuleCard(
                 text = row.name.ifBlank { "(unnamed)" },
                 color = Color.White,
                 fontSize = 15.sp,
-                fontFamily = FontFamily.Monospace
+                fontFamily = LocalDashTheme.current.font
             )
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalAlignment = Alignment.CenterVertically) {
                 if (isInstalled && reportedVersion != null) MismatchChip()
@@ -251,12 +251,12 @@ private fun ModuleCard(
             }
         }
         if (row.description.isNotBlank()) {
-            Text(row.description, color = MUTED, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
+            Text(row.description, color = MUTED, fontSize = 12.sp, fontFamily = LocalDashTheme.current.font)
         }
         Row(horizontalArrangement = Arrangement.spacedBy(16.dp)) {
-            Text(row.id, color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text(row.id, color = LABEL, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font)
             if (row.version.isNotBlank()) {
-                Text(row.version, color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                Text(row.version, color = LABEL, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font)
             }
         }
 
@@ -289,7 +289,7 @@ private fun FailedContent(reason: FailReason, modifier: Modifier, onRetry: () ->
         FailReason.DISCONNECTED -> "Module disconnected during install"
         FailReason.CORRUPT -> "Corrupt asset — install aborted"
     }
-    Text(message, color = FAIL_ACCENT, fontSize = 12.sp, fontFamily = FontFamily.Monospace, modifier = modifier)
+    Text(message, color = FAIL_ACCENT, fontSize = 12.sp, fontFamily = LocalDashTheme.current.font, modifier = modifier)
     ActionButton("DISMISS", INACTIVE, onDismiss)
     ActionButton("RETRY", INSTALL_ACCENT, onRetry)
 }
@@ -316,7 +316,7 @@ private fun InstallingBar(progress: Float?, modifier: Modifier = Modifier) {
             text = if (progress == null) "INSTALLING…" else "${(progress * 100).toInt()}%",
             color = MUTED,
             fontSize = 11.sp,
-            fontFamily = FontFamily.Monospace
+            fontFamily = LocalDashTheme.current.font
         )
     }
 }
@@ -327,7 +327,7 @@ private fun ActionButton(label: String, colour: Color, onClick: () -> Unit) {
         onClick = onClick,
         colors = ButtonDefaults.buttonColors(containerColor = colour, contentColor = Color.White),
         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
-    ) { Text(label, fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+    ) { Text(label, fontSize = 12.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp) }
 }
 
 /**
@@ -360,10 +360,10 @@ private fun ModuleDetailsDialog(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(module.name.ifBlank { "(unnamed)" }, color = Color.White, fontSize = 16.sp, fontFamily = FontFamily.Monospace)
+                Text(module.name.ifBlank { "(unnamed)" }, color = Color.White, fontSize = 16.sp, fontFamily = LocalDashTheme.current.font)
                 TypeChip(module.type)
             }
-            Text("${module.id}   ${module.version}", color = LABEL, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+            Text("${module.id}   ${module.version}", color = LABEL, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font)
 
             // 1.4.13: when the module reports a version different from the one stored at install, the
             // stored declarations below can't be trusted — the module is held DORMANT and all its
@@ -377,10 +377,10 @@ private fun ModuleDetailsDialog(
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Text("FIRMWARE VERSION MISMATCH", color = UPDATE_ACCENT, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
-                    Text("installed  ${module.version.ifBlank { "(none)" }}", color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                    Text("reporting  ${reportedVersion.ifBlank { "(none)" }}", color = Color.White, fontSize = 12.sp, fontFamily = FontFamily.Monospace)
-                    Text("Held inactive — its data is refused until it is updated. UPDATE re-runs the install.", color = MUTED, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    Text("FIRMWARE VERSION MISMATCH", color = UPDATE_ACCENT, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
+                    Text("installed  ${module.version.ifBlank { "(none)" }}", color = Color.White, fontSize = 12.sp, fontFamily = LocalDashTheme.current.font)
+                    Text("reporting  ${reportedVersion.ifBlank { "(none)" }}", color = Color.White, fontSize = 12.sp, fontFamily = LocalDashTheme.current.font)
+                    Text("Held inactive — its data is refused until it is updated. UPDATE re-runs the install.", color = MUTED, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font)
                 }
             }
 
@@ -400,8 +400,8 @@ private fun ModuleDetailsDialog(
                         .padding(horizontal = 12.dp, vertical = 10.dp),
                     verticalArrangement = Arrangement.spacedBy(3.dp)
                 ) {
-                    Text("NOT RESPONDING", color = NO_REPLY_ACCENT, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
-                    Text(reason, color = MUTED, fontSize = 11.sp, fontFamily = FontFamily.Monospace)
+                    Text("NOT RESPONDING", color = NO_REPLY_ACCENT, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
+                    Text(reason, color = MUTED, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font)
                 }
             }
 
@@ -420,19 +420,19 @@ private fun ModuleDetailsDialog(
                     onClick = onUninstall,
                     colors = ButtonDefaults.buttonColors(containerColor = UNINSTALL_ACCENT, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
-                ) { Text("UNINSTALL", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+                ) { Text("UNINSTALL", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp) }
                 if (reportedVersion != null) {
                     Button(
                         onClick = onUpdate,
                         colors = ButtonDefaults.buttonColors(containerColor = UPDATE_ACCENT, contentColor = Color.White),
                         contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
-                    ) { Text("UPDATE", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+                    ) { Text("UPDATE", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp) }
                 }
                 Button(
                     onClick = onDone,
                     colors = ButtonDefaults.buttonColors(containerColor = INSTALL_ACCENT, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
-                ) { Text("DONE", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+                ) { Text("DONE", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp) }
             }
         }
     }
@@ -441,9 +441,9 @@ private fun ModuleDetailsDialog(
 @Composable
 private fun DetailSection(heading: String, rows: List<String>) {
     Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-        Text(heading, color = MUTED, fontSize = 11.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+        Text(heading, color = MUTED, fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
         rows.forEach { row ->
-            Text(row, color = Color.White, fontSize = 13.sp, fontFamily = FontFamily.Monospace)
+            Text(row, color = Color.White, fontSize = 13.sp, fontFamily = LocalDashTheme.current.font)
         }
     }
 }
@@ -470,7 +470,7 @@ private fun ActivityChip(activity: ModuleActivity) {
             .background(colour.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(label, color = colour, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+        Text(label, color = colour, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
     }
 }
 
@@ -483,7 +483,7 @@ private fun MismatchChip() {
             .background(UPDATE_ACCENT.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text("UPDATE", color = UPDATE_ACCENT, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+        Text("UPDATE", color = UPDATE_ACCENT, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
     }
 }
 
@@ -500,20 +500,20 @@ private fun UnconfirmedDeactivationDialog(name: String, onDismiss: () -> Unit) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("UNINSTALLED — NOT CONFIRMED", color = Color.White, fontSize = 14.sp, fontFamily = FontFamily.Monospace, letterSpacing = 2.sp)
+            Text("UNINSTALLED — NOT CONFIRMED", color = Color.White, fontSize = 14.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
             Text(
                 text = "$name has been uninstalled, but it never confirmed deactivation. It could still " +
                     "send misleading data, so either disconnect the module or power-cycle the module.",
                 color = MUTED,
                 fontSize = 13.sp,
-                fontFamily = FontFamily.Monospace
+                fontFamily = LocalDashTheme.current.font
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
                 Button(
                     onClick = onDismiss,
                     colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
                     contentPadding = PaddingValues(horizontal = 18.dp, vertical = 8.dp)
-                ) { Text("UNDERSTOOD", fontSize = 12.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp) }
+                ) { Text("UNDERSTOOD", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp) }
             }
         }
     }
@@ -533,6 +533,6 @@ private fun TypeChip(type: String) {
             .background(colour.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(type.ifBlank { "?" }.uppercase(), color = colour, fontSize = 10.sp, fontFamily = FontFamily.Monospace, letterSpacing = 1.sp)
+        Text(type.ifBlank { "?" }.uppercase(), color = colour, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
     }
 }

@@ -62,7 +62,7 @@ private val SNAP_FRACTIONS = listOf(0.25f, 1f / 3f, 0.5f, 2f / 3f, 0.75f)
  * The edit mode ruler — a horizontal strip that appears adjacent to the system bar when edit mode
  * is active. The bar itself is never touched during editing; all interaction happens here.
  *
- * Visually the ruler is transparent — a single 1dp centre line using [barAccent2] floats in the
+ * Visually the ruler is transparent — a single 1dp centre line using [accentColourSecondary] floats in the
  * touch area with element boxes and divider arrows overlaid on top of it. No filled background.
  *
  * Zone dividers are represented as triangle arrow markers pointing back toward the bar, and are
@@ -117,7 +117,7 @@ fun EditRuler(
         // Centre track line
         Canvas(modifier = Modifier.fillMaxSize()) {
             drawLine(
-                color = theme.barAccent2.copy(alpha = 0.35f),
+                color = theme.accentColourSecondary.copy(alpha = 0.35f),
                 start = Offset(0f, size.height / 2f),
                 end = Offset(size.width, size.height / 2f),
                 strokeWidth = 1.dp.toPx()
@@ -137,7 +137,7 @@ fun EditRuler(
                 SNAP_FRACTIONS.forEach { fraction ->
                     val x = fraction * size.width
                     drawRect(
-                        color = theme.barAccent2.copy(alpha = 0.4f),
+                        color = theme.accentColourSecondary.copy(alpha = 0.4f),
                         topLeft = Offset(x - markerWidthPx / 2f, markerTop),
                         size = Size(markerWidthPx, markerHeightPx)
                     )
@@ -157,7 +157,7 @@ fun EditRuler(
                             .offset { IntOffset(dividerX, 0) }
                             .width(1.dp)
                             .fillMaxHeight()
-                            .background(theme.barAccent2.copy(alpha = 0.3f))
+                            .background(theme.accentColourSecondary.copy(alpha = 0.3f))
                     )
                 }
 
@@ -295,7 +295,7 @@ private fun DividerArrow(
         label = "arrow_alpha"
     )
 
-    val arrowColor = if (isSnapped) SNAP_COLOR else theme.barAccent2.copy(alpha = arrowAlpha)
+    val arrowColor = if (isSnapped) SNAP_COLOR else theme.accentColourSecondary.copy(alpha = arrowAlpha)
     val startDp = with(density) { (dividerXPx - touchWidthPx / 2).coerceAtLeast(0).toDp() }
 
     Box(
@@ -416,7 +416,7 @@ private fun ElementBox(
         label = "element_box_alpha"
     )
 
-    val accent2 = theme.barAccent2
+    val accent2 = theme.accentColourSecondary
 
     Box(
         modifier = modifier

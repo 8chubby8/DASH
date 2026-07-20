@@ -6,7 +6,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.font.FontFamily
+import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.unit.sp
 import com.dash.android.density.DensityPreset
 
@@ -29,7 +29,7 @@ fun DiagnosticOverlay(
                 text = line,
                 color = Color(0xFF555555),
                 fontSize = 10.sp,
-                fontFamily = FontFamily.Monospace
+                fontFamily = LocalDashTheme.current.font
             )
         }
     }

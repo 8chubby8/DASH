@@ -42,7 +42,7 @@ fun SystemBar(
         modifier = modifier
             .fillMaxWidth()
             .height(barHeight)
-            .background(theme.barBackground)
+            .background(theme.backgroundColourPrimary)
     ) {
         config.zones.forEachIndexed { index, zone ->
             if (index > 0) {
@@ -50,7 +50,7 @@ fun SystemBar(
                     Modifier
                         .fillMaxHeight()
                         .width(1.dp)
-                        .background(theme.barAccent.copy(alpha = 0.3f))
+                        .background(theme.accentColourPrimary.copy(alpha = 0.3f))
                 )
             }
             Zone(
