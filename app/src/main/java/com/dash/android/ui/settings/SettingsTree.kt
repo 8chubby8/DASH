@@ -38,7 +38,7 @@ private fun wip(id: String, label: String, version: String) =
 val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
     SettingsCategory(
         "appearance", "Appearance", listOf(
-            wip("appearance.density", "Density & Scale", "1.5.3"),
+            SettingsSub("appearance.density", "Size & Scale", SettingsStatus.LIVE),
             wip("appearance.transitions", "Transitions", "1.5.3"),
             wip("appearance.splash", "Splash Screen", "1.5.4"),
             wip("appearance.colours", "Colours", "v2"),

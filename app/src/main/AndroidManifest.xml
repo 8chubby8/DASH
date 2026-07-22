@@ -37,7 +37,12 @@
             android:exported="true"
             android:launchMode="singleTask"
             android:stateNotNeeded="true"
-            android:windowSoftInputMode="adjustResize">
+            android:windowSoftInputMode="adjustResize"
+            android:configChanges="orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden">
+            <!-- DASH manages its own responsive layout in Compose, so it handles rotation / resize
+                 itself rather than being recreated. This keeps the open screen (settings, a monitor)
+                 alive across a rotation — the UI reflows instead of restarting back to home. -->
+
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />
                 <category android:name="android.intent.category.LAUNCHER" />

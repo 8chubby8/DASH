@@ -50,6 +50,9 @@ import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
@@ -66,7 +69,10 @@ import com.dash.android.transport.TransportManager
 import com.dash.android.ui.debug.DiagnosticOverlay
 import com.dash.android.ui.motion.LocalTransitionMillis
 import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.unit.Density
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
+import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
 import com.dash.android.ui.scale.LocalDashScale
 import com.dash.android.ui.modules.ModuleManagementScreen
 import com.dash.android.ui.monitor.SerialMonitorScreen
@@ -167,6 +173,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     }
 
     val dashScale by prefs.dashScale.collectAsState(initial = DASH_SCALE_DEFAULT)
+    val dashTextScale by prefs.dashTextScale.collectAsState(initial = DASH_TEXT_SCALE_DEFAULT)
     val transitionMillis by prefs.transitionMillis.collectAsState(initial = TRANSITION_MILLIS_DEFAULT)
     val selectedPreset by prefs.densityPreset.collectAsState(initial = null)
     val autoRotate by prefs.autoRotate.collectAsState(initial = true)
@@ -185,7 +192,13 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         }
     }
 
+    // DASH text size — override the composition's fontScale with DASH's own value so every sp in
+    // DASH chrome follows the DASH text-size control and ignores Android's font setting entirely
+    // (Android's font size is left for the viewport apps). The device density (dp mapping) is kept
+    // as-is; only text scaling is taken over here.
+    val baseDensity = LocalDensity.current
     CompositionLocalProvider(
+        LocalDensity provides Density(baseDensity.density, dashTextScale),
         LocalDashScale provides dashScale,
         LocalTransitionMillis provides transitionMillis,
         LocalDashTheme provides DashTheme.default(),
@@ -266,6 +279,22 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             )
                         }
                     }
+
+                    // A thin rule at the bar boundary sets the panel apart from the system bar.
+                    // The panel region is inset by the bar height, so this rides the bar's inner
+                    // edge — growing the bar with the size slider visibly moves it. Most of the
+                    // width, centred, in the secondary surface colour; fades in with the blind.
+                    Box(
+                        modifier = Modifier
+                            .align(if (barIsTop) Alignment.TopCenter else Alignment.BottomCenter)
+                            .fillMaxWidth(0.86f)
+                            .height(1.dp)
+                            // Nearly imperceptible — just enough to catch the boundary. The reveal
+                            // progress fades it in; the 0.16 ceiling keeps it a whisper at full open.
+                            .alpha((revealed / fullHeight).coerceIn(0f, 1f) * 0.16f)
+                            .clip(RoundedCornerShape(2.dp))
+                            .background(LocalDashTheme.current.backgroundColourSecondary)
+                    )
                 }
             }
 

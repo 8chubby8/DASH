@@ -13,6 +13,7 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.dash.android.density.DensityPreset
 import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
+import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
@@ -30,6 +31,7 @@ class DashPreferences(private val context: Context) {
 
     private val densityKey = stringPreferencesKey("density_preset")
     private val scaleKey = floatPreferencesKey("dash_scale")
+    private val textScaleKey = floatPreferencesKey("dash_text_scale")
     private val autoRotateKey = booleanPreferencesKey("auto_rotate")
     private val lockedOrientationKey = stringPreferencesKey("locked_orientation")
     private val splashModeKey = stringPreferencesKey("splash_mode")
@@ -44,6 +46,10 @@ class DashPreferences(private val context: Context) {
 
     val dashScale: Flow<Float> = context.dataStore.data.map { prefs ->
         prefs[scaleKey] ?: DASH_SCALE_DEFAULT
+    }
+
+    val dashTextScale: Flow<Float> = context.dataStore.data.map { prefs ->
+        prefs[textScaleKey] ?: DASH_TEXT_SCALE_DEFAULT
     }
 
     val autoRotate: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -82,6 +88,10 @@ class DashPreferences(private val context: Context) {
 
     suspend fun saveDashScale(scale: Float) {
         context.dataStore.edit { it[scaleKey] = scale }
+    }
+
+    suspend fun saveDashTextScale(scale: Float) {
+        context.dataStore.edit { it[textScaleKey] = scale }
     }
 
     suspend fun saveAutoRotate(auto: Boolean) {

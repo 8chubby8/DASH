@@ -47,6 +47,46 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.3
+
+**Status:** Complete — Appearance › Size & Scale, the reusable settings content scaffold, and the adaptive settings layout. Hardware-tested by Roger on both the phone and the tablet, 2026-07-22.
+
+**Scope:** The first settings tab with real controls — and, because building it well demanded it, the scaffold every later tab is built from and the adaptive shell that houses them all. What began as "Density & Scale" became a DASH sizing hub, and the panel learned to reshape itself to the screen it is on.
+
+**Implemented:**
+
+- **Appearance › Size & Scale** (renamed from "Density & Scale"), two headed sections:
+  - **DASH Scale** — DASH's own chrome, each surface on its own ± stepper: system bar size and element size (writing `SystemBarConfig`; the live bar resizes on the tap), an app-favourites-bar-size placeholder (disabled until the App Launcher, 1.8.x), and DASH text size.
+  - **Android** — Android's settings for the viewport apps: app density and font size, capability-gated.
+- **DASH owns its text sizing.** A new `dashTextScale` preference is applied at the composition root (`MainScreen` overrides the composition `fontScale`), so *all* DASH chrome text follows the DASH text-size stepper and ignores Android's font setting. Android's font size is left for the viewport apps. One override at the root does it — no per-`sp` sweep. This retires the vague global "DASH UI scale" in favour of **per-surface sizing + a DASH-owned text size** (interface.md reconciled).
+- **Capability-gated Android controls.** App density (and the privileged font-size control) follow the Capability Detection Principle: on a privileged install the native preset controls appear — mirroring Android's own display-size page, with a live preview; on Bronze they are absent and a single honest link, "Android text & display size →", points out to Android's own page. That link uses the public `android.settings.TEXT_READING_SETTINGS` action — discovered on-device to be the one page both stock Pixel and Samsung One UI leave open to a third-party app (their dedicated font/zoom pages are `exported=false`) — falling back to the Display parent.
+- **The settings content scaffold** (`ui/settings/content/`) — the reusable vocabulary every future tab is built from: `SettingsContentHeader` (title + art-deco rule, optional description), `SettingBlock` (label + help + optional live preview, responsive), and the controls `PresetSegment`, `Stepper`, `LinkButton`, `LivePreviewCard`. A one-line-per-tab router (`SettingsContent`) claims each subcategory id; the navigation shell never changes as tabs are added.
+- **Adaptive settings layout.** The shell lays itself out from the space actually available (measured, not a window-size class): **wide** (≥600dp — tablet, landscape) is two-pane, tree in the left margin, content beside it, holding on an empty landing box until a *subcategory* is chosen (category → sub → content); **narrow** (<600dp — phone portrait) is the progressive drill-down from interface.md's original three-level model — tree fills the screen, a category replaces it with its subtree, a subcategory replaces that with the content, a back control pinned to the bottom walks down and closes at the top. Both share one navigation state, so rotating reflows between them.
+- **Rotation persistence.** `MainActivity` now declares `configChanges` (orientation / screen size / layout), so it is no longer recreated on rotation — whatever is open (settings, a monitor) survives and reflows instead of resetting to the home screen.
+- **Polish** — more vertical breathing room, 34dp between settings, a nearly-imperceptible separation line at the bar/panel boundary (secondary colour, tracking the bar as its size changes), crisp tween slides (springs removed), the empty wide-landing box drawn straight away, and the trailing nav arrows removed at Roger's call.
+
+**Regressions / dead ends (the honest bits):**
+
+- Density presets first showed on Bronze where they can't work — corrected to the capability gate.
+- The tree's trailing arrows did an awkward half-slide-then-fade; a per-arrow independent fade fixed it — then the arrows were removed entirely anyway.
+- Slides felt laggy on the phone in the *debug* build — diagnosed (with Roger's own "beautiful on the tablet" observation) as debug-build overhead plus the narrow path animating the heavier full-screen content, not an over-heavy design. Springs swapped for tweens to crisp the feel; the first-open cold-composition hitch is a release-build / baseline-profile matter, not something to chase in debug.
+
+**Outstanding:**
+
+- **Only text is off Android.** DASH's `dp` dimensions still follow the system density, so app density still moves DASH chrome. Rendering DASH against native density (full immunity to app-density) is the parked dp-renormalisation step.
+- **The privileged Android font-size control is visual only** — it moves its preview but does not yet write Android's real font scale (the font analogue of `DensityManager` is unbuilt). Absent on Bronze anyway.
+- **The EDIT BAR LAYOUT ruler still exists** alongside the new bar/element steppers (one source of truth, two editors) — remove once the steppers are trusted.
+- **The nav-tree label** still reads "Size & Scale" while the in-box headings are the "DASH Scale" / "Android" split — a cosmetic reconcile.
+- The narrow content transition can be lightened (fade over full-width slide) if the phone still feels heavy on a release build.
+
+**Notes:**
+
+- **Version bump:** `versionName` 1.5.2 → 1.5.3, `versionCode` 22 → 23.
+- **interface.md** gained two dated 2026-07-22 addenda (additive, originals kept): the Density/Scale section reconciled to per-surface sizing + DASH-owned text (retiring the fluid global "DASH UI scale"), and the Settings Panel section extended with the adaptive layout and the **content-scaffold pattern** so future tabs are built the same way.
+- The adaptive layout and rotation persistence were built in this pass rather than as a separate numbered version — they emerged from making the first real tab feel right across the phone and the tablet, and shipped and were verified together.
+
+---
+
 ## Version 1.5.2
 
 **Status:** Complete — the first *built* version of the 1.5.x Settings Panel era. Hardware-tested by Roger on the tablet, 2026-07-20.

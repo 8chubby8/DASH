@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
@@ -32,26 +33,35 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.ui.motion.LocalTransitionMillis
+import com.dash.android.ui.settings.content.SettingsContent
 import com.dash.android.ui.theme.LocalDashTheme
 
 /**
- * The DASH settings shell (roadmap 1.5.2). A two-pane panel that grows out of the system bar
- * (MainScreen animates its appearance) and inherits its visual identity from the theme tokens.
+ * The DASH settings shell. **Adaptive** (roadmap 1.5.x): it lays itself out from the space actually
+ * available, not a fixed shape.
  *
- * Navigation is Roger's two-pane model, not interface.md's original three-column one: the left
- * margin shows the **main tree** (the ten categories) until a category is tapped, at which point
- * its **subcategories** take the left margin's place and the content box appears on the right. The
- * back button at the bottom of the left margin walks back up one level — subtree to main tree — and
- * closes the panel when there is no level left to climb. The settings button on the bar closes it
- * from anywhere (handled in MainScreen).
+ * - **Wide** (tablet, landscape, head unit): the two-pane model — the category/subcategory tree in
+ *   the left margin, the content box beside it. Picking a category only reveals its subtree; the
+ *   content box stays on its empty landing until a *subcategory* is chosen (category → sub → content).
+ * - **Narrow** (phone portrait): the progressive drill-down from interface.md's original three-level
+ *   model — the tree fills the screen; tapping a category replaces it with that category's subtree;
+ *   tapping a subcategory replaces that with the content. A back control pinned to the bottom walks
+ *   one level down and closes at the top. No landing pane on a narrow screen — there's nothing to
+ *   land on until you pick something.
  *
- * In 1.5.2 the content box only ever shows an honest placeholder — every subcategory names the
- * version its feature arrives at. A temporary LEGACY SETTINGS button reaches the old flat panel so
- * nothing built in 1.1.x–1.4.x is unreachable while it waits to be rehomed; it is removed at 1.5.12.
+ * The two share one navigation state, so rotating the device (the Activity is not recreated — see
+ * the manifest) simply reflows between the two.
  */
+private const val WIDE_BREAKPOINT_DP = 600
+
+private data class NarrowScreen(val category: SettingsCategory?, val subId: String?) {
+    val depth: Int get() = if (subId != null) 2 else if (category != null) 1 else 0
+}
+
 @Composable
 fun SettingsShell(
     onClose: () -> Unit,
@@ -60,52 +70,96 @@ fun SettingsShell(
 ) {
     val theme = LocalDashTheme.current
     val transitionMillis = LocalTransitionMillis.current
-    // Android's master font scale — used to grow the row spacing with the font so the list doesn't
-    // feel cramped as the text gets larger.
-    val fontScale = LocalDensity.current.fontScale
     var selectedCategory by remember { mutableStateOf<SettingsCategory?>(null) }
     var selectedSubId by remember { mutableStateOf<String?>(null) }
 
-    val inSubtree = selectedCategory != null
-
-    Column(
+    BoxWithConstraints(
         modifier = modifier
             .fillMaxSize()
             .background(theme.backgroundColourPrimary)
     ) {
-        // Slim breadcrumb header — inherits the primary surface, so it reads as one piece with the
-        // bar above it.
-        Text(
-            text = selectedCategory?.label?.uppercase() ?: "SETTINGS",
-            color = theme.textColourPrimary,
-            fontSize = 13.sp,
-            fontFamily = theme.font,
-            letterSpacing = 3.sp,
-            modifier = Modifier.padding(start = 24.dp, top = 18.dp, bottom = 14.dp)
-        )
+        val wide = maxWidth >= WIDE_BREAKPOINT_DP.dp
 
-        Row(modifier = Modifier.fillMaxSize()) {
+        if (wide) {
+            WideSettings(
+                transitionMillis = transitionMillis,
+                selectedCategory = selectedCategory,
+                selectedSubId = selectedSubId,
+                onSelectCategory = { cat ->
+                    selectedCategory = cat
+                    selectedSubId = null
+                },
+                onSelectSub = { selectedSubId = it },
+                onOpenLegacy = onOpenLegacy,
+                onBack = {
+                    if (selectedCategory != null) {
+                        selectedCategory = null
+                        selectedSubId = null
+                    } else {
+                        onClose()
+                    }
+                },
+            )
+        } else {
+            NarrowSettings(
+                transitionMillis = transitionMillis,
+                selectedCategory = selectedCategory,
+                selectedSubId = selectedSubId,
+                onSelectCategory = { cat ->
+                    selectedCategory = cat
+                    selectedSubId = null
+                },
+                onSelectSub = { selectedSubId = it },
+                onOpenLegacy = onOpenLegacy,
+                onBack = {
+                    when {
+                        selectedSubId != null -> selectedSubId = null
+                        selectedCategory != null -> selectedCategory = null
+                        else -> onClose()
+                    }
+                },
+            )
+        }
+    }
+}
 
-            // ── Left margin: main tree OR the selected category's subtree ──────────────────
-            // Width scales with the font so labels keep the same fit as the text grows — a fixed
-            // column ellipsised the longer labels ("Notificatio…") at large font sizes.
+// ── Wide: two-pane ─────────────────────────────────────────────────────────────────────────────
+@Composable
+private fun WideSettings(
+    transitionMillis: Int,
+    selectedCategory: SettingsCategory?,
+    selectedSubId: String?,
+    onSelectCategory: (SettingsCategory) -> Unit,
+    onSelectSub: (String) -> Unit,
+    onOpenLegacy: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val theme = LocalDashTheme.current
+    val fontScale = LocalDensity.current.fontScale
+    val inSubtree = selectedCategory != null
+
+    Column(Modifier.fillMaxSize()) {
+        Breadcrumb(selectedCategory?.label?.uppercase() ?: "SETTINGS")
+
+        Row(modifier = Modifier.fillMaxSize().padding(top = 10.dp, bottom = 28.dp)) {
+            // Left margin: tree, or the selected category's subtree. Width scales with the font so
+            // long labels don't ellipsise as the text grows.
             Column(
                 modifier = Modifier
                     .width((260 * fontScale).dp)
                     .fillMaxHeight()
-                    .padding(start = 16.dp, end = 12.dp, bottom = 16.dp)
+                    .padding(start = 16.dp, end = 12.dp)
             ) {
                 AnimatedContent(
                     targetState = selectedCategory,
                     transitionSpec = {
+                        val slide = tween<IntOffset>(transitionMillis)
                         if (targetState != null) {
-                            // Descending into a subtree: it grows in from the right as the main
-                            // tree drops away to the left.
-                            (slideInHorizontally { it / 3 } + fadeIn(tween(transitionMillis))) togetherWith
-                                (slideOutHorizontally { -it / 3 } + fadeOut(tween(transitionMillis * 2 / 3)))
+                            (slideInHorizontally(slide) { it / 3 } + fadeIn(tween(transitionMillis))) togetherWith
+                                (slideOutHorizontally(slide) { -it / 3 } + fadeOut(tween(transitionMillis * 2 / 3)))
                         } else {
-                            (slideInHorizontally { -it / 3 } + fadeIn(tween(transitionMillis))) togetherWith
-                                (slideOutHorizontally { it / 3 } + fadeOut(tween(transitionMillis * 2 / 3)))
+                            (slideInHorizontally(slide) { -it / 3 } + fadeIn(tween(transitionMillis))) togetherWith
+                                (slideOutHorizontally(slide) { it / 3 } + fadeOut(tween(transitionMillis * 2 / 3)))
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -118,88 +172,142 @@ fun SettingsShell(
                     ) {
                         if (category == null) {
                             DASH_SETTINGS_TREE.forEach { cat ->
-                                NavRow(
-                                    label = cat.label,
-                                    trailing = "›",
-                                    selected = false,
-                                    onClick = {
-                                        selectedCategory = cat
-                                        selectedSubId = cat.subs.firstOrNull()?.id
-                                    }
-                                )
+                                NavRow(cat.label, trailing = null, selected = false) { onSelectCategory(cat) }
                             }
                         } else {
                             category.subs.forEach { sub ->
-                                NavRow(
-                                    label = sub.label,
-                                    trailing = null,
-                                    selected = sub.id == selectedSubId,
-                                    onClick = { selectedSubId = sub.id }
-                                )
+                                NavRow(sub.label, trailing = null, selected = sub.id == selectedSubId) { onSelectSub(sub.id) }
                             }
                         }
                     }
                 }
 
-                // Temporary bridge to the pre-1.5.2 flat settings (removed at 1.5.12).
-                NavRow(
-                    label = "LEGACY SETTINGS →",
-                    trailing = null,
-                    selected = false,
-                    dim = true,
-                    onClick = onOpenLegacy
-                )
-                // Back button: up one level, or close at the top.
-                NavRow(
-                    label = if (inSubtree) "‹ BACK" else "‹ CLOSE",
-                    trailing = null,
-                    selected = false,
-                    onClick = {
-                        if (inSubtree) {
-                            selectedCategory = null
-                            selectedSubId = null
-                        } else {
-                            onClose()
-                        }
-                    }
-                )
+                NavRow("LEGACY SETTINGS →", trailing = null, selected = false, dim = true) { onOpenLegacy() }
+                NavRow(if (inSubtree) "‹ BACK" else "‹ CLOSE", trailing = null, selected = false) { onBack() }
             }
 
-            // ── Right: the content box (appears once a category is chosen) ─────────────────
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .fillMaxHeight()
-                    .padding(end = 16.dp, bottom = 16.dp)
-            ) {
-                if (selectedCategory != null) {
-                    val sub = selectedCategory?.subs?.firstOrNull { it.id == selectedSubId }
-                    Column(
-                        modifier = Modifier
+            // Right: the content box (appears once a category is chosen).
+            Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
+                val sub = selectedCategory?.subs?.firstOrNull { it.id == selectedSubId }
+                if (sub != null) {
+                    SettingsContentBox(sub, Modifier.fillMaxSize())
+                } else {
+                    // Landing: draw the empty content box straight away so the pane never opens blank
+                    // (its contents arrive in a later version).
+                    Box(
+                        Modifier
                             .fillMaxSize()
                             .clip(RoundedCornerShape(16.dp))
                             .background(theme.backgroundColourSecondary)
-                            .padding(28.dp),
-                        verticalArrangement = Arrangement.spacedBy(14.dp)
+                    )
+                }
+            }
+        }
+    }
+}
+
+// ── Narrow: single-pane drill-down ─────────────────────────────────────────────────────────────
+@Composable
+private fun NarrowSettings(
+    transitionMillis: Int,
+    selectedCategory: SettingsCategory?,
+    selectedSubId: String?,
+    onSelectCategory: (SettingsCategory) -> Unit,
+    onSelectSub: (String) -> Unit,
+    onOpenLegacy: () -> Unit,
+    onBack: () -> Unit,
+) {
+    val theme = LocalDashTheme.current
+    val screen = NarrowScreen(selectedCategory, selectedSubId)
+
+    Column(Modifier.fillMaxSize()) {
+        Breadcrumb(selectedCategory?.label?.uppercase() ?: "SETTINGS")
+
+        AnimatedContent(
+            targetState = screen,
+            transitionSpec = {
+                val slide = tween<IntOffset>(transitionMillis)
+                val forward = targetState.depth > initialState.depth
+                if (forward) {
+                    (slideInHorizontally(slide) { it } + fadeIn(tween(transitionMillis))) togetherWith
+                        (slideOutHorizontally(slide) { -it / 3 } + fadeOut(tween(transitionMillis * 2 / 3)))
+                } else {
+                    (slideInHorizontally(slide) { -it / 3 } + fadeIn(tween(transitionMillis))) togetherWith
+                        (slideOutHorizontally(slide) { it } + fadeOut(tween(transitionMillis * 2 / 3)))
+                }
+            },
+            modifier = Modifier.weight(1f).fillMaxWidth(),
+            label = "drill"
+        ) { s ->
+            when {
+                s.subId != null -> {
+                    val sub = s.category?.subs?.firstOrNull { it.id == s.subId }
+                    if (sub != null) {
+                        SettingsContentBox(sub, Modifier.fillMaxSize().padding(horizontal = 16.dp))
+                    }
+                }
+                s.category != null -> {
+                    val scroll = rememberScrollState()
+                    Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
-                        Text(
-                            text = sub?.label?.uppercase() ?: "",
-                            color = theme.textColourSecondary,
-                            fontSize = 16.sp,
-                            fontFamily = theme.font,
-                            letterSpacing = 2.sp
-                        )
-                        Text(
-                            text = sub?.wipVersion?.let { "Arrives with $it." }
-                                ?: "Empty — wired in a later 1.5.x version.",
-                            color = theme.textColourSecondary.copy(alpha = 0.7f),
-                            fontSize = 13.sp,
-                            fontFamily = theme.font
-                        )
+                        s.category.subs.forEach { sub ->
+                            NavRow(sub.label, trailing = null, selected = false) { onSelectSub(sub.id) }
+                        }
+                    }
+                }
+                else -> {
+                    val scroll = rememberScrollState()
+                    Column(
+                        modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        DASH_SETTINGS_TREE.forEach { cat ->
+                            NavRow(cat.label, trailing = null, selected = false) { onSelectCategory(cat) }
+                        }
+                        NavRow("LEGACY SETTINGS →", trailing = null, selected = false, dim = true) { onOpenLegacy() }
                     }
                 }
             }
         }
+
+        // Back control pinned to the bottom — one level down, or close at the top.
+        Box(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp)) {
+            NavRow(
+                label = if (screen.depth > 0) "‹ BACK" else "‹ CLOSE",
+                trailing = null,
+                selected = false,
+                onClick = onBack,
+            )
+        }
+    }
+}
+
+@Composable
+private fun Breadcrumb(text: String) {
+    val theme = LocalDashTheme.current
+    Text(
+        text = text,
+        color = theme.textColourPrimary,
+        fontSize = 13.sp,
+        fontFamily = theme.font,
+        letterSpacing = 3.sp,
+        modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 14.dp)
+    )
+}
+
+@Composable
+private fun SettingsContentBox(sub: SettingsSub, modifier: Modifier = Modifier) {
+    val theme = LocalDashTheme.current
+    Column(
+        modifier = modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(theme.backgroundColourSecondary)
+            .verticalScroll(rememberScrollState())
+            .padding(28.dp)
+    ) {
+        SettingsContent(sub)
     }
 }
 
@@ -228,8 +336,6 @@ private fun NavRow(
             color = if (dim) theme.textColourPrimary.copy(alpha = 0.45f) else theme.textColourPrimary,
             fontSize = 13.sp,
             fontFamily = theme.font,
-            // Stay on one line so long labels (Notifications, Module Management) don't wrap; the
-            // weight lets the label take the row's free width, keeping any trailing chevron in place.
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false)

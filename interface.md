@@ -81,6 +81,13 @@ DASH overrides Android's density system for its own windows, ensuring the two co
 
 UI scale is configured in Appearance → Density.
 
+> **Reconciliation — 2026-07-22 (roadmap 1.5.3).** Building the Size & Scale tab, the "DASH UI Scale" model above was reworked and is **superseded for version 1**; the original is kept for the record. The single fluid global multiplier gave way to **per-surface sizing plus a DASH-owned text size**, agreed with Roger:
+>
+> - **Each DASH surface owns its own size.** The system bar and its elements are sized by their own ± steppers (writing `SystemBarConfig`); the app-favourites bar gains its own (1.8.x); the module panel is fixed. There is no single global "scale everything" knob — surfaces are dialled individually, which is what actually holds up across a phone, a tablet and a head unit. (Density is handled by `dp`; screen *size* and aspect ratio are handled per surface.)
+> - **DASH text size is DASH's own.** A `dashTextScale` is applied at the composition root as a `fontScale` override, so all DASH chrome text follows the DASH text-size stepper and **ignores Android's font setting entirely.** Android's font size — and its density — are left for the viewport apps. This is the clean separation the two-systems split above was reaching for: Android's knobs are the apps'; DASH owns all of its own sizing.
+> - **The tab is "Size & Scale"**, two headed sections — **DASH Scale** (bar size, element size, app-favourites-bar size, DASH text size) and **Android** (app density + font size, capability-gated: native controls mirroring Android's own display-size page where DASH has the privilege, an honest link out where it doesn't).
+> - *Outstanding:* only *text* is taken off Android so far — DASH's `dp` still follows the system density until the dp-renormalisation step lands, so app density still moves DASH chrome until then.
+
 ---
 
 ## The System Bar
@@ -637,6 +644,20 @@ DASH Settings
 > **Settings panel build — 2026-07-20 (roadmap 1.5.2).** The shell was built and two things in the sections above settled differently in practice; recorded here per the additive-docs rule (the originals are kept).
 >
 > **Navigation is two-pane, not three-column.** The "Navigation Structure" above describes three columns (major stays visible, subcategory to its right, content on a third). In build it became a cleaner two-pane model, agreed with Roger: the left margin shows the **main tree** (the ten categories); tapping a category makes its **subcategories grow in and the main tree drop out of view** — never three columns at once, only the main tree *or* one subtree. The **content box** appears on the right when a category is chosen (soft-radius, `backgroundColourSecondary` fill), auto-opening the first subcategory. A **back button pinned to the bottom of the left margin** walks up one level — subtree → main tree — and closes the panel when there is no level left to climb. This supersedes the three-column description for version 1. The left column's width and row spacing scale with Android's font-size setting so labels never wrap or crowd.
+
+> **Adaptive layout & the content scaffold — 2026-07-22 (roadmap 1.5.3).** Building the first real tab, the panel learned to reshape itself to the space available, and a reusable scaffold was settled so every later tab is built the same way. Recorded here per the additive-docs rule.
+>
+> **The panel is adaptive.** It measures the space it actually has (not a whole-window size class) and chooses:
+> - **Wide** (≥ ~600dp — tablet, landscape, head unit): the two-pane model above. The content box holds on an **empty landing box** — drawn straight away, never blank — until a *subcategory* is chosen; the path is category → subcategory → content.
+> - **Narrow** (< ~600dp — phone portrait): the original three-level **drill-down** the "Navigation Structure" section first described. The tree fills the screen; a category replaces it with its subtree; a subcategory replaces that with the content; a back control pinned to the bottom walks one level down and closes at the top. No landing pane on a narrow screen — DASH looks best on a tablet-sized device, and the phone gets function over the show.
+> Both share one navigation state, so rotating the device **reflows** between them rather than restarting — the Activity handles config changes itself and is not recreated, so an open screen (settings, a monitor) survives a rotation. The breakpoint is a single tunable constant.
+>
+> **The content scaffold.** Every subcategory's content is built from one small, reusable vocabulary, so the panel reads as one system and new tabs are quick to add:
+> - a **header** — title, a thin art-deco rule, and an *optional* description (used only when it tells the user something the controls below don't already make plain);
+> - **setting blocks** — each a label + plain-language help paired with a control, plus an optional **live preview** that shows the effect as it is changed; a block splits label-left / control-right when there's width and stacks when there isn't;
+> - a **control vocabulary** — preset segment, ± stepper, link-out, live-preview card — covering what DASH needs, extended rather than reinvented per tab;
+> - a **one-line-per-tab router** — a subcategory goes live by claiming its id in one place; the navigation shell never changes.
+> This is the SDKable discipline applied to settings: the built-in tabs get no structure a future one couldn't reuse. It lives in `ui/settings/content/` (`SettingsContentHeader`, `SettingBlock`, `PresetSegment`, `Stepper`, `LinkButton`, `LivePreviewCard`, `SettingsContent`).
 >
 > **The panel rolls out from the bar.** It grows from the bar's edge like a blind — an explicitly animated height, not a fade — on the same `backgroundColourPrimary` fill so there is no seam, with the bar floating above it and staying reachable. Open and close both take the **user-configurable transition length**: a new Appearance setting (`LocalTransitionMillis`, presets INSTANT → CINEMATIC), because DASH has no opinion on how fast the user's interface should move. The **settings button toggles** the panel — a press opens it, a second press closes it — and is now a real vector icon that fills its cell, tinted from `iconColourPrimary`.
 >
