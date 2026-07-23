@@ -47,6 +47,45 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.7
+
+**Status:** Complete — Layout › System Bar: Position, Zones and Reset in the box; edit mode stripped to the ruler plus Save/Cancel; and edit mode returns you to the tab you left. Hardware-verified by Roger, 2026-07-23.
+
+**Scope:** Rehome the System Bar controls into Layout › System Bar — and, in the doing, resolve two things the design conversation surfaced: edit mode still duplicated the height/element sliders that moved to Size & Scale in 1.5.3, and "Edit bar layout" dropped you on the home screen. The result reworks what edit mode is *for*.
+
+**Implemented:**
+
+- **Layout › System Bar is LIVE** (`ui/settings/content/SystemBarContent.kt`), in the house scaffold. Box order **Position → Zones → Edit bar layout → Reset**:
+  - **Position** — a live Bottom/Top segment, with a small **"screen" preview** in which the bar slides to its chosen edge.
+  - **Zones** — a live 1/2/3 segment (zone *count*; boundary *positions* are still set on the bar in edit mode).
+  - **Edit bar layout →** — the entry into edit mode, via a new `LocalEnterBarEdit` CompositionLocal (mirroring `LocalSplashPreview`, so no callback threads through the settings shell).
+  - **Reset** — tap-again-to-confirm, restores the full default.
+- **Edit mode reduced to its irreducible job.** The centred control column (Position, Zones, Bar Height, Element Size, Reset) is gone; edit mode is now **the ruler beside the bar plus Save/Cancel**, nothing else. **Bar Height and Element Size were deleted, not moved** — they have lived in Appearance › Size & Scale since 1.5.3, so this finally clears the "ruler coexists with the steppers" duplication parked then.
+- **Edit-mode colours read the theme tokens.** Save/Cancel dropped their hardcoded green/red for the token set (Save = `backgroundColourPrimary`/`textColourPrimary`, Cancel = `accentColourSecondary`/`textColourSecondary`), so they follow v2 theming and match DASH's neutral default. The ruler was already token-driven; the only literal colour left is the interface.md-mandated **snap red**.
+- **A clean workspace.** The module-panel placeholder and the "not your default launcher" banner both **hide while editing** — nothing competes with the bar and its ruler.
+- **Save/Cancel return to the System Bar tab.** Entering edit remembers the tab (`layout.systembar`); Save and Cancel reopen the settings blind seeded to it, so you land back where you were instead of on the home screen. `SettingsShell` gained an `initialSubId` seed; `MainScreen` holds the return target and clears it on close.
+- **System Bar section removed from the legacy flat panel** — its rehome.
+
+**Regressions:**
+
+- **Save/Cancel dropped to the home screen.** Entering edit mode closed the settings panel and never reopened it.
+
+**Fixes:**
+
+- **Return target:** edit-entry records the originating tab and Save/Cancel reopen settings on it (seeded via `SettingsShell.initialSubId`); the target clears when settings is next closed, so a normal open still starts at the top of the tree.
+
+**Outstanding:**
+
+- Edit is only ever entered from the System Bar tab, so the return target is set literally (`"layout.systembar"`); a future surface entering edit from elsewhere would set its own.
+- interface.md item 4's earlier "not flat height/zone/element sliders" wording is now qualified by the 2026-07-23 addendum recording the Position **+ Zones** split.
+
+**Notes:**
+
+- **interface.md updated** — a dated addendum under item 4 of the 2026-07-20 Layout reconciliation: System Bar settings = Position + Zones + Edit-bar-layout entry + Reset; height/element size live in Size & Scale; edit mode = ruler + Save/Cancel. A deliberate, discussed Bible edit.
+- This was designed live with Roger across the version — the ruler-must-stay-beside-the-bar call (Option A over pulling it into the box) preserved the 1.3.x edit model's core structural departure; the box took the discrete config, the bar kept the spatial task.
+
+---
+
 ## Version 1.5.6
 
 **Status:** Complete — Appearance › Splash Screen: colour / image / animation, an independent background colour with a custom picker, and a per-orientation image crop. Hardware-verified by Roger on the Pixel 8 Pro and the Galaxy Tab S9 Ultra, 2026-07-23.

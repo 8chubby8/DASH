@@ -74,10 +74,16 @@ fun SettingsShell(
     onClose: () -> Unit,
     onOpenLegacy: () -> Unit,
     modifier: Modifier = Modifier,
+    initialSubId: String? = null,
 ) {
     val theme = LocalDashTheme.current
-    var selectedCategory by remember { mutableStateOf<SettingsCategory?>(null) }
-    var selectedSubId by remember { mutableStateOf<String?>(null) }
+    // Seed the selection from [initialSubId] when opening — the shell is dropped from composition when
+    // the blind closes, so a fresh open lands here. Used to return the user to the tab they left when
+    // a focused task (bar edit mode) took over the screen, rather than dumping them at the top.
+    var selectedCategory by remember {
+        mutableStateOf(initialSubId?.let { id -> DASH_SETTINGS_TREE.firstOrNull { cat -> cat.subs.any { it.id == id } } })
+    }
+    var selectedSubId by remember { mutableStateOf(initialSubId) }
 
     BoxWithConstraints(
         modifier = modifier

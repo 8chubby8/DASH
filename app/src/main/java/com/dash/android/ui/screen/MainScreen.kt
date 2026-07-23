@@ -93,6 +93,7 @@ import com.dash.android.ui.splash.LocalSplashPreview
 import com.dash.android.ui.splash.SPLASH_CROP_DEFAULT
 import com.dash.android.ui.splash.SPLASH_DWELL_DEFAULT_MS
 import com.dash.android.ui.splash.SplashScreen
+import com.dash.android.ui.systembar.LocalEnterBarEdit
 import com.dash.android.ui.systembar.BarPosition
 import com.dash.android.ui.systembar.DashAction
 import com.dash.android.ui.systembar.EditRuler
@@ -154,6 +155,9 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var isDefaultLauncher by remember { mutableStateOf(mainActivity.isDefaultLauncher()) }
     var showSplash by remember { mutableStateOf(isColdBoot) }
     var showSettings by remember { mutableStateOf(false) }
+    // Where to reopen settings after a focused task (bar edit mode) takes over the screen — so Save/
+    // Cancel returns to the tab the user left, not the home screen.
+    var settingsReturnTarget by remember { mutableStateOf<String?>(null) }
     var showLegacySettings by remember { mutableStateOf(false) }
     var modulePanelExpanded by remember { mutableStateOf(false) }
     var showModules by remember { mutableStateOf(false) }
@@ -237,11 +241,18 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         LocalWeatherSnapshot provides weather,
         LocalDashTheme provides DashTheme.default(),
         LocalSplashPreview provides { showSplash = true },
+        LocalEnterBarEdit provides {
+            editConfig = barConfig
+            editMode = true
+            showSettings = false
+            settingsReturnTarget = "layout.systembar"
+        },
     ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
-            // Not-default-launcher banner — anchored opposite the bar so the two never collide
-            if (!isDefaultLauncher) {
+            // Not-default-launcher banner — anchored opposite the bar so the two never collide.
+            // Hidden in edit mode: the workspace is a focused task and nothing else should compete.
+            if (!isDefaultLauncher && !editMode) {
                 Box(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -314,7 +325,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     ) {
                         Box(modifier = Modifier.fillMaxWidth().height(fullHeight)) {
                             SettingsShell(
-                                onClose = { showSettings = false },
+                                initialSubId = settingsReturnTarget,
+                                onClose = { showSettings = false; settingsReturnTarget = null },
                                 onOpenLegacy = { showLegacySettings = true }
                             )
                         }
@@ -413,201 +425,62 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 }
             }
 
-            // Edit workspace — centred in the screen while edit mode is active.
-            // SAVE commits the in-progress config to DataStore.
-            // CANCEL discards all changes; barConfig (from DataStore) is the implicit snapshot.
+            // Edit workspace — with the bar's configuration now living in settings (Position and Zones
+            // in Layout › System Bar; Bar Height and Element Size in Appearance › Size & Scale), edit
+            // mode is reduced to its one irreducible job: the ruler beside the bar, plus Save / Cancel.
+            // SAVE commits the ruler's in-progress config to DataStore; CANCEL discards it (barConfig,
+            // from DataStore, is the implicit snapshot). Colours read from the theme tokens.
             if (editMode) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                val editTheme = LocalDashTheme.current
+                Row(
+                    horizontalArrangement = Arrangement.spacedBy(16.dp),
+                    verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.align(Alignment.Center)
                 ) {
-                    Text(
-                        "POSITION",
-                        color = Color(0xFF666666),
-                        fontSize = 10.sp,
-                        fontFamily = LocalDashTheme.current.font,
-                        letterSpacing = 1.sp
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        BarPosition.entries.forEach { pos ->
-                            val active = editConfig?.position == pos
-                            Button(
-                                onClick = { editConfig = editConfig?.copy(position = pos) },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (active) Color(0xFF2E7D32) else Color(0xFF2A2A2A),
-                                    contentColor = Color.White
-                                ),
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
-                            ) {
-                                Text(pos.name, fontSize = 13.sp, fontFamily = LocalDashTheme.current.font)
-                            }
-                        }
-                    }
-                    Text(
-                        "ZONES",
-                        color = Color(0xFF666666),
-                        fontSize = 10.sp,
-                        fontFamily = LocalDashTheme.current.font,
-                        letterSpacing = 1.sp
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        listOf(1, 2, 3).forEach { count ->
-                            val active = (editConfig?.zones?.size ?: 0) == count
-                            Button(
-                                onClick = { editConfig = editConfig?.withZoneCount(count) },
-                                colors = ButtonDefaults.buttonColors(
-                                    containerColor = if (active) Color(0xFF2E7D32) else Color(0xFF2A2A2A),
-                                    contentColor = Color.White
-                                ),
-                                contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
-                            ) {
-                                Text(count.toString(), fontSize = 13.sp, fontFamily = LocalDashTheme.current.font)
-                            }
-                        }
-                    }
-                    Text(
-                        "BAR HEIGHT",
-                        color = Color(0xFF666666),
-                        fontSize = 10.sp,
-                        fontFamily = LocalDashTheme.current.font,
-                        letterSpacing = 1.sp
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(0.dp)
+                    Button(
+                        onClick = {
+                            editConfig = null
+                            editMode = false
+                            if (settingsReturnTarget != null) showSettings = true
+                        },
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = editTheme.accentColourSecondary,
+                            contentColor = editTheme.textColourSecondary
+                        ),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
                     ) {
-                        Button(
-                            onClick = {
-                                editConfig = editConfig?.let { c ->
-                                    val newH = (c.heightDp - SystemBarConfig.HEIGHT_STEP_DP).coerceAtLeast(SystemBarConfig.MIN_HEIGHT_DP)
-                                    val newE = c.elementHeightDp.coerceAtMost(newH - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP)
-                                    c.copy(heightDp = newH, elementHeightDp = newE)
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) { Text("−", fontSize = 16.sp, fontFamily = LocalDashTheme.current.font) }
-                        Text(
-                            "${editConfig?.heightDp ?: 0}dp",
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontFamily = LocalDashTheme.current.font,
-                            modifier = Modifier.width(80.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Button(
-                            onClick = {
-                                editConfig = editConfig?.let { c ->
-                                    c.copy(heightDp = (c.heightDp + SystemBarConfig.HEIGHT_STEP_DP).coerceAtMost(SystemBarConfig.MAX_HEIGHT_DP))
-                                }
-                            },
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) { Text("+", fontSize = 16.sp, fontFamily = LocalDashTheme.current.font) }
-                    }
-                    Text(
-                        "ELEMENT SIZE",
-                        color = Color(0xFF666666),
-                        fontSize = 10.sp,
-                        fontFamily = LocalDashTheme.current.font,
-                        letterSpacing = 1.sp
-                    )
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(0.dp)
-                    ) {
-                        val elementAtMin = (editConfig?.elementHeightDp ?: 0) <= SystemBarConfig.MIN_ELEMENT_HEIGHT_DP
-                        val elementAtMax = (editConfig?.elementHeightDp ?: 0) >= (editConfig?.heightDp ?: 0) - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP
-                        Button(
-                            onClick = {
-                                editConfig = editConfig?.let { c ->
-                                    c.copy(elementHeightDp = (c.elementHeightDp - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP).coerceAtLeast(SystemBarConfig.MIN_ELEMENT_HEIGHT_DP))
-                                }
-                            },
-                            enabled = !elementAtMin,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) { Text("−", fontSize = 16.sp, fontFamily = LocalDashTheme.current.font) }
-                        Text(
-                            text = when {
-                                elementAtMin -> "min"
-                                elementAtMax -> "max"
-                                else -> "${editConfig?.elementHeightDp ?: 0}dp"
-                            },
-                            color = Color.White,
-                            fontSize = 16.sp,
-                            fontFamily = LocalDashTheme.current.font,
-                            modifier = Modifier.width(80.dp),
-                            textAlign = TextAlign.Center
-                        )
-                        Button(
-                            onClick = {
-                                editConfig = editConfig?.let { c ->
-                                    val ceiling = c.heightDp - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP
-                                    c.copy(elementHeightDp = (c.elementHeightDp + SystemBarConfig.ELEMENT_HEIGHT_STEP_DP).coerceAtMost(ceiling))
-                                }
-                            },
-                            enabled = !elementAtMax,
-                            colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF2A2A2A), contentColor = Color.White),
-                            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 4.dp)
-                        ) { Text("+", fontSize = 16.sp, fontFamily = LocalDashTheme.current.font) }
+                        Text("CANCEL", fontSize = 11.sp, fontFamily = editTheme.font, letterSpacing = 1.sp)
                     }
                     Button(
-                        onClick = { editConfig = editConfig?.let { SystemBarConfig.default().copy(position = it.position) } },
+                        onClick = {
+                            editConfig?.let { scope.launch { prefs.saveSystemBarConfig(it) } }
+                            editConfig = null
+                            editMode = false
+                            if (settingsReturnTarget != null) showSettings = true
+                        },
                         colors = ButtonDefaults.buttonColors(
-                            containerColor = Color(0xFF5D1A1A),
-                            contentColor = Color.White
+                            containerColor = editTheme.backgroundColourPrimary,
+                            contentColor = editTheme.textColourPrimary
                         ),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
                     ) {
-                        Text("RESET BAR LAYOUT", fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
-                    }
-                    Row(
-                        horizontalArrangement = Arrangement.spacedBy(16.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Button(
-                            onClick = {
-                                editConfig = null
-                                editMode = false
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF424242),
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
-                        ) {
-                            Text("CANCEL", fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
-                        }
-                        Button(
-                            onClick = {
-                                editConfig?.let { scope.launch { prefs.saveSystemBarConfig(it) } }
-                                editConfig = null
-                                editMode = false
-                            },
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = Color(0xFF2E7D32),
-                                contentColor = Color.White
-                            ),
-                            contentPadding = PaddingValues(horizontal = 20.dp, vertical = 4.dp)
-                        ) {
-                            Text("SAVE", fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
-                        }
+                        Text("SAVE", fontSize = 11.sp, fontFamily = editTheme.font, letterSpacing = 1.sp)
                     }
                 }
             }
 
             // Module panel placeholder (throwaway scaffold, roadmap 1.5.2 → deleted at 1.6.x).
-            // Always present so the settings shell has a real surface to conform to. Anchored to
-            // the bottom, sitting above a bottom-docked bar if there is one.
-            ModulePanelPlaceholder(
-                expanded = modulePanelExpanded,
-                onToggle = { modulePanelExpanded = !modulePanelExpanded },
-                modifier = Modifier
-                    .align(Alignment.BottomCenter)
-                    .padding(bottom = if (barIsTop) 0.dp else barConfig.heightDp.dp)
-            )
+            // Present so the settings shell has a real surface to conform to — but hidden in edit
+            // mode, which is a focused workspace with nothing but the bar, its ruler and Save/Cancel.
+            if (!editMode) {
+                ModulePanelPlaceholder(
+                    expanded = modulePanelExpanded,
+                    onToggle = { modulePanelExpanded = !modulePanelExpanded },
+                    modifier = Modifier
+                        .align(Alignment.BottomCenter)
+                        .padding(bottom = if (barIsTop) 0.dp else barConfig.heightDp.dp)
+                )
+            }
 
             // Legacy flat settings — the pre-1.5.2 panel, reached from the shell's temporary
             // LEGACY SETTINGS button so nothing built in 1.1.x–1.4.x is unreachable while it waits
@@ -617,12 +490,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     activity = mainActivity,
                     prefs = prefs,
                     densityManager = densityManager,
-                    onEnterEditMode = {
-                        editConfig = barConfig
-                        editMode = true
-                        showLegacySettings = false
-                        showSettings = false
-                    },
                     onOpenModules = {
                         showModules = true
                         showLegacySettings = false

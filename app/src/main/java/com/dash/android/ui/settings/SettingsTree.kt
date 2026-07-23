@@ -49,7 +49,7 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
     ),
     SettingsCategory(
         "layout", "Layout", listOf(
-            wip("layout.systembar", "System Bar", "1.5.5"),
+            SettingsSub("layout.systembar", "System Bar", SettingsStatus.LIVE),
             wip("layout.modulepanel", "Module Panel", "1.6.x"),
             wip("layout.launcher", "App Launcher", "1.8.x"),
             wip("layout.elements", "Elements", "1.9.x"),

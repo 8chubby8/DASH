@@ -1,7 +1,16 @@
 package com.dash.android.ui.systembar
 
+import androidx.compose.runtime.compositionLocalOf
 import kotlinx.serialization.Serializable
 import java.util.UUID
+
+/**
+ * A request to enter the system-bar edit workspace (roadmap 1.5.7). Provided at the composition root
+ * by [com.dash.android.ui.screen.MainScreen]; the Layout › System Bar settings tab calls it so
+ * "Edit bar layout" opens edit mode and closes the settings panel. A CompositionLocal keeps the
+ * settings-content dispatcher signature untouched — the same pattern as the splash preview hook.
+ */
+val LocalEnterBarEdit = compositionLocalOf<() -> Unit> { {} }
 
 /**
  * The persisted configuration of the DASH system bar.

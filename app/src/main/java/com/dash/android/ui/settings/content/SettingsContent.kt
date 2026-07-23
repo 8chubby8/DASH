@@ -20,6 +20,7 @@ fun SettingsContent(sub: SettingsSub) {
         "appearance.density" -> SizeScaleContent()
         "appearance.transitions" -> MotionContent()
         "appearance.splash" -> SplashContent()
+        "layout.systembar" -> SystemBarContent()
         "system.location" -> LocationContent()
         else -> WipPlaceholder(sub)
     }

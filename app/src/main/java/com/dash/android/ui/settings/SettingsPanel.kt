@@ -55,7 +55,6 @@ fun SettingsPanel(
     activity: MainActivity,
     prefs: DashPreferences,
     densityManager: DensityManager,
-    onEnterEditMode: () -> Unit,
     onOpenModules: () -> Unit,
     onOpenSerialMonitor: () -> Unit,
     onOpenSignalMonitor: () -> Unit,
@@ -96,14 +95,8 @@ fun SettingsPanel(
                 ) { Text("CLOSE ✕", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
-            // System Bar
-            Section("SYSTEM BAR") {
-                Button(
-                    onClick = { onEnterEditMode() },
-                    colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("EDIT BAR LAYOUT", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
-            }
+            // System Bar rehomed to Layout › System Bar (roadmap 1.5.7) — position, the EDIT BAR
+            // LAYOUT entry point, and Reset all live there now. Removed from the legacy panel.
 
             // Transitions rehomed to Appearance › Transitions (roadmap 1.5.5) — every DASH transition
             // now breaks out to its own control there, under a master pace. Removed from the legacy panel.
