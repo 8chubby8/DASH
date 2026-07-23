@@ -6,12 +6,12 @@ import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.floatPreferencesKey
-import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
 import com.dash.android.density.DensityPreset
-import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
+import com.dash.android.ui.motion.TransitionId
+import com.dash.android.ui.motion.TransitionSpeed
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
 import com.dash.android.ui.systembar.SystemBarConfig
@@ -39,8 +39,9 @@ class DashPreferences(private val context: Context) {
     private val splashColourKey = longPreferencesKey("splash_colour")
     private val splashImageUriKey = stringPreferencesKey("splash_image_uri")
     private val systemBarKey = stringPreferencesKey("system_bar_config")
-    private val transitionMillisKey = intPreferencesKey("transition_millis")
     private val manualLocationKey = stringPreferencesKey("manual_location")
+
+    private fun transitionKey(id: TransitionId) = stringPreferencesKey("transition_" + id.key)
 
     val densityPreset: Flow<DensityPreset?> = context.dataStore.data.map { prefs ->
         prefs[densityKey]?.let { name -> DensityPreset.entries.find { it.name == name } }
@@ -80,8 +81,17 @@ class DashPreferences(private val context: Context) {
             ?: SystemBarConfig.default()
     }
 
-    val transitionMillis: Flow<Int> = context.dataStore.data.map { prefs ->
-        prefs[transitionMillisKey] ?: TRANSITION_MILLIS_DEFAULT
+    /**
+     * The per-transition speeds (roadmap 1.5.5). Every [TransitionId] resolves to a stored speed or
+     * its own default, so the map is always complete. A speed is stored by name, so relabelling the
+     * millis of a preset never orphans a saved choice.
+     */
+    val transitions: Flow<Map<TransitionId, TransitionSpeed>> = context.dataStore.data.map { prefs ->
+        TransitionId.entries.associateWith { id ->
+            prefs[transitionKey(id)]
+                ?.let { name -> runCatching { TransitionSpeed.valueOf(name) }.getOrNull() }
+                ?: id.default
+        }
     }
 
     /** A user-pinned place for the weather scene, or null when location is automatic (GPS/IP). */
@@ -126,8 +136,17 @@ class DashPreferences(private val context: Context) {
         context.dataStore.edit { it[systemBarKey] = json.encodeToString(config) }
     }
 
-    suspend fun saveTransitionMillis(millis: Int) {
-        context.dataStore.edit { it[transitionMillisKey] = millis }
+    /** Sets one transition's speed — the per-transition breakout. Diverging from the rest makes the
+     *  master read "Custom". */
+    suspend fun setTransition(id: TransitionId, speed: TransitionSpeed) {
+        context.dataStore.edit { it[transitionKey(id)] = speed.name }
+    }
+
+    /** The master pace: writes every transition to one speed in a single edit. */
+    suspend fun setAllTransitions(speed: TransitionSpeed) {
+        context.dataStore.edit { prefs ->
+            TransitionId.entries.forEach { prefs[transitionKey(it)] = speed.name }
+        }
     }
 
     /** Clears the stored bar config so it falls back to [SystemBarConfig.default]. */

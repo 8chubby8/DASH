@@ -18,6 +18,7 @@ import com.dash.android.ui.theme.LocalDashTheme
 fun SettingsContent(sub: SettingsSub) {
     when (sub.id) {
         "appearance.density" -> SizeScaleContent()
+        "appearance.transitions" -> MotionContent()
         "system.location" -> LocationContent()
         else -> WipPlaceholder(sub)
     }

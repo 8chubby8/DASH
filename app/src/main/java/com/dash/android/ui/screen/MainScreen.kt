@@ -67,8 +67,12 @@ import com.dash.android.prefs.DashPreferences
 import com.dash.android.transport.DashController
 import com.dash.android.transport.TransportManager
 import com.dash.android.ui.debug.DiagnosticOverlay
-import com.dash.android.ui.motion.LocalTransitionMillis
-import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
+import com.dash.android.ui.motion.DashTransitions
+import com.dash.android.ui.motion.LocalDashTransitions
+import com.dash.android.ui.motion.TransitionId
+import com.dash.android.ui.weather.LocalWeatherSnapshot
+import com.dash.android.weather.WeatherProvider
+import com.dash.android.weather.WeatherSnapshot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
@@ -134,6 +138,15 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         }
     }
 
+    // Weather for the settings landing scene, cached at the root so the panel opens on real weather
+    // instead of the clock-only floor. Warmed once at start and refreshed on each open — always off
+    // the main thread, so a slow network never blocks the panel opening (the fetch does up to two IP
+    // lookups and a forecast call, each on a 5s socket timeout; gating the open on that could freeze
+    // the button for seconds). See openSettings().
+    val weatherProvider = remember { WeatherProvider(context) }
+    var weather by remember { mutableStateOf<WeatherSnapshot?>(null) }
+    LaunchedEffect(Unit) { weather = weatherProvider.current() }
+
     var isDefaultLauncher by remember { mutableStateOf(mainActivity.isDefaultLauncher()) }
     var showSplash by remember { mutableStateOf(isColdBoot) }
     var showSettings by remember { mutableStateOf(false) }
@@ -145,6 +158,17 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var editMode by remember { mutableStateOf(false) }
     var editConfig by remember { mutableStateOf<SystemBarConfig?>(null) }
     var elementWidths by remember { mutableStateOf(mapOf<String, Int>()) }
+
+    // Opening settings refreshes the landing weather in the background (never gating the open); closing
+    // is a plain toggle. Both settings-button sites route through this so the behaviour is identical.
+    val toggleSettings: () -> Unit = {
+        if (showSettings) {
+            showSettings = false
+        } else {
+            showSettings = true
+            scope.launch { weather = weatherProvider.current() }
+        }
+    }
 
     DisposableEffect(activity.lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
@@ -174,7 +198,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
 
     val dashScale by prefs.dashScale.collectAsState(initial = DASH_SCALE_DEFAULT)
     val dashTextScale by prefs.dashTextScale.collectAsState(initial = DASH_TEXT_SCALE_DEFAULT)
-    val transitionMillis by prefs.transitionMillis.collectAsState(initial = TRANSITION_MILLIS_DEFAULT)
+    val transitionMap by prefs.transitions.collectAsState(initial = emptyMap())
+    val transitions = remember(transitionMap) { DashTransitions(transitionMap) }
     val selectedPreset by prefs.densityPreset.collectAsState(initial = null)
     val autoRotate by prefs.autoRotate.collectAsState(initial = true)
     val lockedOrientation by prefs.lockedOrientation.collectAsState(initial = "LANDSCAPE")
@@ -200,7 +225,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     CompositionLocalProvider(
         LocalDensity provides Density(baseDensity.density, dashTextScale),
         LocalDashScale provides dashScale,
-        LocalTransitionMillis provides transitionMillis,
+        LocalDashTransitions provides transitions,
+        LocalWeatherSnapshot provides weather,
         LocalDashTheme provides DashTheme.default(),
     ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
@@ -254,11 +280,16 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     .padding(top = settingsTopInset, bottom = settingsBottomInset)
             ) {
                 val fullHeight = maxHeight
-                // Open and close both take the chosen transition length, so the blind rolls out and
-                // back at the same speed.
+                // Open and close are two separate transitions with their own durations — the blind
+                // can roll out slow and snap back fast, or any pairing the user picks. The direction
+                // is read from the target: expanding uses OPEN, collapsing uses CLOSE.
                 val revealed by animateDpAsState(
                     targetValue = if (showSettings) fullHeight else 0.dp,
-                    animationSpec = tween(transitionMillis),
+                    animationSpec = tween(
+                        transitions.millis(
+                            if (showSettings) TransitionId.SETTINGS_PANEL_OPEN else TransitionId.SETTINGS_PANEL_CLOSE
+                        )
+                    ),
                     label = "settingsReveal"
                 )
                 if (revealed > 0.dp) {
@@ -313,7 +344,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         config = activeConfig,
                         onAction = { action ->
                             // The settings button toggles the panel: open when closed, close when open.
-                            if (!editMode && action is DashAction.OpenSettings) showSettings = !showSettings
+                            if (!editMode && action is DashAction.OpenSettings) toggleSettings()
                         },
                         onElementMeasured = { id, width -> elementWidths = elementWidths + (id to width) },
                         modifier = Modifier.fillMaxWidth()
@@ -365,7 +396,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         config = activeConfig,
                         onAction = { action ->
                             // The settings button toggles the panel: open when closed, close when open.
-                            if (!editMode && action is DashAction.OpenSettings) showSettings = !showSettings
+                            if (!editMode && action is DashAction.OpenSettings) toggleSettings()
                         },
                         onElementMeasured = { id, width -> elementWidths = elementWidths + (id to width) },
                         modifier = Modifier.fillMaxWidth()
@@ -645,6 +676,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     mode = splashMode,
                     colour = splashColour,
                     imageUri = splashImageUri,
+                    fadeInMillis = transitions.millis(TransitionId.SPLASH_FADE_IN),
+                    fadeOutMillis = transitions.millis(TransitionId.SPLASH_FADE_OUT),
                     onDismiss = { showSplash = false }
                 )
             }

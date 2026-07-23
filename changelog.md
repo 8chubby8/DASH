@@ -47,6 +47,49 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.5
+
+**Status:** Complete — Appearance › Transitions: a master pace over a per-transition breakout, six speed presets, and the settings-landing weather pre-loaded so it opens on real weather. Hardware-verified by Roger, 2026-07-23.
+
+**Scope:** Rehome the transition-length control (parked in the legacy settings bridge since 1.5.2) into its proper settings home, and build DASH's motion model out from a single global knob into a per-transition system. Designed in full with Roger before code; the governing rule and the tree edit are recorded in interface.md (2026-07-23 addendum).
+
+**Implemented:**
+
+- **The governing rule — "if it's a transition, it goes in Transitions."** A transition is a surface revealing, hiding, or moving between states; every one is user-controllable and breaks out to its own control. Control-feedback micro-animation intrinsic to a widget (a toggle thumb, an edit-ruler handle) is *not* a transition and stays fixed. This line is deliberately simple so it needs no case-by-case adjudication.
+- **Six speed presets** (`ui/motion/DashMotion.kt`, `TransitionSpeed`): INSTANT (0ms, a true hard cut) · FAST (250) · NORMAL (450, default) · SLOW (750) · CINEMATIC (1100) · **LABORIOUS (3000)** — the last a deliberately, gloriously slow option, the ethos made literal.
+- **A transition registry** (`TransitionId`): every transition in the code is one entry (stable key, label, hint, default). The Transitions page renders one control per entry automatically, so a new surface's transition gains a control the moment it registers — the same self-growing pattern the transport list uses. The seven at 1.5.5: settings panel **open** / **close**, settings nav **drill in** / **back out**, settings content **swap**, splash **fade in** / **fade out**.
+- **Master pace + per-transition breakout** (`ui/settings/content/MotionContent.kt`): a master control sets every transition at once; each transition then has its own six-preset control. The master is **derived, never stored** — it shows the shared speed when all agree and a **"Custom"** tag (nothing selected) the moment one diverges; re-tapping a master preset re-syncs the lot. This is the games-menu pattern, and deriving rather than storing means the master can never fall out of step with the rows.
+- **Open and close split** (`MainScreen.kt`): the settings roll-out reads its duration from OPEN when expanding and CLOSE when collapsing — the two are genuinely independent (roll out slow, snap shut fast, or any pairing).
+- **Splash gained a real fade-in** (`SplashScreen.kt`): it only faded out before. Both fades now read their durations from the registry; the splash *dwell* and image/colour selection remain a Splash-tab concern (1.5.6).
+- **Under the hood:** the single global `LocalTransitionMillis` is replaced by a `LocalDashTransitions` holder provided at the composition root, resolving each `TransitionId` to its stored speed (`DashPreferences.transitions` / `setTransition` / `setAllTransitions`, stored by name). The parked control in the legacy settings bridge is removed — this version is its rehome. Appearance › Transitions is now LIVE in the settings tree.
+- **Weather pre-load** (`ui/weather/WeatherLandingState.kt`, `MainScreen.kt`): the settings-landing weather is warmed at app start and cached at the root (`LocalWeatherSnapshot`), refreshed in the background on each settings open. The landing opens from the cache instead of the clock-only floor.
+
+**Regressions:**
+
+- **Re-entering Transitions flashed the defaults.** `MotionContent` originally started its own `collectAsState(initial = emptyMap())`, so navigating away and back painted NORMAL for one frame before DataStore delivered the stored speeds — very visible at LABORIOUS.
+- **Rapid tab-swap snapped instead of crossfading.** The wide content pane used `AnimatedContent`; re-selecting a tab whose fade-out was still in flight cancelled its exit and snapped it back — a fast "not instant, but too quick" pop, again exposed by LABORIOUS.
+- **Weather flashed "clear" on open.** The landing self-fetched from the clock-only floor each time it composed, so it showed clear for a fraction of a second before the live reading arrived.
+
+**Fixes:**
+
+- **Flash on re-entry:** `MotionContent` now reads the always-alive `LocalDashTransitions` from the root instead of starting a fresh collector, so the stored speeds are present on the first frame.
+- **Snap on tab-swap:** the content pane swapped from `AnimatedContent` to `Crossfade`, which re-targets each state's alpha over the full duration when interrupted — tapping back animates home at the chosen speed rather than snapping. The swap is now symmetric (both directions one duration).
+- **Weather flash:** fixed by the pre-load above — warmed, cached, and opened from the cache.
+
+**Outstanding:**
+
+- **Copy/text polish deferred** (Roger, 2026-07-23) — the page's labels, hints and header wording want a cleanup pass; parked deliberately, the functions are agreed correct.
+- **Shrink-to-fit trade-off:** at six presets the longest labels (CINEMATIC, LABORIOUS) shrink to fit a phone in portrait, so all chips share one smaller size. Accepted; a two-rows-of-three fallback was offered and not needed for now.
+- **Cold-boot corner:** opening settings within a second or two of a cold boot, before the warm-up fetch returns, still shows the clock-only floor briefly (there is genuinely no data yet). Not gated on purpose — the fetch is a blocking call on 5s socket timeouts, and gating the open on it could freeze the button for seconds.
+- **Stale WIP version labels** in the settings tree (Splash still says "1.5.4", System Bar "1.5.5", etc. — predating the 2026-07-21 renumber) left untouched; a sweep for the 1.5.14 cleanup.
+
+**Notes:**
+
+- **New scaffold vocabulary:** `FitPresetSegment` (a segmented selector that measures its label font down until all cells fit the width, instead of side-scrolling) and a `fullWidthControl` option on `SettingBlock` (so a wide six-cell control stacks under its label rather than crushing into the right-hand nook). Both live in `ui/settings/content/SettingsScaffold.kt` for reuse. The per-row live "demo" preview built first was removed at Roger's request — it took too much room.
+- **The naming.** The subcategory was weighed as "Motion" and settled as **Transitions**, matching the noun the governing rule uses; "Motion" would imply it also owns micro-animation, which it explicitly does not.
+
+---
+
 ## Version 1.5.4
 
 **Status:** Complete — the settings-landing weather scene, live weather over a location cascade, System › Location settings, and the user-replaceable art scheme. Hardware-tested by Roger on the Pixel 8 Pro (and the Galaxy Tab S9 Ultra), 2026-07-23.

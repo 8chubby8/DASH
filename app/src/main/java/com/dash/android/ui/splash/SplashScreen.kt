@@ -5,6 +5,7 @@ import android.graphics.BitmapFactory
 import android.net.Uri
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
+import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.foundation.Image
 import androidx.compose.foundation.background
@@ -28,29 +29,37 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.zIndex
 import kotlinx.coroutines.delay
 
+// How long the splash holds fully visible between the fade in and the fade out. This dwell is a
+// Splash-screen concern (its own control arrives with the Splash tab, roadmap 1.5.6) — the two fades
+// either side of it are transitions and are controlled from Appearance › Transitions.
 private const val SPLASH_DURATION_MS = 2500L
-private const val SPLASH_FADE_MS = 400
 
 @Composable
 fun SplashScreen(
     mode: String,
     colour: Long,
     imageUri: String,
+    fadeInMillis: Int,
+    fadeOutMillis: Int,
     onDismiss: () -> Unit
 ) {
     val context = LocalContext.current
-    var visible by remember { mutableStateOf(true) }
+    // Start hidden so the first frame fades *in* rather than snapping on. A tap short-circuits to the
+    // fade out at any point.
+    var visible by remember { mutableStateOf(false) }
 
     LaunchedEffect(Unit) {
+        visible = true
         delay(SPLASH_DURATION_MS)
         visible = false
-        delay(SPLASH_FADE_MS.toLong())
+        delay(fadeOutMillis.toLong())
         onDismiss()
     }
 
     AnimatedVisibility(
         visible = visible,
-        exit = fadeOut(animationSpec = tween(SPLASH_FADE_MS)),
+        enter = fadeIn(animationSpec = tween(fadeInMillis)),
+        exit = fadeOut(animationSpec = tween(fadeOutMillis)),
         modifier = Modifier.zIndex(100f)
     ) {
         Box(

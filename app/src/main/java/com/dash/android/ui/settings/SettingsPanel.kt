@@ -38,8 +38,6 @@ import com.dash.android.MainActivity
 import com.dash.android.density.DensityManager
 import com.dash.android.density.DensityPreset
 import com.dash.android.prefs.DashPreferences
-import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
-import com.dash.android.ui.motion.TransitionSpeed
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.launch
 
@@ -86,7 +84,6 @@ fun SettingsPanel(
     val splashColour by prefs.splashColour.collectAsState(initial = 0xFF000000L)
     val splashImageUri by prefs.splashImageUri.collectAsState(initial = "")
     val barConfig by prefs.systemBarConfig.collectAsState(initial = SystemBarConfig.default())
-    val transitionMillis by prefs.transitionMillis.collectAsState(initial = TRANSITION_MILLIS_DEFAULT)
 
     val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
         uri?.let {
@@ -132,20 +129,8 @@ fun SettingsPanel(
                 ) { Text("EDIT BAR LAYOUT", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
-            // Transition length — how quickly DASH's own chrome animates (the settings panel today,
-            // more surfaces as they are built). Belongs in Appearance; lives here in the legacy panel
-            // for now and gains its shell home when Appearance is built out (roadmap 1.5.3).
-            Section("TRANSITIONS") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    TransitionSpeed.entries.forEach { speed ->
-                        SettingButton(
-                            label = speed.label,
-                            active = transitionMillis == speed.millis,
-                            onClick = { scope.launch { prefs.saveTransitionMillis(speed.millis) } }
-                        )
-                    }
-                }
-            }
+            // Transitions rehomed to Appearance › Transitions (roadmap 1.5.5) — every DASH transition
+            // now breaks out to its own control there, under a master pace. Removed from the legacy panel.
 
             // App Density
             Section("APP DENSITY") {

@@ -1,6 +1,7 @@
 package com.dash.android.ui.settings
 
 import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -26,7 +27,6 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -38,12 +38,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.dash.android.ui.motion.LocalTransitionMillis
+import com.dash.android.ui.motion.LocalDashTransitions
+import com.dash.android.ui.motion.TransitionId
 import com.dash.android.ui.settings.content.SettingsContent
 import com.dash.android.ui.theme.LocalDashTheme
+import com.dash.android.ui.weather.LocalWeatherSnapshot
 import com.dash.android.ui.weather.WeatherScene
 import com.dash.android.weather.WeatherArt
-import com.dash.android.weather.WeatherProvider
 import com.dash.android.weather.WeatherSnapshot
 
 /**
@@ -75,7 +76,6 @@ fun SettingsShell(
     modifier: Modifier = Modifier,
 ) {
     val theme = LocalDashTheme.current
-    val transitionMillis = LocalTransitionMillis.current
     var selectedCategory by remember { mutableStateOf<SettingsCategory?>(null) }
     var selectedSubId by remember { mutableStateOf<String?>(null) }
 
@@ -88,7 +88,6 @@ fun SettingsShell(
 
         if (wide) {
             WideSettings(
-                transitionMillis = transitionMillis,
                 selectedCategory = selectedCategory,
                 selectedSubId = selectedSubId,
                 onSelectCategory = { cat ->
@@ -108,7 +107,6 @@ fun SettingsShell(
             )
         } else {
             NarrowSettings(
-                transitionMillis = transitionMillis,
                 selectedCategory = selectedCategory,
                 selectedSubId = selectedSubId,
                 onSelectCategory = { cat ->
@@ -132,7 +130,6 @@ fun SettingsShell(
 // ── Wide: two-pane ─────────────────────────────────────────────────────────────────────────────
 @Composable
 private fun WideSettings(
-    transitionMillis: Int,
     selectedCategory: SettingsCategory?,
     selectedSubId: String?,
     onSelectCategory: (SettingsCategory) -> Unit,
@@ -141,6 +138,7 @@ private fun WideSettings(
     onBack: () -> Unit,
 ) {
     val theme = LocalDashTheme.current
+    val transitions = LocalDashTransitions.current
     val fontScale = LocalDensity.current.fontScale
     val inSubtree = selectedCategory != null
 
@@ -159,13 +157,17 @@ private fun WideSettings(
                 AnimatedContent(
                     targetState = selectedCategory,
                     transitionSpec = {
-                        val slide = tween<IntOffset>(transitionMillis)
+                        // Into a subtree is DRILL IN; back to the tree is BACK OUT — each its own speed.
                         if (targetState != null) {
-                            (slideInHorizontally(slide) { it / 3 } + fadeIn(tween(transitionMillis))) togetherWith
-                                (slideOutHorizontally(slide) { -it / 3 } + fadeOut(tween(transitionMillis * 2 / 3)))
+                            val d = transitions.millis(TransitionId.SETTINGS_NAV_DRILL_IN)
+                            val slide = tween<IntOffset>(d)
+                            (slideInHorizontally(slide) { it / 3 } + fadeIn(tween(d))) togetherWith
+                                (slideOutHorizontally(slide) { -it / 3 } + fadeOut(tween(d * 2 / 3)))
                         } else {
-                            (slideInHorizontally(slide) { -it / 3 } + fadeIn(tween(transitionMillis))) togetherWith
-                                (slideOutHorizontally(slide) { it / 3 } + fadeOut(tween(transitionMillis * 2 / 3)))
+                            val d = transitions.millis(TransitionId.SETTINGS_NAV_BACK_OUT)
+                            val slide = tween<IntOffset>(d)
+                            (slideInHorizontally(slide) { -it / 3 } + fadeIn(tween(d))) togetherWith
+                                (slideOutHorizontally(slide) { it / 3 } + fadeOut(tween(d * 2 / 3)))
                         }
                     },
                     modifier = Modifier.weight(1f),
@@ -196,12 +198,13 @@ private fun WideSettings(
             // chosen subcategory's content (and between subcategories) rather than a hard cut.
             Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
                 val sub = selectedCategory?.subs?.firstOrNull { it.id == selectedSubId }
-                AnimatedContent(
+                // Crossfade, not AnimatedContent, for the content swap: it re-targets each state's
+                // alpha over the full duration when interrupted, so tapping back to a tab whose fade
+                // hasn't finished animates home at the chosen speed rather than snapping. At LABORIOUS
+                // the interruption window is seconds long, which is where the snap showed up.
+                Crossfade(
                     targetState = sub,
-                    transitionSpec = {
-                        fadeIn(tween(transitionMillis)) togetherWith
-                            fadeOut(tween(transitionMillis * 2 / 3))
-                    },
+                    animationSpec = tween(transitions.millis(TransitionId.SETTINGS_CONTENT_SWAP)),
                     label = "content"
                 ) { target ->
                     if (target != null) {
@@ -220,7 +223,6 @@ private fun WideSettings(
 // ── Narrow: single-pane drill-down ─────────────────────────────────────────────────────────────
 @Composable
 private fun NarrowSettings(
-    transitionMillis: Int,
     selectedCategory: SettingsCategory?,
     selectedSubId: String?,
     onSelectCategory: (SettingsCategory) -> Unit,
@@ -229,6 +231,7 @@ private fun NarrowSettings(
     onBack: () -> Unit,
 ) {
     val theme = LocalDashTheme.current
+    val transitions = LocalDashTransitions.current
     val screen = NarrowScreen(selectedCategory, selectedSubId)
 
     Column(Modifier.fillMaxSize()) {
@@ -237,14 +240,19 @@ private fun NarrowSettings(
         AnimatedContent(
             targetState = screen,
             transitionSpec = {
-                val slide = tween<IntOffset>(transitionMillis)
+                // The same DRILL IN / BACK OUT pair as the wide layout — one control governs the
+                // navigation slide in both, so the user isn't asked to set "the same slide" twice.
                 val forward = targetState.depth > initialState.depth
+                val d = transitions.millis(
+                    if (forward) TransitionId.SETTINGS_NAV_DRILL_IN else TransitionId.SETTINGS_NAV_BACK_OUT
+                )
+                val slide = tween<IntOffset>(d)
                 if (forward) {
-                    (slideInHorizontally(slide) { it } + fadeIn(tween(transitionMillis))) togetherWith
-                        (slideOutHorizontally(slide) { -it / 3 } + fadeOut(tween(transitionMillis * 2 / 3)))
+                    (slideInHorizontally(slide) { it } + fadeIn(tween(d))) togetherWith
+                        (slideOutHorizontally(slide) { -it / 3 } + fadeOut(tween(d * 2 / 3)))
                 } else {
-                    (slideInHorizontally(slide) { -it / 3 } + fadeIn(tween(transitionMillis))) togetherWith
-                        (slideOutHorizontally(slide) { it } + fadeOut(tween(transitionMillis * 2 / 3)))
+                    (slideInHorizontally(slide) { -it / 3 } + fadeIn(tween(d))) togetherWith
+                        (slideOutHorizontally(slide) { it } + fadeOut(tween(d * 2 / 3)))
                 }
             },
             modifier = Modifier.weight(1f).fillMaxWidth(),
@@ -313,13 +321,10 @@ private fun WeatherLanding(modifier: Modifier = Modifier) {
     val theme = LocalDashTheme.current
     val context = LocalContext.current
     val art = remember { WeatherArt(context) }
-    val provider = remember { WeatherProvider(context) }
-    // Frozen-clock, refreshed on reopen: the snapshot is taken when the landing enters composition.
-    // It starts on the offline clock-only floor (instant, always correct) and upgrades to live weather
-    // the moment the cascade returns — so the scene never blocks on the network.
-    val snapshot by produceState(initialValue = WeatherSnapshot.clockOnly(), provider) {
-        value = provider.current()
-    }
+    // The snapshot is warmed and cached at the composition root (see MainScreen) and provided here, so
+    // the scene opens on real weather rather than flashing through the clock-only floor. It falls back
+    // to the offline floor only for the first moment after a cold boot, before the warm-up returns.
+    val snapshot = LocalWeatherSnapshot.current ?: WeatherSnapshot.clockOnly()
     Box(
         modifier
             .clip(RoundedCornerShape(16.dp))

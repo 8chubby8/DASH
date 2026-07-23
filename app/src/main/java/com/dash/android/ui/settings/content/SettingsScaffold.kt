@@ -23,11 +23,16 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.ui.text.AnnotatedString
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -100,6 +105,7 @@ fun SettingBlock(
     name: String,
     help: String,
     tag: String? = null,
+    fullWidthControl: Boolean = false,
     control: @Composable () -> Unit,
     preview: (@Composable () -> Unit)? = null,
 ) {
@@ -119,7 +125,10 @@ fun SettingBlock(
     }
 
     BoxWithConstraints(Modifier.fillMaxWidth()) {
-        val wide = maxWidth >= 520.dp
+        // A control that wants the full width (a wide segmented selector) always stacks under its
+        // label, even where the block would otherwise split label-left / control-right — a six-cell
+        // segment has nowhere near enough room in the right-hand nook.
+        val wide = maxWidth >= 520.dp && !fullWidthControl
         Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(14.dp)) {
             if (wide) {
                 Row(horizontalArrangement = Arrangement.spacedBy(24.dp), verticalAlignment = Alignment.Top) {
@@ -182,6 +191,83 @@ fun PresetSegment(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) 
                     fontSize = 12.5.sp,
                     fontFamily = theme.font,
                 )
+            }
+        }
+    }
+}
+
+/**
+ * A segmented selector that **shrinks to fit** rather than scrolling. The cells share the width
+ * equally, and the label font is measured down until the longest label fits its cell — so a control
+ * with many long options (the six transition speeds) stays one tidy row on a phone in portrait
+ * instead of truncating and side-scrolling. Give it the full width (it fills what it's handed).
+ */
+@Composable
+fun FitPresetSegment(
+    labels: List<String>,
+    selected: Int,
+    maxFontSp: Float = 12.5f,
+    minFontSp: Float = 8f,
+    onSelect: (Int) -> Unit,
+) {
+    val theme = LocalDashTheme.current
+    val measurer = rememberTextMeasurer()
+    val density = LocalDensity.current
+    val outerPad = 3.dp
+    val gap = 2.dp
+    val chipHPad = 6.dp
+
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val n = labels.size.coerceAtLeast(1)
+        // Width left for a cell's *text* once the frame, gaps and per-chip padding are removed.
+        val chrome = outerPad * 2 + gap * (n - 1) + chipHPad * 2 * n
+        val perCellTextPx = with(density) { ((maxWidth - chrome) / n).coerceAtLeast(0.dp).toPx() }
+
+        // Largest font (stepping down from max) at which the widest label still fits a cell.
+        val fontSp = remember(labels, perCellTextPx, theme.font) {
+            var fs = maxFontSp
+            while (fs > minFontSp) {
+                val widest = labels.maxOf { l ->
+                    measurer.measure(
+                        AnnotatedString(l),
+                        style = TextStyle(fontSize = fs.sp, fontFamily = theme.font),
+                    ).size.width
+                }
+                if (widest <= perCellTextPx) break
+                fs -= 0.5f
+            }
+            fs
+        }
+
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(11.dp))
+                .background(theme.textColourSecondary.copy(alpha = 0.08f))
+                .border(1.dp, theme.textColourSecondary.copy(alpha = 0.18f), RoundedCornerShape(11.dp))
+                .padding(outerPad),
+            horizontalArrangement = Arrangement.spacedBy(gap),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            labels.forEachIndexed { i, l ->
+                val sel = i == selected
+                Box(
+                    Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(8.dp))
+                        .background(if (sel) theme.textColourSecondary else Color.Transparent)
+                        .clickable { onSelect(i) }
+                        .padding(horizontal = chipHPad, vertical = 8.dp),
+                    contentAlignment = Alignment.Center,
+                ) {
+                    Text(
+                        l,
+                        color = if (sel) theme.backgroundColourSecondary else theme.textColourSecondary.copy(alpha = 0.75f),
+                        fontSize = fontSp.sp,
+                        fontFamily = theme.font,
+                        maxLines = 1,
+                    )
+                }
             }
         }
     }

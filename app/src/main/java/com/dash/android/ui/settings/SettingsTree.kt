@@ -39,7 +39,7 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
     SettingsCategory(
         "appearance", "Appearance", listOf(
             SettingsSub("appearance.density", "Size & Scale", SettingsStatus.LIVE),
-            wip("appearance.transitions", "Transitions", "1.5.3"),
+            SettingsSub("appearance.transitions", "Transitions", SettingsStatus.LIVE),
             wip("appearance.splash", "Splash Screen", "1.5.4"),
             wip("appearance.colours", "Colours", "v2"),
             wip("appearance.fonts", "Fonts", "v2"),
