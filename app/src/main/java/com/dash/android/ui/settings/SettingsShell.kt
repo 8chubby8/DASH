@@ -26,11 +26,13 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
@@ -39,6 +41,10 @@ import androidx.compose.ui.unit.sp
 import com.dash.android.ui.motion.LocalTransitionMillis
 import com.dash.android.ui.settings.content.SettingsContent
 import com.dash.android.ui.theme.LocalDashTheme
+import com.dash.android.ui.weather.WeatherScene
+import com.dash.android.weather.WeatherArt
+import com.dash.android.weather.WeatherProvider
+import com.dash.android.weather.WeatherSnapshot
 
 /**
  * The DASH settings shell. **Adaptive** (roadmap 1.5.x): it lays itself out from the space actually
@@ -186,20 +192,25 @@ private fun WideSettings(
                 NavRow(if (inSubtree) "‹ BACK" else "‹ CLOSE", trailing = null, selected = false) { onBack() }
             }
 
-            // Right: the content box (appears once a category is chosen).
+            // Right: the content box. A crossfade carries the eye between the weather landing and a
+            // chosen subcategory's content (and between subcategories) rather than a hard cut.
             Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
                 val sub = selectedCategory?.subs?.firstOrNull { it.id == selectedSubId }
-                if (sub != null) {
-                    SettingsContentBox(sub, Modifier.fillMaxSize())
-                } else {
-                    // Landing: draw the empty content box straight away so the pane never opens blank
-                    // (its contents arrive in a later version).
-                    Box(
-                        Modifier
-                            .fillMaxSize()
-                            .clip(RoundedCornerShape(16.dp))
-                            .background(theme.backgroundColourSecondary)
-                    )
+                AnimatedContent(
+                    targetState = sub,
+                    transitionSpec = {
+                        fadeIn(tween(transitionMillis)) togetherWith
+                            fadeOut(tween(transitionMillis * 2 / 3))
+                    },
+                    label = "content"
+                ) { target ->
+                    if (target != null) {
+                        SettingsContentBox(target, Modifier.fillMaxSize())
+                    } else {
+                        // Landing: the layered weather scene (roadmap 1.5.4). Renders offline from the
+                        // device clock; the live weather layer upgrades it when a source is available.
+                        WeatherLanding(Modifier.fillMaxSize())
+                    }
                 }
             }
         }
@@ -295,6 +306,27 @@ private fun Breadcrumb(text: String) {
         letterSpacing = 3.sp,
         modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 14.dp)
     )
+}
+
+@Composable
+private fun WeatherLanding(modifier: Modifier = Modifier) {
+    val theme = LocalDashTheme.current
+    val context = LocalContext.current
+    val art = remember { WeatherArt(context) }
+    val provider = remember { WeatherProvider(context) }
+    // Frozen-clock, refreshed on reopen: the snapshot is taken when the landing enters composition.
+    // It starts on the offline clock-only floor (instant, always correct) and upgrades to live weather
+    // the moment the cascade returns — so the scene never blocks on the network.
+    val snapshot by produceState(initialValue = WeatherSnapshot.clockOnly(), provider) {
+        value = provider.current()
+    }
+    Box(
+        modifier
+            .clip(RoundedCornerShape(16.dp))
+            .background(theme.backgroundColourSecondary)
+    ) {
+        WeatherScene(snapshot, art, theme.font, Modifier.fillMaxSize())
+    }
 }
 
 @Composable

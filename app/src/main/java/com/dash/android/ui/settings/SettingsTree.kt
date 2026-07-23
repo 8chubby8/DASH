@@ -104,6 +104,7 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
     ),
     SettingsCategory(
         "system", "System", listOf(
+            SettingsSub("system.location", "Location", SettingsStatus.LIVE),
             wip("system.deeplinks", "Android Settings Links", "1.5.11"),
             wip("system.about", "About DASH", "1.5.11"),
         )

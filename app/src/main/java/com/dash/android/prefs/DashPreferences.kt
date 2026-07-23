@@ -15,6 +15,7 @@ import com.dash.android.ui.motion.TRANSITION_MILLIS_DEFAULT
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
 import com.dash.android.ui.systembar.SystemBarConfig
+import com.dash.android.weather.ManualLocation
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import kotlinx.serialization.decodeFromString
@@ -39,6 +40,7 @@ class DashPreferences(private val context: Context) {
     private val splashImageUriKey = stringPreferencesKey("splash_image_uri")
     private val systemBarKey = stringPreferencesKey("system_bar_config")
     private val transitionMillisKey = intPreferencesKey("transition_millis")
+    private val manualLocationKey = stringPreferencesKey("manual_location")
 
     val densityPreset: Flow<DensityPreset?> = context.dataStore.data.map { prefs ->
         prefs[densityKey]?.let { name -> DensityPreset.entries.find { it.name == name } }
@@ -80,6 +82,12 @@ class DashPreferences(private val context: Context) {
 
     val transitionMillis: Flow<Int> = context.dataStore.data.map { prefs ->
         prefs[transitionMillisKey] ?: TRANSITION_MILLIS_DEFAULT
+    }
+
+    /** A user-pinned place for the weather scene, or null when location is automatic (GPS/IP). */
+    val manualLocation: Flow<ManualLocation?> = context.dataStore.data.map { prefs ->
+        prefs[manualLocationKey]
+            ?.let { runCatching { json.decodeFromString<ManualLocation>(it) }.getOrNull() }
     }
 
     suspend fun saveDensityPreset(preset: DensityPreset) {
@@ -125,5 +133,14 @@ class DashPreferences(private val context: Context) {
     /** Clears the stored bar config so it falls back to [SystemBarConfig.default]. */
     suspend fun resetSystemBar() {
         context.dataStore.edit { it.remove(systemBarKey) }
+    }
+
+    suspend fun saveManualLocation(location: ManualLocation) {
+        context.dataStore.edit { it[manualLocationKey] = json.encodeToString(location) }
+    }
+
+    /** Clears the pinned place so the weather scene returns to automatic (GPS → IP) location. */
+    suspend fun clearManualLocation() {
+        context.dataStore.edit { it.remove(manualLocationKey) }
     }
 }

@@ -47,6 +47,55 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.4
+
+**Status:** Complete — the settings-landing weather scene, live weather over a location cascade, System › Location settings, and the user-replaceable art scheme. Hardware-tested by Roger on the Pixel 8 Pro (and the Galaxy Tab S9 Ultra), 2026-07-23.
+
+**Scope:** Fill the bare settings-landing box with a designed, offline-capable, good-looking interim visual — the layered weather scene brought forward from the version-2 hero, *minus* the vehicle silhouette and live-car interaction (those stay v2). Designed in full with Roger before any keeper code, then reconciled to the finalised layer model once the look was agreed.
+
+**Implemented:**
+
+- **The layered weather scene** (`ui/weather/WeatherScene.kt`) — four layers, back to front, each drawn from user/bundled art if present and procedurally if not, so the scene is complete with zero art shipped:
+  1. **Skybox — nine time-of-day states** (dawn, sunrise, morning, midday, afternoon, evening, sunset, dusk, night). Carries *time only* — sky colour and the sun. The **sun rides the right third and moves vertically** (low at dawn/dusk, high at midday), so clouds light from a consistent side.
+  2. **Clouds — seven levels**, driven by the real `cloud_cover` reading; painted neutral and code-tinted to the hour so one set serves every sky. Level 7 reads as full overcast.
+  3. **Background — three graded states** (day / night-with-lit-windows / snow). Each exists only for content a grade can't add; everything between is one of these graded.
+  4. **Foreground — procedural** rain / snow (and fog), never art; particles scale to precipitation and rake with the wind.
+- **"Frozen clock, living air."** The snapshot is fixed for the session (taken when the landing opens, re-fetched on reopen), but the clouds still drift at the real wind speed and the particles still fall while it is on screen. The frame loop runs only while composed.
+- **The readout** — bottom-left, left-aligned, over a soft bottom fade (a gradient, not a box — the picture is never framed): time, temperature, condition, location, and a **"Weather data by Open-Meteo →" attribution link** (Open-Meteo's free tier is CC-BY 4.0, so attribution is required). It wears DASH's typography — the `font` token, sized in `sp` so it rides the `dashTextScale` stepper.
+- **Live weather** (`weather/WeatherProvider.kt`) — Open-Meteo (`api.open-meteo.com`), keyless, over `HttpURLConnection` + kotlinx.serialization (no new dependency). Maps `weather_code`, `is_day`, `temperature_2m`, `cloud_cover`, `wind_speed_10m`, `wind_direction_10m`.
+- **The location cascade**, most-owned first: **manual pin → GPS → IP geolocation → clock-only floor.** GPS is a last-known coarse fix, used *only if* `ACCESS_COARSE_LOCATION` is already granted (DASH never prompts — the no-nag rule); IP geolocation is keyless across two providers (`ipwho.is`, then `ipapi.co`) with a browser-like User-Agent; offline it renders a correct time-of-day sky from the device clock alone.
+- **System › Location** (`ui/settings/content/LocationContent.kt`, live tree entry) — the two controls that make the cascade reachable without adb:
+  - **Use device location** — a toggle that *is* the permission ask, raised only when the user reaches for it (user-initiated, not a nag). Off, the scene uses IP geolocation; a granted permission lights up the GPS rung.
+  - **Manual location** — type a town; resolved once via Open-Meteo's geocoder and pinned at the top of the cascade, overriding GPS and IP both. "Use automatic" clears it.
+  - New reusable scaffold control `SettingToggle`; manual pin persisted via `DashPreferences` (`manualLocation`).
+- **User-replaceable art — the SDKable principle made concrete.** Three tiers per layer (user → bundled → procedural). Drop image files into **`Android/data/com.dash.android/files/weather/`** (DASH's own external files dir — no permission, no root; on Android 11+ it is hidden from file managers, so use `adb push <file> /sdcard/Android/data/com.dash.android/files/weather/`). Extensions `.webp` / `.png` / `.jpg`. Any file overrides that one layer; any absent file stays procedural. **Filenames:**
+  - Skybox (time only): `sky-dawn`, `sky-sunrise`, `sky-morning`, `sky-midday`, `sky-afternoon`, `sky-evening`, `sky-sunset`, `sky-dusk`, `sky-night`
+  - Clouds: `clouds-1` (lightest) … `clouds-7` (full overcast) — paint neutral, lit from the upper right
+  - Background: `background-day`, `background-night`, `background-snow`
+  - Foreground weather (rain/snow/fog) takes no art — it is procedural.
+- **The content-box crossfade** — picking a subcategory now crossfades from the scene to the content (and between subcategories), timed to `LocalTransitionMillis`, instead of a hard cut.
+
+**Regressions / dead ends (the honest bits):**
+
+- **An APK was built mid-design, before the scene was agreed** — Roger (rightly) called it out; the code was parked and not built on until he gave the word. Recorded because the lesson — design sign-off is not a build order — is worth keeping.
+- **IP geolocation first showed "offline" forever** — `ipapi.co` was silently rejecting the default Java user-agent. Fixed with a browser-like User-Agent and a second provider (`ipwho.is`) as fallback, plus `DashWeather` logging to diagnose it. Confirmed on-device: a granted-permission fix pinned Barleythorpe (Rutland) exactly; without permission, IP wandered between London and Northampton.
+- **The first naming scheme predated the finalised design** — the parked `WeatherArt` baked condition into the skybox and had a single background. Reconciled to the 9/7/3 model (skybox time-only, clouds carry condition, three backgrounds) so the artist's set drops straight in. The old `overlay-snow` / `overlay-wet` (snow-cover / wet-sheen) were removed — they belong to v2 with the ground and vehicle.
+
+**Outstanding:**
+
+- **The offline→live swap is a hard snapshot change**, not a crossfade — the scene can visibly "pop" from clear to the real condition a beat after opening. A within-scene crossfade is an easy follow-up if it grates.
+- **Painted art is optional, not pending.** Roger likes the procedural look as a default in its own right; the 9/7/3 art slots are an enhancement that overrides it, not a prerequisite. Don't gold-plate the art pipeline.
+- **Manual-city geocoding takes the first match** — no disambiguation UI for same-named towns.
+- **GPS reads last-known network location** — instant and battery-free, but can be null on a device that hasn't fixed recently (it then falls through to IP); there is no active single-shot fetch.
+
+**Notes:**
+
+- **Version bump:** `versionName` 1.5.3 → 1.5.4, `versionCode` 23 → 24.
+- **New manifest permission:** `ACCESS_COARSE_LOCATION`, declared for the GPS rung — never prompted by DASH itself; it lights up only if the user grants it (capability detection), and the scene works from IP until then.
+- **The whole scene was designed with Roger in one session before any keeper code** — the four-layer split, frozen-clock/living-air, the right-third sun, the bottom-left readout, the attribution link, and the location cascade were all agreed first.
+
+---
+
 ## Version 1.5.3
 
 **Status:** Complete — Appearance › Size & Scale, the reusable settings content scaffold, and the adaptive settings layout. Hardware-tested by Roger on both the phone and the tablet, 2026-07-22.

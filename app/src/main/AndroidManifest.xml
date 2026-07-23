@@ -9,6 +9,13 @@
          stack and does not affect concurrent internet use. -->
     <uses-permission android:name="android.permission.INTERNET" />
 
+    <!-- Weather-landing location, top of the cascade (1.5.4). COARSE is a runtime (dangerous)
+         permission, but DASH never prompts for it — the no-nag rule. It is declared so that a user who
+         grants it independently lights up the GPS tier transparently (capability detection); until
+         then the scene falls through to keyless IP geolocation, which needs no permission. Either way
+         weather only ever upgrades the offline clock-only floor. -->
+    <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION" />
+
     <!-- Bluetooth Classic (SPP) transport (1.4.12). On API 31+ BLUETOOTH_CONNECT is a runtime
          (dangerous) permission — DASH requests it and degrades gracefully if denied (the transport
          reports unavailable and DASH carries on). We connect out to *already-bonded* devices only

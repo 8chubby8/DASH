@@ -1,5 +1,6 @@
 package com.dash.android.ui.settings.content
 
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -12,13 +13,16 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -266,6 +270,42 @@ fun LivePreviewCard(label: String, content: @Composable () -> Unit) {
             Box(Modifier.weight(1f).height(1.dp).background(theme.textColourSecondary.copy(alpha = 0.14f)))
         }
         content()
+    }
+}
+
+/**
+ * A pill toggle for an on/off setting, drawn in the secondary set like the rest of the scaffold. The
+ * caller owns the state — [onToggle] fires on tap and the composable simply reflects [checked].
+ */
+@Composable
+fun SettingToggle(checked: Boolean, enabled: Boolean = true, onToggle: () -> Unit) {
+    val theme = LocalDashTheme.current
+    val trackWidth = 46.dp
+    val trackHeight = 28.dp
+    val thumb = 22.dp
+    val offset by animateDpAsState(if (checked) trackWidth - trackHeight else 0.dp, label = "toggle")
+    Box(
+        modifier = Modifier
+            .size(trackWidth, trackHeight)
+            .clip(RoundedCornerShape(999.dp))
+            .background(
+                if (checked) theme.textColourSecondary
+                else theme.textColourSecondary.copy(alpha = if (enabled) 0.18f else 0.08f)
+            )
+            .clickable(enabled = enabled) { onToggle() }
+            .padding(3.dp),
+        contentAlignment = Alignment.CenterStart,
+    ) {
+        Box(
+            Modifier
+                .offset(x = offset)
+                .size(thumb)
+                .clip(CircleShape)
+                .background(
+                    if (checked) theme.backgroundColourSecondary
+                    else theme.textColourSecondary.copy(alpha = 0.55f)
+                )
+        )
     }
 }
 
