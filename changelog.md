@@ -47,6 +47,49 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.6
+
+**Status:** Complete — Appearance › Splash Screen: colour / image / animation, an independent background colour with a custom picker, and a per-orientation image crop. Hardware-verified by Roger on the Pixel 8 Pro and the Galaxy Tab S9 Ultra, 2026-07-23.
+
+**Scope:** Exposes the 1.2.x splash feature — and grew well past "image-or-colour + duration" in design with Roger. Three source types, the splash's own colour, animated images, and a "Model B" crop editor with per-orientation crops. Designed in full before code and built in two verified phases (structure, then crop).
+
+**Implemented:**
+
+- **Three-way type — Colour / Image / Animation** (`ui/settings/content/SplashContent.kt`). Image is a *still* (a GIF shows a frozen first frame); Animation is a GIF / animated WebP that **plays through once and then fades** — no dwell, the animation's own length is its duration. Still and animation keep **separate file slots**, so switching type remembers each pick.
+- **BackgroundColourSplash — the splash's own independent colour** (raw ARGB, deliberately *not* a theme reference). Theme tokens plus black/white are offered as **preset swatches** to seed it, and a compact **HSV custom picker** (a saturation/value square over a hue bar; `ui/settings/content/ColourPicker.kt`) takes it anywhere. It **persists across all three types**: for Colour it is the whole screen, for Image / Animation it is the backdrop and the **matte behind any letterboxing**. The Background control sits **between Type and Preview** so it applies to everything — which is also what settled the matte question, by reuse rather than a second control.
+- **Display time** — a ± stepper (0–10s, half-second steps; floor is 0 because DASH has no opinion on whether you want a splash at all), shown for Colour and Image, **hidden for Animation**.
+- **Animation playback** (`ui/splash/SplashScreen.kt`) — API 28+ decodes an `AnimatedImageDrawable` via `ImageDecoder` and plays it once; the end callback fades the splash, with a 20s safety cap. API 24–27 degrades to a static first frame under the dwell timer — the no-special-cases graceful path. The two fades either side remain Transitions' concern (1.5.5).
+- **Real-shape preview + orientation toggle** — the preview draws in the **actual screen aspect**, taken from the screen's long/short dimensions (right regardless of how the device is held), with a **Landscape / Portrait toggle** deciding which way round (default landscape). This replaced the fixed 16:9 preview and fixed a bug where a landscape device showed a portrait preview.
+- **Per-orientation image crop — "Model B"** (`ui/splash/SplashCrop.kt`, `ui/settings/content/SplashCropEditor.kt`). Tap the preview to edit: a fixed dashed frame **is** the screen, and the photo **pans and pinches behind it**. Zoom runs from the **contain floor** (whole image visible, background colour showing as matte in the gaps) up through the **standard-crop detent at 1.0** — where it clicks and holds; release and re-pinch to cross it, symmetric in both directions — and on into tight zoom. **Two crops are stored, portrait and landscape** (a tall slice and a wide slice of one picture can't come from one rectangle). The same crop drives the **real boot splash**, chosen by the actual screen shape at boot. Colour has nothing to crop; **animation centre-crops for now** (stills-first).
+- **Splash section removed from the legacy settings bridge** — this version is its rehome. Appearance › Splash Screen is now LIVE in the settings tree.
+
+**Data model** (`DashPreferences`): `splash_mode` (COLOUR/IMAGE/ANIMATION), `splash_bg_colour` (Long ARGB — BackgroundColourSplash), `splash_image_uri` + `splash_animation_uri` (separate slots), `splash_dwell_millis`, and `splash_crop_portrait` + `splash_crop_landscape` (each encoded `"zoom,panX,panY"`). The colour is theme-independent; the crop is **resolution-independent** — zoom is relative to the cover fit, pan is normalised — so the small preview and the full boot splash render an identical crop.
+
+**Regressions:**
+
+- **Landscape device showed a portrait preview** — the preview read the device's live orientation.
+- **Colour picker snapped the hue back.** A `pointerInput(Unit)` block captured its first `hsv` and callbacks once, so adjusting hue and then saturation/value reset the hue, and a drag's commit persisted a stale colour.
+
+**Fixes:**
+
+- **Preview orientation:** derived from the screen's long/short dimensions and the new toggle rather than the live orientation — deterministic, and the bug is gone.
+- **Picker stale-capture:** the current `hsv` and callbacks are routed through `rememberUpdatedState`, so a gesture always acts on the latest and commit saves the true colour.
+
+**Outstanding:**
+
+- **Zoom pivots about the frame centre**, not the pinch centroid — accepted; a maths tweak if wanted.
+- **Drag vs scroll:** the crop editor sits inside the scrollable settings box; the gesture consumes to avoid scrolling the page — to harden if it ever fights.
+- **The background HSV picker is full-height above the preview**; a "Custom" disclosure to collapse it was offered and not taken.
+- **Animation crop deferred** (stills-first); **true video is out of scope** — it needs a media player, not a drawable.
+- **Stale WIP tree labels** still await the 1.5.14 sweep (carried from 1.5.5).
+
+**Notes:**
+
+- Built in two phases with Roger, each hardware-verified: **Phase 1** — three types, the reorder, the real-aspect preview and the colour model; **Phase 2** — the crop, per-orientation, and the orientation-bug fix.
+- **New shared building blocks:** `ColourPicker` / `Hsv` (HSV picker + conversions), `SplashCrop` with `CroppedImage` / `rememberSplashBitmap` / `placeImage` (resolution-independent crop maths and rendering, shared by preview, editor and boot splash), and `LocalSplashPreview` (a CompositionLocal that lets the Splash tab play the real full-screen splash without threading a callback through the settings shell).
+
+---
+
 ## Version 1.5.5
 
 **Status:** Complete — Appearance › Transitions: a master pace over a per-transition breakout, six speed presets, and the settings-landing weather pre-loaded so it opens on real weather. Hardware-verified by Roger, 2026-07-23.

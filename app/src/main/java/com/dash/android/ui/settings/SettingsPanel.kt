@@ -3,8 +3,6 @@ package com.dash.android.ui.settings
 import android.content.ComponentName
 import android.content.Intent
 import android.provider.Settings
-import androidx.activity.compose.rememberLauncherForActivityResult
-import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -41,12 +39,6 @@ import com.dash.android.prefs.DashPreferences
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.launch
 
-private val SPLASH_COLOURS = listOf(
-    "Black" to 0xFF000000L,
-    "DASH Navy" to 0xFF1A1A2EL,
-    "Dark Slate" to 0xFF0D1117L
-)
-
 private val LABEL_COLOR = Color(0xFF666666)
 private val INACTIVE = Color(0xFF2A2A2A)
 private val ACTIVE = Color(0xFF2E7D32)
@@ -63,7 +55,6 @@ fun SettingsPanel(
     activity: MainActivity,
     prefs: DashPreferences,
     densityManager: DensityManager,
-    onPreviewSplash: () -> Unit,
     onEnterEditMode: () -> Unit,
     onOpenModules: () -> Unit,
     onOpenSerialMonitor: () -> Unit,
@@ -80,22 +71,7 @@ fun SettingsPanel(
     val selectedPreset by prefs.densityPreset.collectAsState(initial = null)
     val autoRotate by prefs.autoRotate.collectAsState(initial = true)
     val lockedOrientation by prefs.lockedOrientation.collectAsState(initial = "LANDSCAPE")
-    val splashMode by prefs.splashMode.collectAsState(initial = "COLOUR")
-    val splashColour by prefs.splashColour.collectAsState(initial = 0xFF000000L)
-    val splashImageUri by prefs.splashImageUri.collectAsState(initial = "")
     val barConfig by prefs.systemBarConfig.collectAsState(initial = SystemBarConfig.default())
-
-    val imagePicker = rememberLauncherForActivityResult(ActivityResultContracts.GetContent()) { uri ->
-        uri?.let {
-            runCatching {
-                context.contentResolver.takePersistableUriPermission(it, Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            }
-            scope.launch {
-                prefs.saveSplashImageUri(it.toString())
-                prefs.saveSplashMode("IMAGE")
-            }
-        }
-    }
 
     Box(modifier = Modifier.fillMaxSize().background(Color(0xFF0A0A12))) {
         Column(
@@ -192,46 +168,9 @@ fun SettingsPanel(
                 }
             }
 
-            // Splash Screen
-            Section("SPLASH SCREEN") {
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                    listOf("COLOUR", "IMAGE").forEach { mode ->
-                        SettingButton(
-                            label = mode,
-                            active = splashMode == mode,
-                            onClick = { scope.launch { prefs.saveSplashMode(mode) } }
-                        )
-                    }
-                }
-                if (splashMode == "COLOUR") {
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        SPLASH_COLOURS.forEach { (label, argb) ->
-                            SettingButton(
-                                label = label,
-                                active = splashColour == argb,
-                                onClick = { scope.launch { prefs.saveSplashColour(argb) } }
-                            )
-                        }
-                    }
-                } else {
-                    Button(
-                        onClick = { imagePicker.launch("image/*") },
-                        colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
-                        contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                    ) {
-                        Text(
-                            if (splashImageUri.isNotEmpty()) "Change Image →" else "Choose Image →",
-                            fontSize = 13.sp,
-                            fontFamily = LocalDashTheme.current.font
-                        )
-                    }
-                }
-                Button(
-                    onClick = onPreviewSplash,
-                    colors = ButtonDefaults.buttonColors(containerColor = Color(0xFF1A237E), contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 16.dp, vertical = 8.dp)
-                ) { Text("PREVIEW SPLASH", fontSize = 12.sp, fontFamily = LocalDashTheme.current.font) }
-            }
+            // Splash Screen rehomed to Appearance › Splash Screen (roadmap 1.5.6) — type, theme-token
+            // background, image (still or animated), dwell and a live preview all live there now.
+            // Removed from the legacy panel.
 
             // Launcher
             Section("LAUNCHER") {

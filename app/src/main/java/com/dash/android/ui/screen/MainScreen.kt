@@ -88,6 +88,10 @@ import com.dash.android.ui.settings.SettingsPanel
 import com.dash.android.ui.settings.SettingsShell
 import com.dash.android.ui.theme.DashTheme
 import com.dash.android.ui.theme.LocalDashTheme
+import com.dash.android.ui.theme.SPLASH_BACKGROUND_COLOUR_DEFAULT
+import com.dash.android.ui.splash.LocalSplashPreview
+import com.dash.android.ui.splash.SPLASH_CROP_DEFAULT
+import com.dash.android.ui.splash.SPLASH_DWELL_DEFAULT_MS
 import com.dash.android.ui.splash.SplashScreen
 import com.dash.android.ui.systembar.BarPosition
 import com.dash.android.ui.systembar.DashAction
@@ -204,8 +208,12 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val autoRotate by prefs.autoRotate.collectAsState(initial = true)
     val lockedOrientation by prefs.lockedOrientation.collectAsState(initial = "LANDSCAPE")
     val splashMode by prefs.splashMode.collectAsState(initial = "COLOUR")
-    val splashColour by prefs.splashColour.collectAsState(initial = 0xFF000000L)
+    val splashColour by prefs.splashBackgroundColour.collectAsState(initial = SPLASH_BACKGROUND_COLOUR_DEFAULT)
     val splashImageUri by prefs.splashImageUri.collectAsState(initial = "")
+    val splashAnimationUri by prefs.splashAnimationUri.collectAsState(initial = "")
+    val splashCropPortrait by prefs.splashCropPortrait.collectAsState(initial = SPLASH_CROP_DEFAULT)
+    val splashCropLandscape by prefs.splashCropLandscape.collectAsState(initial = SPLASH_CROP_DEFAULT)
+    val splashDwell by prefs.splashDwellMillis.collectAsState(initial = SPLASH_DWELL_DEFAULT_MS)
     val barConfig by prefs.systemBarConfig.collectAsState(initial = SystemBarConfig.default())
 
     LaunchedEffect(autoRotate, lockedOrientation) {
@@ -228,6 +236,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         LocalDashTransitions provides transitions,
         LocalWeatherSnapshot provides weather,
         LocalDashTheme provides DashTheme.default(),
+        LocalSplashPreview provides { showSplash = true },
     ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
@@ -608,7 +617,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     activity = mainActivity,
                     prefs = prefs,
                     densityManager = densityManager,
-                    onPreviewSplash = { showSplash = true },
                     onEnterEditMode = {
                         editConfig = barConfig
                         editMode = true
@@ -674,8 +682,12 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             if (showSplash) {
                 SplashScreen(
                     mode = splashMode,
-                    colour = splashColour,
+                    backgroundColour = splashColour,
                     imageUri = splashImageUri,
+                    animationUri = splashAnimationUri,
+                    imageCropPortrait = splashCropPortrait,
+                    imageCropLandscape = splashCropLandscape,
+                    dwellMillis = splashDwell,
                     fadeInMillis = transitions.millis(TransitionId.SPLASH_FADE_IN),
                     fadeOutMillis = transitions.millis(TransitionId.SPLASH_FADE_OUT),
                     onDismiss = { showSplash = false }

@@ -19,6 +19,7 @@ fun SettingsContent(sub: SettingsSub) {
     when (sub.id) {
         "appearance.density" -> SizeScaleContent()
         "appearance.transitions" -> MotionContent()
+        "appearance.splash" -> SplashContent()
         "system.location" -> LocationContent()
         else -> WipPlaceholder(sub)
     }

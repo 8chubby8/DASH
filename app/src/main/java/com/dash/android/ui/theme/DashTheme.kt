@@ -50,3 +50,25 @@ data class DashTheme(
  * chrome renders. The fallback here is a safety net only — in practice the provider is present.
  */
 val LocalDashTheme = compositionLocalOf { DashTheme.default() }
+
+/**
+ * The default value of the BackgroundColourSplash token — the splash's own independent background
+ * colour (roadmap 1.5.6). Black, the classic boot backdrop. It is a *raw colour the user owns*, not a
+ * reference to a theme token: the splash deliberately does not inherit the theme. The theme tokens are
+ * offered only as convenient presets to seed it from (see [splashColourPresets]).
+ */
+const val SPLASH_BACKGROUND_COLOUR_DEFAULT = 0xFF000000L
+
+/**
+ * The swatch presets offered under the splash colour picker, as (label, colour). The theme's own
+ * colours are handy starting points; black and white are the universal pair. Tapping one copies its
+ * value into BackgroundColourSplash — after which the user is free to nudge it anywhere with the
+ * custom picker. Sourced live from [theme] so a v2 theme change re-seeds the presets.
+ */
+fun splashColourPresets(theme: DashTheme): List<Pair<String, Color>> = listOf(
+    "Primary" to theme.backgroundColourPrimary,
+    "Secondary" to theme.backgroundColourSecondary,
+    "Accent" to theme.accentColourSecondary,
+    "Black" to Color(0xFF000000),
+    "White" to Color(0xFFFFFFFF),
+)
