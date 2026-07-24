@@ -13,8 +13,8 @@ android {
         applicationId = "com.dash.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 27
-        versionName = "1.5.7"
+        versionCode = 28
+        versionName = "1.5.8"
     }
 
     // A fixed key for debug/nightly builds so every build (local and the CI nightly) shares one

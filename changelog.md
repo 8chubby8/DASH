@@ -47,6 +47,48 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.8
+
+**Status:** Complete — Modules › Module Management is LIVE in the settings shell; the DETAILS dialog is gone and the card is now a tap-to-select row driving its action from the top bar. Hardware-verified by Roger, 2026-07-24.
+
+**Scope:** Rehome the 1.4.x Module Management instrument into the Modules tab. Planned as a straight "no rebuild" migration; in the doing it became a card-interaction redesign (Roger's direction), because once the instrument was in the settings box the standalone screen's chrome, its floating DETAILS dialog and its per-card action row all read as heavy and out of place.
+
+**Implemented:**
+
+- **Modules › Module Management is LIVE** (`ui/modules/ModulesContent.kt`, the renamed old `ModuleManagementScreen.kt`), rendered inside the shell. One line in the content router; the tree entry flipped WIP→LIVE.
+- **Reached through `LocalModuleDesk`.** The four managers it needs — `discovery`, `install`, `database`, `reconciliation` (plus the update callback) — are *stateful* and live on `DashController` for the app's life, so unlike the stateless-prefs tabs that rebuild from context, the tab reaches them through a new CompositionLocal provided in `MainScreen` (mirroring `LocalEnterBarEdit`). Rebuilding them would have given a dead, empty screen.
+- **`fillsBox` tree flag.** A new `SettingsSub.fillsBox` tells `SettingsContentBox` to hand the tab the whole box height with no outer scroll, so its controls pin at the top and only the card list scrolls beneath. (Sets up the Developer instruments at 1.5.11, which want the same shape.)
+- **The DETAILS dialog was removed entirely** — both the floating card and the DETAILS button. It carried no detail of real use; its one unique action, UPDATE on a firmware mismatch, was preserved (see below).
+- **The card became a tap-to-select row.** No per-card button. Tap anywhere to select (2dp border + a faint fill-lift mark it); tap again to deselect. The card shrank back accordingly.
+- **Actions moved to the pinned top bar — REFRESH left, the selected module's action right.** Discovered → INSTALL (→ progress + CANCEL → installed); installed → UNINSTALL, plus UPDATE when the firmware version no longer matches (1.4.13); a failed install → its reason with RETRY / DISMISS. The whole install-state machine simply relocated from the card to the top bar, keyed to the selection.
+- **Transport tag added** to the chip row — USB / WIFI / BT, a neutral blue-grey tag beside the type and activity chips, from a new `Reconciliation.transportTag(id)` accessor.
+- **Identity lines never wrap.** Name, description and id/version each scroll sideways if they outrun the card, so nothing reflows and grows the card.
+- **Cards moved onto the settings surface** (`backgroundColourSecondary`), defined by a border rather than a dark fill; the near-black list "well" was dropped so the whole tab reads as one surface. Neutral card text moved onto the secondary-text token at graded alphas (the old dark-surface greys would have been invisible on grey); semantic colours — status chips, accent buttons, the fail-red — were left alone.
+- **Every button moved to the modern DASH idiom** (`DashButton` — a rounded, token-styled tap, not a Material button): filled semantic accents for INSTALL/UNINSTALL/UPDATE, the quiet outline style for neutral actions, and REFRESH as the scaffold's `LinkButton` text action.
+- **The standalone route was deleted in full** (Roger's call): the old full-screen `ModuleManagementScreen` invocation, `showModules` state, and the legacy panel's "MANAGE MODULES →" section are gone.
+- **The unconfirmed-deactivation safety warning stayed** — a distinct §6 warning, not the details dialog.
+
+**Regressions:**
+
+- None observed. The migration is behaviour-preserving for install/uninstall/discovery; the interaction around them changed by design.
+
+**Fixes:**
+
+- The scaffold's outer `verticalScroll` would have fought the card list's own scroll (nested scroll = unbounded-height crash); the `fillsBox` path avoids it by giving the tab the box height directly and letting its weighted list scroll on its own.
+
+**Outstanding:**
+
+- What the DETAILS dialog *uniquely* showed is gone for good: the module's declared signals/subscriptions/assets, and the worded wired-vs-wireless explanation for a NOT RESPONDING module. The chips still convey the states; only the verbose readout went. Roger judged it not useful.
+- During an install the top bar packs REFRESH + a 150dp progress bar + CANCEL; comfortable on the Pixel/Tab widths, could crowd on a very narrow screen. Easy to shrink if it ever shows.
+- `SettingsTree.kt` still carries pre-renumber WIP version labels on the not-yet-live subs (`modules.enable` reads "1.5.7", etc.) — the 1.5.14 sweep's job, untouched here.
+
+**Notes:**
+
+- **Bible updated** — roadmap.md 1.5.8 ticked off with a dated note recording the redesign; this entry. interface.md was **not** touched: its settings tree lists the *future* per-module actions (enable/disable, transport assignment, relay subscriptions, remove/uninstall — 1.5.9+) and does not describe the DETAILS dialog interaction, so nothing in it contradicts what shipped.
+- Designed live with Roger across the version, in four passes: the migration itself; REFRESH onto the correct token; the button-modernise + card-fill-to-token pass; then the header removal and the DETAILS-dropping tap-to-select redesign.
+
+---
+
 ## Version 1.5.7
 
 **Status:** Complete — Layout › System Bar: Position, Zones and Reset in the box; edit mode stripped to the ruler plus Save/Cancel; and edit mode returns you to the tab you left. Hardware-verified by Roger, 2026-07-23.

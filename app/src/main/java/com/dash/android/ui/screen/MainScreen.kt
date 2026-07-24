@@ -78,7 +78,8 @@ import androidx.compose.ui.unit.Density
 import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
 import com.dash.android.ui.scale.LocalDashScale
-import com.dash.android.ui.modules.ModuleManagementScreen
+import com.dash.android.ui.modules.LocalModuleDesk
+import com.dash.android.ui.modules.ModuleDesk
 import com.dash.android.ui.monitor.SerialMonitorScreen
 import com.dash.android.ui.signal.SignalMonitorScreen
 import com.dash.android.ui.modulepanel.MODULE_PANEL_EXPANDED_HEIGHT
@@ -160,7 +161,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var settingsReturnTarget by remember { mutableStateOf<String?>(null) }
     var showLegacySettings by remember { mutableStateOf(false) }
     var modulePanelExpanded by remember { mutableStateOf(false) }
-    var showModules by remember { mutableStateOf(false) }
     var showSerialMonitor by remember { mutableStateOf(false) }
     var showSignalMonitor by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
@@ -247,6 +247,16 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             showSettings = false
             settingsReturnTarget = "layout.systembar"
         },
+        // The live module desk for the Modules › Module Management tab (1.5.8). Its four managers are
+        // stateful and live on the controller for the app's life, so the tab reaches them here rather
+        // than rebuilding them from context the way the stateless-prefs tabs do.
+        LocalModuleDesk provides ModuleDesk(
+            discovery = controller.discovery,
+            install = controller.install,
+            database = controller.database,
+            reconciliation = controller.reconciliation,
+            onUpdate = controller::updateModule,
+        ),
     ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
@@ -490,11 +500,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     activity = mainActivity,
                     prefs = prefs,
                     densityManager = densityManager,
-                    onOpenModules = {
-                        showModules = true
-                        showLegacySettings = false
-                        showSettings = false
-                    },
                     onOpenSerialMonitor = {
                         showSerialMonitor = true
                         showLegacySettings = false
@@ -514,18 +519,9 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 )
             }
 
-            // Module Management overlay — full-screen, reached from settings (mirrors the Serial
-            // Monitor route). The DISCOVER button lives here; closing returns to the main screen.
-            if (showModules) {
-                ModuleManagementScreen(
-                    discovery = controller.discovery,
-                    install = controller.install,
-                    database = controller.database,
-                    reconciliation = controller.reconciliation,
-                    onUpdate = controller::updateModule,
-                    onDismiss = { showModules = false }
-                )
-            }
+            // Module Management is now a settings tab (Modules › Module Management, 1.5.8) rendered
+            // inside the shell — no standalone route. It reaches the controller's managers through
+            // LocalModuleDesk, provided above.
 
             // Serial Monitor overlay — full-screen dev instrument, reached from settings
             // (mirrors the edit-workspace route). Closing returns to the main screen.

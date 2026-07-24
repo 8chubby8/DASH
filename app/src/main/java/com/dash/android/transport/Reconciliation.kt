@@ -97,6 +97,11 @@ class Reconciliation(
     @Synchronized
     fun isWired(id: String): Boolean? = lastTransport[id]?.let { it in wiredTags }
 
+    /** The transport tag the id last spoke over (roadmap 1.5.8) — "usb" / "wifi" / "bt" — for the
+     *  module card's transport chip. Null when it has never been heard. */
+    @Synchronized
+    fun transportTag(id: String): String? = lastTransport[id]
+
     /**
      * Monotonic count of ROGERs per "id|which". Ack-waits watch for the count to *rise past* a
      * snapshot taken before sending, so a stale ROGER can never satisfy a fresh command and a fast

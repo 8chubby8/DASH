@@ -343,14 +343,23 @@ private fun WeatherLanding(modifier: Modifier = Modifier) {
 @Composable
 private fun SettingsContentBox(sub: SettingsSub, modifier: Modifier = Modifier) {
     val theme = LocalDashTheme.current
-    Column(
-        modifier = modifier
-            .clip(RoundedCornerShape(16.dp))
-            .background(theme.backgroundColourSecondary)
-            .verticalScroll(rememberScrollState())
-            .padding(28.dp)
-    ) {
-        SettingsContent(sub)
+    val surface = modifier
+        .clip(RoundedCornerShape(16.dp))
+        .background(theme.backgroundColourSecondary)
+    if (sub.fillsBox) {
+        // A tab that manages its own scrolling gets the box height and no outer scroll or blanket
+        // padding — it pins its own controls and scrolls its own body (1.5.8 Module Management).
+        Box(surface.fillMaxSize()) {
+            SettingsContent(sub)
+        }
+    } else {
+        Column(
+            modifier = surface
+                .verticalScroll(rememberScrollState())
+                .padding(28.dp)
+        ) {
+            SettingsContent(sub)
+        }
     }
 }
 

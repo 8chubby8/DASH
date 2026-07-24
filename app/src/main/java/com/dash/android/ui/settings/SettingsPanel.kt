@@ -55,7 +55,6 @@ fun SettingsPanel(
     activity: MainActivity,
     prefs: DashPreferences,
     densityManager: DensityManager,
-    onOpenModules: () -> Unit,
     onOpenSerialMonitor: () -> Unit,
     onOpenSignalMonitor: () -> Unit,
     onExit: () -> Unit,
@@ -174,15 +173,8 @@ fun SettingsPanel(
                 ) { Text("CHANGE LAUNCHER →", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
             }
 
-            // Modules — discovery and (later) install/enable management. Becomes the Modules tab
-            // when the full settings tree is built in 1.5.x.
-            Section("MODULES") {
-                Button(
-                    onClick = onOpenModules,
-                    colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) { Text("MANAGE MODULES →", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
-            }
+            // Module Management rehomed to Modules › Module Management (roadmap 1.5.8) — the full 1.4.x
+            // instrument now lives in the settings shell. Removed from the legacy panel.
 
             // Serial Monitor — persistent transport diagnostic (1.4.x). Migrates into the
             // Transports/Developer tab when the full settings panel is built in 1.5.x.

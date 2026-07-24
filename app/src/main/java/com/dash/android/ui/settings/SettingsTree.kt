@@ -19,6 +19,11 @@ data class SettingsSub(
     val label: String,
     val status: SettingsStatus = SettingsStatus.WIP,
     val wipVersion: String? = null,
+    // A tab that manages its own scrolling fills the whole content box instead of being wrapped in the
+    // shell's outer vertical scroll — a pinned control region with a scrollable body beneath it (1.5.8:
+    // Module Management pins its header + REFRESH and scrolls only the card list; the Developer
+    // instruments at 1.5.11 will want the same shape).
+    val fillsBox: Boolean = false,
 )
 
 data class SettingsCategory(
@@ -58,7 +63,7 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
     ),
     SettingsCategory(
         "modules", "Modules", listOf(
-            wip("modules.management", "Module Management", "1.5.6"),
+            SettingsSub("modules.management", "Module Management", SettingsStatus.LIVE, fillsBox = true),
             wip("modules.enable", "Enable / Disable", "1.5.7"),
         )
     ),
