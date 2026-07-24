@@ -62,9 +62,10 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
         )
     ),
     SettingsCategory(
+        // A single-subcategory category: the shell opens its content straight from the main tree, with
+        // no one-item submenu in between (roadmap 1.5.9, which also cut the Enable/Disable sub).
         "modules", "Modules", listOf(
             SettingsSub("modules.management", "Module Management", SettingsStatus.LIVE, fillsBox = true),
-            wip("modules.enable", "Enable / Disable", "1.5.7"),
         )
     ),
     SettingsCategory(

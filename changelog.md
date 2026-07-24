@@ -47,6 +47,41 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.9
+
+**Status:** Complete — Modules › Enable/Disable cut before any code; single-subcategory categories now open straight from the main tree. 2026-07-24, Roger's call.
+
+**Scope:** 1.5.9 was planned as a per-module user-facing **disable** (a stored intent withholding ACTIVATE, a persistent sibling of the 1.4.13 quarantine) plus **transport assignment** for a module reachable over more than one pipe. Pinning the disable semantics was the gate before building it — and pinning it surfaced the real question: does DASH need this at all? On interrogation, neither half earned its place in v1, so the version became the **cut** and its natural consequence rather than the feature.
+
+**Implemented:**
+
+- **Enable/Disable cut.** The `modules.enable` subcategory was removed from the tree; no disable mechanism was built. Reasoning, on the record: a board can already be silenced by unplugging or uninstalling it, so disable uniquely serves only the thin case of a board physically connected but software-muted with its config kept — not enough to justify a persistent user-intent layer, which the DASH ethos says not to build ahead of a felt need.
+- **Transport assignment cut.** A make-it-work-correctly concern that only bites once boards actually appear on two pipes at once — which hasn't happened. Deferred until it does (likely v2).
+- **Single-sub categories open straight from the main tree.** With Enable/Disable gone, the Modules category has one subcategory (Module Management), and a one-item submenu is pointless. `SettingsShell` now treats a single-sub category as a **leaf**: tapping it selects its one sub's content directly, skipping the intermediate submenu. Made **generic** — any single-sub category collapses this way, so **Transports** (also one sub, `transports.list`) behaves the same.
+  - **Wide (two-pane):** the main tree stays in the left margin and the leaf's content fills the right pane; the leaf category's row reads as selected, the breadcrumb names it, and BACK deselects to the weather landing (rather than closing outright).
+  - **Narrow (drill-down):** tapping the leaf goes straight to its content (depth 0 → 2); BACK returns to the main tree.
+  - The content box now resolves its subcategory **tree-wide by id** (`findSubAcrossTree`) rather than only within a selected category, which is what lets a leaf's content show with no owning category selected.
+
+**Regressions:**
+
+- None observed. Multi-sub categories navigate exactly as before; only single-sub categories changed, and they had no reason to show a one-item list.
+
+**Fixes:**
+
+- Wide-layout BACK/CLOSE label and back handler updated for the new "leaf content open with the main tree still showing" state — BACK deselects the content; CLOSE only shows at the true top.
+
+**Outstanding:**
+
+- The disable idea is documented (roadmap 1.5.9, and the design worked through in this session's discussion) should a real need ever surface; it would return as its own version, likely v2. The 1.4.13 quarantine is the mechanism to reuse if so.
+- `SettingsTree.kt` still carries pre-renumber WIP version labels on not-yet-live subs — the 1.5.15 sweep's job, untouched here.
+
+**Notes:**
+
+- **Bible updated** — roadmap.md 1.5.9 rewritten from the planned feature to the cut + nav-collapse (kept, not renumbered — 1.5.9 is a real version, not a gap); this entry.
+- This is the DASH ethos doing its job: a feature that looked tidy in a settings tree, interrogated, didn't survive "do you actually need it". Roger caught that it had been planned into the tree by an earlier design pass, not asked for — and cutting it was the right call.
+
+---
+
 ## Version 1.5.8
 
 **Status:** Complete — Modules › Module Management is LIVE in the settings shell; the DETAILS dialog is gone and the card is now a tap-to-select row driving its action from the top bar. Hardware-verified by Roger, 2026-07-24.

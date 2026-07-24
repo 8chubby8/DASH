@@ -69,6 +69,18 @@ private data class NarrowScreen(val category: SettingsCategory?, val subId: Stri
     val depth: Int get() = if (subId != null) 2 else if (category != null) 1 else 0
 }
 
+/** Find a subcategory (and its owning category) by id anywhere in the tree. The content box resolves
+ *  its sub this way so a single-sub category can open its content directly from the main tree, with no
+ *  owning category selected in between (roadmap 1.5.9 removal). */
+private fun findSubAcrossTree(id: String?): Pair<SettingsCategory, SettingsSub>? {
+    if (id == null) return null
+    for (cat in DASH_SETTINGS_TREE) {
+        val sub = cat.subs.firstOrNull { it.id == id }
+        if (sub != null) return cat to sub
+    }
+    return null
+}
+
 @Composable
 fun SettingsShell(
     onClose: () -> Unit,
@@ -81,9 +93,27 @@ fun SettingsShell(
     // the blind closes, so a fresh open lands here. Used to return the user to the tab they left when
     // a focused task (bar edit mode) took over the screen, rather than dumping them at the top.
     var selectedCategory by remember {
-        mutableStateOf(initialSubId?.let { id -> DASH_SETTINGS_TREE.firstOrNull { cat -> cat.subs.any { it.id == id } } })
+        // A seeded sub that belongs to a single-sub (leaf) category opens directly, so leave its
+        // category unselected — matching how tapping such a category behaves.
+        mutableStateOf(
+            initialSubId?.let { id ->
+                DASH_SETTINGS_TREE.firstOrNull { cat -> cat.subs.any { it.id == id } }?.takeIf { it.subs.size > 1 }
+            }
+        )
     }
     var selectedSubId by remember { mutableStateOf(initialSubId) }
+
+    // Tapping a category: a multi-sub category drills into its subtree; a single-sub category is a leaf
+    // — it opens its one sub's content straight away, with the main tree left in place behind it.
+    val selectCategory: (SettingsCategory) -> Unit = { cat ->
+        if (cat.subs.size == 1) {
+            selectedCategory = null
+            selectedSubId = cat.subs.single().id
+        } else {
+            selectedCategory = cat
+            selectedSubId = null
+        }
+    }
 
     BoxWithConstraints(
         modifier = modifier
@@ -96,18 +126,19 @@ fun SettingsShell(
             WideSettings(
                 selectedCategory = selectedCategory,
                 selectedSubId = selectedSubId,
-                onSelectCategory = { cat ->
-                    selectedCategory = cat
-                    selectedSubId = null
-                },
+                onSelectCategory = selectCategory,
                 onSelectSub = { selectedSubId = it },
                 onOpenLegacy = onOpenLegacy,
                 onBack = {
-                    if (selectedCategory != null) {
-                        selectedCategory = null
-                        selectedSubId = null
-                    } else {
-                        onClose()
+                    when {
+                        selectedCategory != null -> {
+                            selectedCategory = null
+                            selectedSubId = null
+                        }
+                        // A leaf category's content is open with the main tree still showing — back
+                        // deselects it (to the landing) rather than closing settings outright.
+                        selectedSubId != null -> selectedSubId = null
+                        else -> onClose()
                     }
                 },
             )
@@ -115,10 +146,7 @@ fun SettingsShell(
             NarrowSettings(
                 selectedCategory = selectedCategory,
                 selectedSubId = selectedSubId,
-                onSelectCategory = { cat ->
-                    selectedCategory = cat
-                    selectedSubId = null
-                },
+                onSelectCategory = selectCategory,
                 onSelectSub = { selectedSubId = it },
                 onOpenLegacy = onOpenLegacy,
                 onBack = {
@@ -146,10 +174,14 @@ private fun WideSettings(
     val theme = LocalDashTheme.current
     val transitions = LocalDashTransitions.current
     val fontScale = LocalDensity.current.fontScale
-    val inSubtree = selectedCategory != null
+    // A leaf category's content shows with the main tree still on the left, so "in a subtree" is true
+    // for a drilled category *or* a directly-opened leaf sub — both want BACK, not CLOSE.
+    val showBack = selectedCategory != null || selectedSubId != null
+    // Breadcrumb names the category even when a leaf sub is open without its category selected.
+    val crumbCategory = selectedCategory ?: findSubAcrossTree(selectedSubId)?.first
 
     Column(Modifier.fillMaxSize()) {
-        Breadcrumb(selectedCategory?.label?.uppercase() ?: "SETTINGS")
+        Breadcrumb(crumbCategory?.label?.uppercase() ?: "SETTINGS")
 
         Row(modifier = Modifier.fillMaxSize().padding(top = 10.dp, bottom = 28.dp)) {
             // Left margin: tree, or the selected category's subtree. Width scales with the font so
@@ -186,7 +218,9 @@ private fun WideSettings(
                     ) {
                         if (category == null) {
                             DASH_SETTINGS_TREE.forEach { cat ->
-                                NavRow(cat.label, trailing = null, selected = false) { onSelectCategory(cat) }
+                                // A leaf category reads as selected when its one sub's content is open.
+                                val leafOpen = cat.subs.size == 1 && cat.subs.single().id == selectedSubId
+                                NavRow(cat.label, trailing = null, selected = leafOpen) { onSelectCategory(cat) }
                             }
                         } else {
                             category.subs.forEach { sub ->
@@ -197,13 +231,13 @@ private fun WideSettings(
                 }
 
                 NavRow("LEGACY SETTINGS →", trailing = null, selected = false, dim = true) { onOpenLegacy() }
-                NavRow(if (inSubtree) "‹ BACK" else "‹ CLOSE", trailing = null, selected = false) { onBack() }
+                NavRow(if (showBack) "‹ BACK" else "‹ CLOSE", trailing = null, selected = false) { onBack() }
             }
 
             // Right: the content box. A crossfade carries the eye between the weather landing and a
             // chosen subcategory's content (and between subcategories) rather than a hard cut.
             Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
-                val sub = selectedCategory?.subs?.firstOrNull { it.id == selectedSubId }
+                val sub = findSubAcrossTree(selectedSubId)?.second
                 // Crossfade, not AnimatedContent, for the content swap: it re-targets each state's
                 // alpha over the full duration when interrupted, so tapping back to a tab whose fade
                 // hasn't finished animates home at the chosen speed rather than snapping. At LABORIOUS
@@ -239,9 +273,11 @@ private fun NarrowSettings(
     val theme = LocalDashTheme.current
     val transitions = LocalDashTransitions.current
     val screen = NarrowScreen(selectedCategory, selectedSubId)
+    // Name the category even when a leaf sub is open without its category selected.
+    val crumbCategory = selectedCategory ?: findSubAcrossTree(selectedSubId)?.first
 
     Column(Modifier.fillMaxSize()) {
-        Breadcrumb(selectedCategory?.label?.uppercase() ?: "SETTINGS")
+        Breadcrumb(crumbCategory?.label?.uppercase() ?: "SETTINGS")
 
         AnimatedContent(
             targetState = screen,
@@ -266,7 +302,7 @@ private fun NarrowSettings(
         ) { s ->
             when {
                 s.subId != null -> {
-                    val sub = s.category?.subs?.firstOrNull { it.id == s.subId }
+                    val sub = findSubAcrossTree(s.subId)?.second
                     if (sub != null) {
                         SettingsContentBox(sub, Modifier.fillMaxSize().padding(horizontal = 16.dp))
                     }
