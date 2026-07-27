@@ -62,11 +62,10 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
+import com.dash.android.DashApplication
 import com.dash.android.MainActivity
 import com.dash.android.density.DensityManager
 import com.dash.android.prefs.DashPreferences
-import com.dash.android.transport.DashController
-import com.dash.android.transport.TransportManager
 import com.dash.android.ui.debug.DiagnosticOverlay
 import com.dash.android.ui.motion.DashTransitions
 import com.dash.android.ui.motion.LocalDashTransitions
@@ -114,20 +113,15 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val prefs = remember { DashPreferences(context) }
     val scope = rememberCoroutineScope()
 
-    // Transport layer (1.4.1). Owned here so the connection persists for the life of the running
-    // app, independent of whether the Serial Monitor is open — the monitor only observes the wire.
-    // The controller/brain (1.4.2) sits above it: it consumes inbound messages, routes them by type,
-    // and holds the discovery desk the Module Management screen drives. Both live for the app's life.
-    val transport = remember { TransportManager(context) }
-    val controller = remember { DashController(transport, context) }
-    DisposableEffect(transport, controller) {
-        transport.start()
-        controller.start()
-        onDispose {
-            controller.stop()
-            transport.stop()
-        }
-    }
+    // Transport layer (1.4.1) + the controller/brain (1.4.2) above it. *Reached*, never created here
+    // (roadmap 1.5.11): both are owned by [DashApplication] and live for the life of the process, so
+    // an activity recreation reflows the UI without touching the bus. They used to be `remember`ed
+    // right here, which tied DASH's whole module conversation to a composable — see DashApplication
+    // for what that cost and how it was caught. There is deliberately no DisposableEffect: this screen
+    // does not start the stack and must never stop it.
+    val dashApp = remember(context) { context.applicationContext as DashApplication }
+    val transport = dashApp.transport
+    val controller = dashApp.controller
 
     // Bluetooth Classic (SPP) transport permission (1.4.12). On API 31+ BLUETOOTH_CONNECT is a runtime
     // grant; we ask once on start. This only *raises the dialog* — the transport does its own

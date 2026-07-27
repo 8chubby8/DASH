@@ -47,6 +47,39 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.11
+
+**Status:** Complete — the transport stack now lives for the life of the process, not the life of a composable. Verified 2026-07-27.
+
+**Scope:** Not a planned version. Found mid-bench while verifying 1.5.10, and inserted ahead of the remaining 1.5.x work because it is a **foundation** fix — every version after it would otherwise have been built on a bus that silently restarts itself.
+
+**Implemented:**
+- **`DashApplication`** — a new `Application` subclass owning `TransportManager` and `DashController`, constructed and started in `onCreate()`, registered via `android:name=".DashApplication"`.
+- **`MainScreen` reaches them rather than creating them.** The `DisposableEffect` that started and — critically — *stopped* the stack is gone; this screen no longer has the power to kill the bus.
+- Both are now given the **application context** rather than an activity context, which the previous arrangement was also quietly getting wrong for something outliving any one activity.
+
+**The fault:**
+- The bus was created with `remember { }` inside a composable, so its lifetime was tied to a *screen*. Any Android activity recreation tore the whole stack down and rebuilt it: every socket dropped, every module forced to reconnect, `lastSeen` wiped so the installed list fell back to DORMANT, and any install handshake in flight died mid-declaration.
+- `MainActivity` handles `orientation|screenSize|screenLayout|smallestScreenSize|keyboardHidden` itself but **not** `density`, `uiMode`, `fontScale` or `locale`. So a dark-mode switch at dusk, a font-scale change, DASH's own App Density feature, or the system reclaiming the activity while the user is in Maps each triggered a full, silent, unannounced restart of the module bus — in a car, mid-drive.
+
+**How it was caught:**
+- A duplicate `client c1` in the WiFi log. The client id comes from an `AtomicLong(1)` that only ever increments, so one process can never hand out `c1` twice — a second one means a second `TransportManager`, which means the stack had been rebuilt. Worth remembering as a diagnostic: a monotonic counter restarting is proof of an object's lifetime being wrong.
+
+**Why the Application and not a ViewModel:**
+- A `ViewModel` survives a configuration-change recreation but is cleared when the activity genuinely finishes — and DASH is a **launcher**, so the user opening an app in the viewport backgrounds it by design. The bus must outlive the screen. The process is the honest scope: one device, one bus, alive as long as DASH is.
+- There is deliberately **no teardown path**, because the old `onDispose` is precisely what let a transient UI event kill the bus.
+
+**Regressions:**
+- None found. Verified by forcing two genuine activity recreations (`cmd uimode night yes` / `no`, since `uiMode` is not in `configChanges`): same PID throughout, no transport teardown, no client reconnect, no crash. Before the fix each recreation produced a fresh `TransportManager` and a reconnect.
+
+**Outstanding:**
+- Process death is still fatal to the bus — an `Application` lives exactly as long as the process. If real hardware ever shows the **process** being killed mid-drive, the next escalation is a foreground service. Deliberately not built on speculation; a launcher process is high-priority and rarely reclaimed.
+
+**Notes:**
+- The comment sitting above the old `remember { }` had claimed "Both live for the app's life" since 1.4.1. It was an accurate statement of *intent* and an inaccurate statement of *fact* for ten versions. A comment describing what code is supposed to do is not a substitute for the code doing it.
+
+---
+
 ## Version 1.5.10
 
 **Status:** Complete — Modules › Transport Manager. Hardware-verified by Roger on the Tab S9 Ultra with a WiFi Uno R4, a USB Uno R4 and a Bluetooth ESP32, 2026-07-27.

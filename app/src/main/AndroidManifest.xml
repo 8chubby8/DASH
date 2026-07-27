@@ -35,6 +35,7 @@
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
     <application
+        android:name=".DashApplication"
         android:allowBackup="true"
         android:label="DASH"
         android:supportsRtl="true"
