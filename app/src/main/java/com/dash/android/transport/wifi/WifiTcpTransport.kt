@@ -1,6 +1,7 @@
 package com.dash.android.transport.wifi
 
 import android.util.Log
+import com.dash.android.transport.DASH_ABSENT_MS
 import com.dash.android.transport.DashTransport
 import com.dash.android.transport.FrameAssembler
 import com.dash.android.transport.Inbound
@@ -25,6 +26,7 @@ import java.net.InetSocketAddress
 import java.net.NetworkInterface
 import java.net.ServerSocket
 import java.net.Socket
+import java.net.SocketTimeoutException
 import java.util.concurrent.atomic.AtomicLong
 
 /**
@@ -188,13 +190,20 @@ class WifiTcpTransport(
         synchronized(this) {
             _devices.value = connections.values.map { TransportDevice(it.id, it.label, tag) }
             val n = connections.size
-            val here = "${localIpv4() ?: "?"}:$PORT"
+            val ip = localIpv4()
+            val here = "${ip ?: "?"}:$PORT"
+            // The address is published as its own field as well as inside the sentence: the sentence is
+            // for a human reading a status line, the field is for Transport Manager's copyable "point
+            // your board at" panel. Null while the IP is unknown — better no panel than a "?:3274" a
+            // builder might actually type in.
+            val address = ip?.let { "$it:$PORT" }
             _status.value = when {
                 n > 0 -> TransportStatus(
                     TransportState.CONNECTED,
-                    if (n == 1) "1 module on WiFi @ $here" else "$n modules on WiFi @ $here"
+                    if (n == 1) "1 module on WiFi @ $here" else "$n modules on WiFi @ $here",
+                    address
                 )
-                else -> TransportStatus(TransportState.NO_DEVICE, "Listening on $here")
+                else -> TransportStatus(TransportState.NO_DEVICE, "Listening on $here", address)
             }
         }
     }
@@ -225,6 +234,21 @@ class WifiTcpTransport(
 
         val label: String = socket.inetAddress?.hostAddress ?: id
 
+        init {
+            // The idle horizon — the whole reason a dead WiFi board is ever noticed (roadmap 1.5.10).
+            // A board that loses power sends no FIN and no RST: to TCP it is indistinguishable from a
+            // board that simply has nothing to say, so without this the reader blocks in read() for
+            // ever, the client is never closed, and the card claims a link to a board lying on the
+            // bench unplugged. Writes don't catch it either — DISCOVER lands in the local send buffer
+            // and returns success. So silence itself has to be the signal.
+            //
+            // DASH_ABSENT_MS is the right length because it is the same clock everything else ages on:
+            // the sweep sends DISCOVER every 30 s and every live module answers HELLO, so 75 s of total
+            // silence is two and a half missed sweeps — gone, not quiet. Bluetooth needs no equivalent;
+            // its radio link supervision throws inside seconds on its own.
+            runCatching { socket.soTimeout = DASH_ABSENT_MS.toInt() }
+        }
+
         // This client's private framing state — the heart of the per-client guarantee. Each frame
         // carries this socket's key as it leaves the assembler (1.4.14), so an install can be failed
         // the instant its client disconnects.
@@ -235,6 +259,7 @@ class WifiTcpTransport(
         fun start() {
             readerJob = scope.launch(Dispatchers.IO) {
                 val buf = ByteArray(READ_BUF)
+                var reason = "peer closed"
                 try {
                     val input = socket.getInputStream()
                     while (isActive) {
@@ -242,10 +267,13 @@ class WifiTcpTransport(
                         if (n < 0) break                 // peer closed cleanly
                         if (n > 0) assembler.feed(buf, n)
                     }
+                } catch (e: SocketTimeoutException) {
+                    // Nothing at all for the whole idle horizon — a powered-down or out-of-range board.
+                    reason = "silent for ${DASH_ABSENT_MS / 1000}s"
                 } catch (e: Exception) {
-                    // reset / dropped link — fall through to the close below
+                    reason = "link dropped (${e.javaClass.simpleName})"
                 } finally {
-                    closeClient(id, "peer closed")
+                    closeClient(id, reason)
                 }
             }
         }

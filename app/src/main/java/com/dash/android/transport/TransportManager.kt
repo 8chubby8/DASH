@@ -10,13 +10,16 @@ import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.channels.BufferOverflow
 import kotlinx.coroutines.flow.MutableSharedFlow
+import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asSharedFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -79,6 +82,25 @@ class TransportManager(context: Context) {
      *  wired absence (a fault) from a wireless one (ordinary out-of-range), and to word the card. */
     val wiredTags: Set<String> = transports.filter { it.wired }.map { it.tag }.toSet()
 
+    private val _lastInboundAt = MutableStateFlow<Map<DeviceRef, Long>>(emptyMap())
+    /**
+     * When each **board** last sent any inbound byte, device → epoch ms (roadmap 1.5.10).
+     *
+     * Keyed per device rather than per pipe, because a pipe is not a thing that talks — the boards on
+     * it are, and there can be several. "Data arrived on the WiFi pipe" is meaningless with two boards
+     * connected: one can be streaming while the other lies unplugged on the bench, and a per-pipe
+     * answer averages them into a lie. Transport Manager states facts about boards, so the fact has to
+     * be recorded about boards.
+     *
+     * Deliberately *not* derived from [wire] by the UI: that flow replays only [WIRE_REPLAY] events
+     * shared across every pipe, so on a busy bus a quiet board's last traffic has long fallen out of
+     * the buffer by the time a tab opens, and the tab would report a healthy board as silent. This map
+     * lives as long as the manager does, so the answer is the same whether the tab has been open all
+     * along or was opened a second ago. Kept dumb on purpose — "bytes arrived", nothing about what
+     * they meant; the grammar half is [DashController.lastDashAt].
+     */
+    val lastInboundAt: StateFlow<Map<DeviceRef, Long>> = _lastInboundAt.asStateFlow()
+
     private val _wire = MutableSharedFlow<WireEvent>(
         replay = WIRE_REPLAY,
         extraBufferCapacity = 256,
@@ -111,6 +133,7 @@ class TransportManager(context: Context) {
             scope.launch {
                 t.incoming.collect { env ->
                     val now = System.currentTimeMillis()
+                    env.deviceKey?.let { key -> _lastInboundAt.update { it + (DeviceRef(t.tag, key) to now) } }
                     when (val frame = env.frame) {
                         is Inbound.Line -> _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.text, env.deviceKey))
                         is Inbound.Block -> {

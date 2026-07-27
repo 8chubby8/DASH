@@ -18,7 +18,19 @@ enum class TransportState {
 
 data class TransportStatus(
     val state: TransportState,
-    val detail: String = ""
+    val detail: String = "",
+    /**
+     * Where a module should be pointed to reach this pipe, when that is a meaningful idea — the WiFi
+     * server's `ip:port` today (roadmap 1.5.10). Null for a pipe a module cannot be *aimed* at: on USB
+     * and Bluetooth the module is found, not addressed.
+     *
+     * A structured field rather than something the UI digs back out of [detail]: Transport Manager
+     * offers this address as copyable text for a builder's firmware, and parsing it out of a
+     * human-readable sentence would mean a reworded status silently breaking the copy button. The
+     * transport that owns the address states it; a fourth transport with an address gets the panel for
+     * free by filling this in.
+     */
+    val address: String? = null
 ) {
     companion object {
         val NO_DEVICE = TransportStatus(TransportState.NO_DEVICE, "No device")

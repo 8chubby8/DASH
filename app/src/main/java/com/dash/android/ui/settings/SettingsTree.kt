@@ -62,15 +62,19 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
         )
     ),
     SettingsCategory(
-        // A single-subcategory category: the shell opens its content straight from the main tree, with
-        // no one-item submenu in between (roadmap 1.5.9, which also cut the Enable/Disable sub).
+        // Modules is the hub for the whole boards-and-their-plumbing world (roadmap 1.5.10): the boards
+        // (Module Manager), the pipes they connect over (Transport Manager), and the tools to watch them
+        // talk (Serial + Signal Monitor). The old top-level Developer and Transports categories were
+        // folded in here and removed.
         "modules", "Modules", listOf(
-            SettingsSub("modules.management", "Module Management", SettingsStatus.LIVE, fillsBox = true),
-        )
-    ),
-    SettingsCategory(
-        "transports", "Transports", listOf(
-            wip("transports.list", "Transport List", "1.5.8"),
+            SettingsSub("modules.management", "Module Manager", SettingsStatus.LIVE, fillsBox = true),
+            SettingsSub("modules.transport", "Transport Manager", SettingsStatus.LIVE, fillsBox = true),
+            wip("modules.serial", "Serial Monitor", "1.5.12"),
+            wip("modules.signal", "Signal Monitor", "1.5.12"),
+            // DASH's own decision log — not the wire (that's Serial Monitor) but the reasons behind the
+            // refused / dropped / left-dormant outcomes that currently only reach logcat. Roger's call,
+            // 2026-07-27: it belongs here beside the boards it explains, but it is v2 work, not v1.
+            wip("modules.logs", "Activity Log", "v2"),
         )
     ),
     SettingsCategory(
@@ -111,16 +115,11 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
     SettingsCategory(
         "system", "System", listOf(
             SettingsSub("system.location", "Location", SettingsStatus.LIVE),
-            wip("system.deeplinks", "Android Settings Links", "1.5.11"),
-            wip("system.about", "About DASH", "1.5.11"),
+            wip("system.deeplinks", "Android Settings Links", "1.5.14"),
+            wip("system.about", "About DASH", "1.5.14"),
         )
     ),
-    SettingsCategory(
-        "developer", "Developer", listOf(
-            wip("developer.serial", "Serial Monitor", "1.5.9"),
-            wip("developer.signal", "Signal Monitor", "1.5.9"),
-            wip("developer.diagnostics", "Transport Diagnostics", "1.5.10"),
-            wip("developer.logs", "Log Viewer", "1.5.10"),
-        )
-    ),
+    // Developer category removed (roadmap 1.5.10): its Serial + Signal Monitor moved under Modules;
+    // Transport Diagnostics is absorbed by Transport Manager; the Log Viewer becomes Modules › Activity
+    // Log, deferred to v2. Nothing is left behind a safety gate — every instrument is a normal tab.
 )

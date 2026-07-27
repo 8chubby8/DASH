@@ -5,6 +5,7 @@ import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
 import android.content.IntentFilter
+import android.provider.Settings
 import android.content.pm.ActivityInfo
 import android.content.pm.PackageManager
 import android.os.Build
@@ -80,6 +81,8 @@ import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
 import com.dash.android.ui.scale.LocalDashScale
 import com.dash.android.ui.modules.LocalModuleDesk
 import com.dash.android.ui.modules.ModuleDesk
+import com.dash.android.ui.transports.LocalTransportDesk
+import com.dash.android.ui.transports.TransportDesk
 import com.dash.android.ui.monitor.SerialMonitorScreen
 import com.dash.android.ui.signal.SignalMonitorScreen
 import com.dash.android.ui.modulepanel.MODULE_PANEL_EXPANDED_HEIGHT
@@ -256,6 +259,25 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             database = controller.database,
             reconciliation = controller.reconciliation,
             onUpdate = controller::updateModule,
+        ),
+        // The live transport desk for Modules › Transport Manager (1.5.10). Live flows off the
+        // TransportManager (held for the app's life), plus the check-now sweep and the deep-links out
+        // to Android's own Wi-Fi / Bluetooth settings for radio-level and pairing controls.
+        LocalTransportDesk provides TransportDesk(
+            transportStatuses = transport.transportStatuses,
+            devices = transport.devices,
+            lastInboundAt = transport.lastInboundAt,
+            lastDashAt = controller.lastDashAt,
+            onOpenWifiSettings = {
+                runCatching {
+                    context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            },
+            onOpenBluetoothSettings = {
+                runCatching {
+                    context.startActivity(Intent(Settings.ACTION_BLUETOOTH_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
+                }
+            },
         ),
     ) {
         Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {

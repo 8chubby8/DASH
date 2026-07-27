@@ -7,9 +7,13 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.filter
 import kotlinx.coroutines.flow.map
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 
 /**
@@ -200,6 +204,23 @@ class DashController(private val transport: TransportManager, context: Context) 
         }
     }
 
+    private val _lastDashAt = MutableStateFlow<Map<DeviceRef, Long>>(emptyMap())
+    /**
+     * When each **board** last sent a line DASH could actually *understand*, device → epoch ms
+     * (roadmap 1.5.10) — the top rung of a board's row in Transport Manager.
+     *
+     * The router is the only place in DASH that knows the difference between a DASH message and noise,
+     * so the fact is recorded here rather than sniffed out of the wire tap by the UI. Note it is *any*
+     * routable TYPE word, not only `HELLO`: a `HELLO` is proof, but so is a `REPORT` from an installed
+     * module, and waiting for the next sweep's `HELLO` would leave the card claiming a chattering board
+     * doesn't speak DASH for up to a slow-phase 30 s. Anything falling through to `else` is by
+     * definition not DASH grammar and deliberately does not count — that is exactly the "connected but
+     * talking gibberish" case the board row has to be able to show.
+     *
+     * Keyed per device, matching [TransportManager.lastInboundAt] — see the reasoning there.
+     */
+    val lastDashAt: StateFlow<Map<DeviceRef, Long>> = _lastDashAt.asStateFlow()
+
     /** Sort an inbound line by its TYPE word and hand it to the desk that owns that message type.
      *  [transportTag] is the pipe it arrived on and [origin] the specific device (both 1.4.14). */
     private fun route(line: String, transportTag: String, origin: DeviceRef?) {
@@ -218,8 +239,11 @@ class DashController(private val transport: TransportManager, context: Context) 
             // BLOCK headers arrive as Inbound.Block (header + bytes together), so no branch is needed
             // here; they still show on the wire tap. No desk for other TYPE words yet — added one per
             // version.
-            else -> Unit
+            else -> return   // not DASH grammar — routed nowhere, and it does not mark the board below
         }
+        // Only a frame that named its device can credit one. A transport that doesn't distinguish
+        // devices leaves the row unproven rather than crediting the wrong board.
+        origin?.let { ref -> _lastDashAt.update { it + (ref to System.currentTimeMillis()) } }
     }
 
     fun stop() {

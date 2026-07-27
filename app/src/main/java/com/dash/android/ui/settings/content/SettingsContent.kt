@@ -7,6 +7,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.ui.modules.ModulesContent
+import com.dash.android.ui.transports.TransportManagerContent
 import com.dash.android.ui.settings.SettingsSub
 import com.dash.android.ui.theme.LocalDashTheme
 
@@ -23,6 +24,7 @@ fun SettingsContent(sub: SettingsSub) {
         "appearance.splash" -> SplashContent()
         "layout.systembar" -> SystemBarContent()
         "modules.management" -> ModulesContent()
+        "modules.transport" -> TransportManagerContent()
         "system.location" -> LocationContent()
         else -> WipPlaceholder(sub)
     }

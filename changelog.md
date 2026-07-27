@@ -47,6 +47,50 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.10
+
+**Status:** Complete — Modules › Transport Manager. Hardware-verified by Roger on the Tab S9 Ultra with a WiFi Uno R4, a USB Uno R4 and a Bluetooth ESP32, 2026-07-27.
+
+**Scope:** Planned as a generic transport *list* — enable/disable per transport, WiFi port/host, Bluetooth paired devices. On building it the list had nothing worth listing: **enable/disable** is the speculative user-intent layer 1.5.9 already cut, **port** is fixed at 3274 by transport.md, and **pairing** is Android's own screen DASH deep-links out to rather than reimplements. So the version became what a user actually needs from a transports screen: a **board-connection diagnostic** — help me connect a board, and tell me why one won't show up.
+
+**Implemented:**
+- **Modules › Transport Manager**, a card per pipe, reached through a `LocalTransportDesk` CompositionLocal (the same pattern 1.5.8 established for Module Manager — the stateful managers are *reached*, never rebuilt).
+- **The card lists boards, not modules.** A board is a physical thing on a pipe and may host many modules, so this list and Module Manager's are different things by design.
+- **Per-board DATA and DASH lights.** Green when good; amber when a board is connected but silent; red on DASH when a board is sending noise that is not DASH grammar. Amber vs red is deliberate — a silent board has not *failed* the DASH test, it has not sat it; a board pumping out gibberish has.
+- **A width-gated explanation** beside the lights (`BoxWithConstraints`, 560dp): "Board fully functional." / "Board connected but sending nothing — check it is powered and its sketch is running." / "Board connected but not speaking DASH — check it is running the DASH module SDK." Narrow screens drop the sentence and keep the lights, because the words would otherwise crush the board's name and the name is the point.
+- **An address panel** — "POINT YOUR BOARD AT 192.168.50.4:3274", copyable. Driven off a pipe *declaring* an address rather than off its kind, so it is not a WiFi special case.
+- **One honest pipe-condition line** when no boards are present: normally "No boards connected", but "Waiting for USB permission…" or a bind error when that is the truth.
+- **Deep-links out** to Android's own Wi-Fi and Bluetooth settings for radio-level and pairing controls.
+- **`TransportStatus.address`** — a structured field for the above.
+- **The WiFi idle horizon** — `soTimeout = DASH_ABSENT_MS` on each accepted client, closing it with the reason `silent for 75s`.
+- **`DASH_ABSENT_MS` promoted** out of `Reconciliation`'s private companion to a top-level const, so the board view and the module view age on one clock.
+- **Tree restructure:** the **Developer** and **Transports** top-level categories folded into **Modules** (Module Manager, Transport Manager, Serial Monitor, Signal Monitor, Activity Log).
+
+**Regressions:**
+- None found. No previously working feature was touched — the tab is new, and the two transport-layer changes (`address`, `soTimeout`) are additive.
+
+**Fixes (found and fixed inside this version, on the bench):**
+- **The card lied about a board that was gone.** A powered-off WiFi board sends no FIN and no RST, so `input.read()` blocked for ever, the client was never closed, and the card kept showing a link, a device count and an IP for a board lying unplugged on the bench. Pressing CHECK NOW could not help either — writing `DISCOVER` into a dead socket succeeds locally. Fixed with the idle horizon above. Bluetooth needs no equivalent; its radio link supervision throws within seconds on its own.
+- **The lights forgot everything on leaving the tab.** The first cut accumulated "data seen" / "HELLO seen" flags inside the composable from the wire tap, so navigating away and back emptied them, and they could only refill from a 200-event buffer shared across all pipes. A healthy but quiet board therefore read as silent for up to 30 s — exactly when a worried user was looking at it. Replaced with two timestamp maps held for the app's life: `TransportManager.lastInboundAt` (bytes) and `DashController.lastDashAt` (grammar), each recorded by the layer that knows the fact.
+- **Those maps were keyed per pipe, which is the wrong thing.** "Data arrived on the WiFi pipe" is meaningless with two boards on it — one can be streaming while the other is dead, and a per-pipe answer averages them into a lie. Re-keyed by `DeviceRef` (tag + device key); every transport already stamped a device key on its frames, so USB, WiFi and Bluetooth all got it for nothing.
+- **The address was regex-scraped** out of `status.detail`, so rewording a status string would have silently broken the copy button. Replaced by the structured field.
+
+**Cut:**
+- **CHECK NOW.** It was Module Manager's REFRESH borrowed wholesale, and it fitted badly: half its work (pruning the discovered list) is invisible on this tab, and it could confirm presence but never absence. The pipes already greet an arriving board in ~100 ms, sweep every 30 s and close a dead client on the horizon — a manual refresh on a self-refreshing surface only teaches the user to press something before believing the screen. If a screen is stale, fix the staleness, do not add a button.
+- **The `1 DEV` chip and the WIRED/WIRELESS tags.** The board list states the count literally, and — Roger — "if you don't know bluetooth and wifi are wireless, then you got other problems". The wired/wireless *fact* still earns its keep in `Reconciliation.isWired()`, where it words a NOT_RESPONDING module honestly on Module Manager.
+- **The LINK light.** On a board row it is green by definition — a board that is not linked is not listed — so it carried no information.
+
+**Outstanding:**
+- Detection of a dead WiFi board is bounded at 45–75 s (the clock starts at the last byte received, not at the unplug). That is inherent to a passive TCP pipe: a powered-off peer is genuinely indistinguishable from a quiet one until you have waited long enough to be sure. Measured and accepted, not a defect.
+- The Developer category's fate is **tabled to 1.5.12/1.5.13**. This version's tree already folds its instruments into Modules and drops the safety-acknowledgement gate as contrary to CLAUDE.md's *no hidden menus, no barriers*, but that decision is not formally taken.
+
+**Notes:**
+- **Bench measurements worth keeping.** Greet-on-arrival fires ~100 ms after a socket is accepted; a healthy R4 answers `DISCOVER` in ~0.3 s; the slow sweep is 30 s and a greet correctly *resets* that timer rather than firing an extra sweep. All measured with a bare TCP probe on port 3274, which is a genuinely useful debugging trick — a second client sees every broadcast DASH sends, so it can observe a *different* board's arrival being greeted.
+- **A reported "30 s to receive data" on replug did not reproduce** and no cause was found. Measured at 0.3 s on the same hardware afterwards. Recorded here so that if it returns there is a note that it was seen once.
+- **A board is not a module.** Two boards could reveal a whole catalogue of modules. This is the line between Transport Manager and Module Manager and it should not blur.
+
+---
+
 ## Version 1.5.9
 
 **Status:** Complete — Modules › Enable/Disable cut before any code; single-subcategory categories now open straight from the main tree. 2026-07-24, Roger's call.

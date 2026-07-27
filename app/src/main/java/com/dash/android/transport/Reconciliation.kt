@@ -42,8 +42,8 @@ import kotlinx.coroutines.withTimeoutOrNull
  *
  * **Active / Dormant / Not-responding.** [activity] is the per-installed-module state Module
  * Management renders. ACTIVE means a `ROGER|id|activate` has been heard and the module has answered a
- * sweep within [ABSENT_MS]. A module that was **heard this session and then went silent** past
- * [ABSENT_MS] is NOT_RESPONDING — the orange "it was here and vanished" state (roadmap 1.4.14): it
+ * sweep within [DASH_ABSENT_MS]. A module that was **heard this session and then went silent** past
+ * [DASH_ABSENT_MS] is NOT_RESPONDING — the orange "it was here and vanished" state (roadmap 1.4.14): it
  * *was* present, so its absence is worth flagging, whereas a module never seen this session is a calm
  * DORMANT (not plugged in yet / out of range — nothing is wrong). A quarantined version-mismatch
  * module is forced DORMANT regardless (1.4.13).
@@ -59,6 +59,14 @@ import kotlinx.coroutines.withTimeoutOrNull
  * does [unconfirmedDeactivation] raise the §6 warning (disconnect or power-cycle the module). A
  * module that was never seen this session skips the wire entirely, exactly as 1.4.5 behaved.
  */
+/**
+ * Not heard from for this long ⇒ absent (≈ two missed slow sweeps, with margin). Doubles as the
+ * discovery-list prune horizon so both views of the bus age on the same clock — and, since 1.5.10, as
+ * the Transport Manager ladder's quiet-pipe horizon, so a pipe and the modules on it can never
+ * disagree about whether something is still there.
+ */
+const val DASH_ABSENT_MS = 75_000L
+
 class Reconciliation(
     private val scope: CoroutineScope,
     private val send: (String) -> Unit,
@@ -136,7 +144,7 @@ class Reconciliation(
 
     /**
      * The REFRESH button (roadmap 1.4.14) — the user's explicit "who is here *now*". A plain [sync]
-     * asks the bus and lets stale cards age out on the slow [ABSENT_MS] clock; refresh is harder: it
+     * asks the bus and lets stale cards age out on the slow [DASH_ABSENT_MS] clock; refresh is harder: it
      * sweeps, then after a short grace for the `HELLO`s to arrive it **prunes every discovered
      * (not-installed) card that did not answer this round** — so a module that once replied but is gone
      * disappears promptly rather than lingering. Installed modules are untouched by the prune; the same
@@ -167,7 +175,7 @@ class Reconciliation(
                 id in _versionMismatch.value -> ModuleActivity.DORMANT
                 // Heard recently: keep a proven-ACTIVE module active (a stream between sweeps mustn't
                 // age it out); anything else is DORMANT while it waits on its ROGER.
-                now - (lastSeen[id] ?: Long.MIN_VALUE) <= ABSENT_MS ->
+                now - (lastSeen[id] ?: Long.MIN_VALUE) <= DASH_ABSENT_MS ->
                     if (current == ModuleActivity.ACTIVE) ModuleActivity.ACTIVE else ModuleActivity.DORMANT
                 // Silent past the absence horizon, but *was* heard this session ⇒ it vanished on us.
                 // Orange NOT_RESPONDING (roadmap 1.4.14) — worth flagging, unlike a never-seen module.
@@ -179,7 +187,7 @@ class Reconciliation(
         // Drop mismatch flags for ids no longer installed, so an uninstalled module never leaves a
         // stale UPDATE chip behind — the same honesty the activity rebuild above keeps.
         _versionMismatch.value = _versionMismatch.value.filterKeys { it in database.modules.value }
-        pruneDiscovered(now - ABSENT_MS)
+        pruneDiscovered(now - DASH_ABSENT_MS)
         send(DISCOVER)
     }
 
@@ -275,7 +283,7 @@ class Reconciliation(
         database.uninstall(module.id)
         _activity.value = _activity.value - module.id
         _versionMismatch.value = _versionMismatch.value - module.id
-        val present = System.currentTimeMillis() - (lastSeen[module.id] ?: Long.MIN_VALUE) <= ABSENT_MS
+        val present = System.currentTimeMillis() - (lastSeen[module.id] ?: Long.MIN_VALUE) <= DASH_ABSENT_MS
         if (!present) return   // never heard from this session — nothing to hush, as in 1.4.5
         scope.launch {
             repeat(ACK_ATTEMPTS) {
@@ -325,10 +333,6 @@ class Reconciliation(
          *  cards that didn't answer. Long enough for a real reply on any transport, short enough that
          *  the list tidies while the user is still looking. */
         const val REFRESH_GRACE_MS = 2_500L
-
-        /** Not heard from for this long ⇒ absent (≈ two missed slow sweeps, with margin). Doubles as
-         *  the discovery-list prune horizon so both views of the bus age on the same clock. */
-        const val ABSENT_MS = 75_000L
 
         const val ACK_TIMEOUT_MS = 2_000L
         const val ACK_ATTEMPTS = 3
