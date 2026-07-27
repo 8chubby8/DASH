@@ -28,6 +28,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dash.android.DashApplication
 import com.dash.android.density.DensityManager
 import com.dash.android.density.DensityPreset
 import com.dash.android.prefs.DashPreferences
@@ -67,7 +68,9 @@ fun SizeScaleContent() {
     val densityManager = remember { DensityManager(appContext) }
     val prefs = remember { DashPreferences(appContext) }
     val scope = rememberCoroutineScope()
-    val capable = remember { densityManager.checkCapability() }
+    // Asked once for the whole process (roadmap 1.5.14) — About DASH reports the same answer, and a
+    // privileged call is not something to make twice for a question whose answer cannot change.
+    val capable = remember { (appContext as DashApplication).densityCapable }
 
     val barConfig by prefs.systemBarConfig.collectAsState(initial = SystemBarConfig.default())
     val dashTextScale by prefs.dashTextScale.collectAsState(initial = 1.0f)

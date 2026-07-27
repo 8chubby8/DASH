@@ -47,6 +47,57 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.14
+
+**Status:** Complete — System › Android Settings Links, About DASH and Licence built; a new **Power** category opened; two more controls rehomed out of the legacy panel. Hardware-verified by Roger on the Galaxy Tab S9 Ultra and installed on the Pixel 8 Pro. 2026-07-27.
+
+**Scope:** The roadmap's 1.5.14 was "Android deep-links + About DASH (version, licence)". It grew three ways during the build, each on Roger's call: **About and Licence split into two tabs** (About answers *who and where*; the licence is a legal text with enough bulk to bury it), the **device report** joined About, and a **Power** category was opened to rehome EXIT DASH — which then took restart/shut down with it.
+
+**Implemented:**
+- **System › Android Settings Links** — fourteen links across four sections (Connections / Display and sound / Device / DASH on this device). DASH is the home screen, so Android's own Settings app is installed, running and unreachable; without this tab a dropped WiFi connection cannot be fixed from inside DASH. **DASH links out and does not reimplement** — changing a network or pairing a device needs privileges a Bronze sideload has not got, and rebuilding Android's screens would be a worse copy of something already on the device.
+- **Every row is capability-detected**, and three carry fallback actions (Mobile network tries roaming then wireless; Apps tries two forms; Default home app tries `ACTION_HOME_SETTINGS` then the default-apps page). A link nothing can handle is **not listed**, and a section left empty by that disappears. All fourteen probed present on the Tab S9 Ultra via `cmd package resolve-activity`; a bare board image is where the detection earns its keep.
+- **System › About DASH** — identity (wordmark, version and `BUILD_DATE` from `BuildConfig`), the author, links, and the device report.
+- **System › Licence** — the GPL-3.0 §5(d) notice, a plain-language section on what the licence means for a user, and nine open-source components with their licences. **VIEW FULL LICENCE** swaps the tab for the full text, read from an asset the build copies from the repo root, so what DASH shows and what the project ships cannot drift.
+- **The device report** — twelve lines of facts and capabilities (version, Android, model, board, screen in dp and px, both font scales, default-launcher, density control, USB host / Bluetooth / WiFi), with **COPY REPORT** putting it on the clipboard as aligned plain text. Facts and capabilities, never identity; nothing on it needs a permission to read.
+- **A new Power category**, last in the tree, holding **Exit DASH** — tap-to-confirm on the 1.5.7 Reset idiom. Named *Power* rather than *Exit* because on Silver/Gold it holds restart and shut down too. One subcategory, so 1.5.9's rule opens it straight from the main tree.
+- **Restart / Shut down device**, privileged-only. `REBOOT` and `SHUTDOWN` are `signature|privileged`: granted to a system app, never grantable to a sideload, and with no public intent for either — and root is forbidden by the No-Root Constraint. So on Bronze the whole **Device power** section is **absent**, not disabled and not erroring. Declaring the permissions is harmless where they are refused; `dumpsys` confirms both requested and neither granted on the Tab S9 Ultra and the Pixel 8 Pro.
+- **`qrencode`-generated QR assets** (618 and 641 bytes) rather than a QR library — the URLs are constants known at build time, so a runtime encoder would have bought nothing and added a tenth entry to the licence page being built in the same version. Both decoded back to confirm they resolve correctly.
+- **New scaffold components:** `QrPanel` (white matte, `FilterQuality.None`), `LinkRow`, `InfoRows` and a shared `Chevron`.
+- **`buildConfig = true`** and a `BUILD_DATE` field — a sideloaded head unit has no store listing to read a date from.
+
+**The two rehomes:**
+- **`CHANGE LAUNCHER →` → System › Android Settings Links, as "Default home app."** It was always a deep link to `ACTION_HOME_SETTINGS`; it now sits with the rest of them and carries an explanation.
+- **`EXIT DASH` → Power › Exit DASH**, with its `onExit` plumbing (and `MainScreen`'s now-unused `DensityManager`) removed. The exit itself moved to `MainActivity.exitDash()`, so one implementation serves any caller. **The tab is honest about doing nothing useful when DASH is the launcher**: a home app that finishes is relaunched immediately, so the help text says so and points at the tab that can change it, rather than leaving a control that appears broken.
+- `ROTATION` is now the only thing stranded in the legacy panel. It waits for 1.5.16.
+
+**The density probe fix (unplanned, and the significant one):**
+- `DensityManager.checkCapability()` probed by calling `setForcedDisplayDensityForUser(DENSITY_DEVICE_STABLE)` — a no-op only on a device sitting at stock density. On **Silver/Gold, where the call succeeds**, probing a device whose user had set a DASH density would have **reset their screen**. It was safe only because the density tab was its single caller; About asking the same question in passing would have exposed it.
+- Now it passes the **current** density, which is a true no-op at every tier, and `DashApplication.densityCapable` asks once for the life of the process.
+- **Restart and shut down deliberately probe differently** — they check the *permission grant* rather than attempting the action. Density had no choice, since there is no way to ask. Here there is, and attempting a reboot to learn whether you may reboot is not a probe, it is a reboot.
+
+**Regressions:**
+- **Three, all caught by Roger driving it on the tablet, none surviving the session.**
+- **No margins on About or Licence.** `fillsBox = true` hands a tab the bare box on purpose (1.5.8) — right for Module Manager, which pins its own controls, wrong for two tabs that only read. About went back to an ordinary tab and takes the shell's 28dp and scroll; Licence must keep `fillsBox`, because its full-text `LazyColumn` needs a finite height to measure against, so it applies the same 28dp itself.
+- **The report's longer labels wrapped onto second lines.** `InfoRow`'s label column was a fixed 140dp. Replaced by `InfoRows`, which takes the whole block and measures the widest label at the size it is actually drawn — **the 1.5.13 lesson, repeated**: DASH lets the user change its text size, so any constant wraps for somebody. A single row cannot do this; it has no way to know how wide its siblings' labels are.
+- **The About links were not clickable.** `resolveActivity` returned null for the browser intent, so `onOpen` was null and the rows were inert — with Chrome installed and visible in `cmd package query-activities`. The cause was **Android 11 package visibility**: an app targeting SDK 30+ cannot see which apps handle an intent without declaring the query, and DASH declared none. A narrow `<queries>` for `VIEW`/`https` fixed it. **The capability check was right; the answer Android gave it was wrong** — and the settings links were never affected, because the platform's own settings app is visible to everyone, which is exactly what made it look like a bug in About alone.
+- Two compile-time only: `Image`'s `Painter` overload has no `filterQuality` parameter (switched to the `ImageBitmap` overload), and `java.time` does not resolve inside a Gradle `android { }` block without a script-level import.
+
+**Outstanding:**
+- **Restart and shut down cannot be verified on any hardware DASH currently runs on.** They are correct by construction and invisible on Bronze; first real test is the Orange Pi.
+- **Donations are deliberately absent** — no card, no placeholder, no dead constant. GitHub Sponsors is not enabled on the account, and enrolment cannot be automated. Lands as its own piece just before v1 sign-off.
+- The open-source component list is **hand-maintained** — update it whenever `gradle/libs.versions.toml` changes.
+- `ROTATION` still in the legacy panel; the whole panel dies at 1.5.16.
+- **Still no `MaterialTheme`** (carried from 1.5.13): `LinearProgressIndicator`, the settings gear `Icon` and the legacy panel's `Button`s remain unthemed. Most of it dies with the panel.
+- **The settings tree gained a top-level category (Power)**, which interface.md's Settings Panel section may want a dated addendum for. Not edited — that is a Bible decision, not a build one.
+
+**Notes:**
+- **The item is the control.** Roger's call on both surfaces: no OPEN button at the end of a row that has exactly one thing it can do — the row *is* the control, full width of the box. It reads better and it suits the car, where a short word at the far edge is a poor target on a moving screen and a full-width row is a reliable one. The natural successor to 1.5.13's *the readout is the control*.
+- **The QR code is the primary affordance; the tap is the convenience.** A head unit may have no browser, no keyboard, and a user stood beside the car holding the phone that should receive the link. So the code is always drawn and the tap is offered only where something can honour it.
+- **The Licence tab is an obligation, not a nicety.** GPL-3.0 §5(d) requires an interactive program to display Appropriate Legal Notices, and DASH displayed none anywhere before this version. The Apache 2.0 components it is built on require their attribution to travel with the binary, and it was not travelling. `usb-serial-for-android` was confirmed **MIT** by reading its POM rather than trusting memory.
+- `qrencode -s 12 -m 2 -l M` generated the assets; the command is recorded beside them so they are reproducible.
+
+---
+
 ## Version 1.5.13
 
 **Status:** Complete — instrument polish across the two new tabs, out of driving them on real hardware. 2026-07-27.

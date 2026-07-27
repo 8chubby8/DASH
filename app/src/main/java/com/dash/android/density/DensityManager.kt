@@ -2,7 +2,6 @@ package com.dash.android.density
 
 import android.content.Context
 import android.os.Process
-import android.util.DisplayMetrics
 
 class DensityManager(private val context: Context) {
 
@@ -16,12 +15,24 @@ class DensityManager(private val context: Context) {
         return if (match != null) "${match.label} (${dpi} dpi)" else "Custom (${dpi} dpi)"
     }
 
+    /**
+     * Whether this installation can drive Android's display density. The only honest way to know is
+     * to try it (the Capability Detection Principle) — there is no permission to query — so this
+     * exercises the whole privileged call path and reports whether it went through.
+     *
+     * **It sets the density to whatever it already is.** That matters. The original probe passed
+     * `DENSITY_DEVICE_STABLE`, which is a no-op only on a device sitting at its stock density: on
+     * Silver/Gold hardware where the call *succeeds* and the user had set a DASH density, probing
+     * reset their screen. Passing the current value makes the probe a true no-op at every tier, so
+     * any screen can ask the question in passing — About DASH does, for its device report.
+     *
+     * Prefer `DashApplication.densityCapable`, which asks this once and keeps the answer.
+     */
     fun checkCapability(): Boolean = try {
         val wms = windowManagerService() ?: return false
-        // Probe by setting native density — visually a no-op, but exercises the full call path.
         wms.javaClass
             .getMethod("setForcedDisplayDensityForUser", Int::class.java, Int::class.java, Int::class.java)
-            .invoke(wms, 0, DisplayMetrics.DENSITY_DEVICE_STABLE, userId)
+            .invoke(wms, 0, readCurrentSystemDpi(), userId)
         true
     } catch (_: Exception) {
         false

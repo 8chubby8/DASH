@@ -49,7 +49,6 @@ private val ACTIVE = Color(0xFF2E7D32)
 fun SettingsPanel(
     activity: MainActivity,
     prefs: DashPreferences,
-    onExit: () -> Unit,
     onDismiss: () -> Unit
 ) {
     val scope = rememberCoroutineScope()
@@ -115,14 +114,9 @@ fun SettingsPanel(
             // background, image (still or animated), dwell and a live preview all live there now.
             // Removed from the legacy panel.
 
-            // Launcher
-            Section("LAUNCHER") {
-                Button(
-                    onClick = { activity.openChangeLauncher() },
-                    colors = ButtonDefaults.buttonColors(containerColor = INACTIVE, contentColor = Color.White),
-                    contentPadding = PaddingValues(horizontal = 20.dp, vertical = 8.dp)
-                ) { Text("CHANGE LAUNCHER →", fontSize = 13.sp, fontFamily = LocalDashTheme.current.font) }
-            }
+            // CHANGE LAUNCHER rehomed to System › Android Settings Links as "Default home app"
+            // (roadmap 1.5.14) — it was always a deep link out to ACTION_HOME_SETTINGS, so it belongs
+            // with the rest of them. Removed from the legacy panel.
 
             // Module Management rehomed to Modules › Module Management (roadmap 1.5.8) — the full 1.4.x
             // instrument now lives in the settings shell. Removed from the legacy panel.
@@ -130,10 +124,8 @@ fun SettingsPanel(
             // Serial Monitor and Signal Monitor rehomed to Modules › Serial Monitor / Signal Monitor
             // (roadmap 1.5.12) — both rebuilt on the settings surface. Removed from the legacy panel.
 
-            // Exit
-            TextButton(onClick = onExit) {
-                Text("EXIT DASH", color = Color(0xFF555555), fontSize = 11.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
-            }
+            // EXIT DASH rehomed to Exit › Exit DASH (roadmap 1.5.14) — with tap-to-confirm, and an
+            // honest word about a home app being relaunched the moment it finishes. Removed here.
         }
     }
 

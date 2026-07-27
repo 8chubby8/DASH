@@ -30,6 +30,10 @@ fun SettingsContent(sub: SettingsSub) {
         "modules.serial" -> SerialMonitorContent()
         "modules.signal" -> SignalMonitorContent()
         "system.location" -> LocationContent()
+        "system.deeplinks" -> SystemLinksContent()
+        "system.about" -> AboutContent()
+        "system.licence" -> LicenceContent()
+        "power.exit" -> ExitContent()
         else -> WipPlaceholder(sub)
     }
 }

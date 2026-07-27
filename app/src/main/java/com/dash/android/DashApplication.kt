@@ -1,6 +1,7 @@
 package com.dash.android
 
 import android.app.Application
+import com.dash.android.density.DensityManager
 import com.dash.android.transport.DashController
 import com.dash.android.transport.TransportManager
 
@@ -43,6 +44,17 @@ class DashApplication : Application() {
      *  reconciliation desks the settings tabs read. */
     lateinit var controller: DashController
         private set
+
+    /**
+     * Whether this installation can drive Android's display density — probed **once**, here, and
+     * shared by everything that asks (roadmap 1.5.14).
+     *
+     * It is cached rather than re-probed because a probe is a real privileged call, not a query, and
+     * the answer cannot change while the process lives — DASH is or is not a system app. See
+     * [DensityManager.checkCapability] for why that call was also made non-destructive in 1.5.14:
+     * About asking the question in passing must never disturb a density the user has set.
+     */
+    val densityCapable: Boolean by lazy { DensityManager(this).checkCapability() }
 
     override fun onCreate() {
         super.onCreate()

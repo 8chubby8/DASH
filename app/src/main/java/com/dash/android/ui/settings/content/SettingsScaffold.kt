@@ -3,6 +3,7 @@ package com.dash.android.ui.settings.content
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Arrangement
@@ -33,11 +34,14 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.FilterQuality
+import androidx.compose.ui.graphics.ImageBitmap
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.TextStyle
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.unit.IntOffset
@@ -423,6 +427,183 @@ fun LinkButton(text: String, colour: Color? = null, onClick: () -> Unit) {
             .padding(vertical = 4.dp, horizontal = 2.dp),
     )
 }
+
+/**
+ * A QR code, in the white panel it needs (roadmap 1.5.14).
+ *
+ * The white matte is not decoration. A QR is read as dark modules on a light field, and the settings
+ * surface is [DashTheme.backgroundColourSecondary] — dark since 1.5.12 — so a code dropped straight
+ * onto it is inverted and many scanners will not take it. The panel restores the contrast the format
+ * assumes.
+ *
+ * Drawn with [FilterQuality.None] on purpose: a QR is hard-edged squares, and bilinear smoothing on
+ * scale-up softens the module edges, which is exactly what a scanner is trying to find.
+ */
+@Composable
+fun QrPanel(code: ImageBitmap, contentDescription: String, size: Dp = 108.dp) {
+    Box(
+        modifier = Modifier
+            .clip(RoundedCornerShape(8.dp))
+            .background(Color.White)
+            .padding(6.dp)
+    ) {
+        Image(
+            bitmap = code,
+            contentDescription = contentDescription,
+            filterQuality = FilterQuality.None,
+            modifier = Modifier.size(size),
+        )
+    }
+}
+
+/**
+ * A link out of DASH: what it is, where it goes, a QR code, and an OPEN button (roadmap 1.5.14).
+ *
+ * **Why the QR is the primary affordance and the button is the convenience.** DASH runs on head
+ * units that may have no browser installed, no keyboard, and no practical way to type a URL — and
+ * the person who wants the link is usually stood beside the car holding the phone that should
+ * receive it. So the code is always drawn, and [onOpen] is only offered when something on the device
+ * can actually handle it: the caller passes null when nothing resolves, and the button is simply
+ * absent rather than present and dead. Capability detection, applied to an intent.
+ */
+@Composable
+fun LinkRow(
+    label: String,
+    url: String,
+    qr: ImageBitmap,
+    onOpen: (() -> Unit)?,
+) {
+    val theme = LocalDashTheme.current
+    val details: @Composable () -> Unit = {
+        Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+            Text(label, color = theme.textColourSecondary, fontSize = 14.sp, fontFamily = theme.font)
+            Text(
+                url,
+                color = theme.textColourSecondary.copy(alpha = 0.68f),
+                fontSize = 12.sp,
+                lineHeight = 17.sp,
+                fontFamily = theme.font,
+            )
+        }
+    }
+
+    // The whole row opens the link — the address is the control, not a caption beside a button. Where
+    // nothing on the device can open it the row is inert and loses its chevron, and the QR code is
+    // then the only way through, which is exactly what it is there for.
+    val tappable = Modifier
+        .fillMaxWidth()
+        .clip(RoundedCornerShape(10.dp))
+        .then(if (onOpen != null) Modifier.clickable { onOpen() } else Modifier)
+        .padding(horizontal = 10.dp, vertical = 10.dp)
+
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        if (maxWidth >= 420.dp) {
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                modifier = tappable,
+            ) {
+                Box(Modifier.weight(1f)) { details() }
+                QrPanel(qr, "$label QR code")
+                if (onOpen != null) Chevron()
+            }
+        } else {
+            Column(
+                modifier = tappable,
+                verticalArrangement = Arrangement.spacedBy(14.dp),
+            ) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(Modifier.weight(1f)) { details() }
+                    if (onOpen != null) Chevron()
+                }
+                QrPanel(qr, "$label QR code")
+            }
+        }
+    }
+}
+
+/** The quiet affordance on a row that leads somewhere — it says "this goes" without dressing itself
+ *  up as a button. */
+@Composable
+fun Chevron() {
+    val theme = LocalDashTheme.current
+    Text(
+        "›",
+        color = theme.textColourSecondary.copy(alpha = 0.45f),
+        fontSize = 22.sp,
+        fontFamily = theme.font,
+    )
+}
+
+/**
+ * A block of label-and-value lines — the device report, and anything else that is read rather than
+ * changed.
+ *
+ * **The label column is measured, not a constant.** It is sized to the widest label actually present
+ * at the size it is actually drawn, and re-measured when the font or the text scale changes. A fixed
+ * width is wrong for the same reason it was wrong on the Serial Monitor's columns in 1.5.13: DASH
+ * lets the user change its text size, so any number chosen here wraps "Android font scale" onto two
+ * lines for somebody. Taking the whole block together is what makes that possible — a row on its own
+ * cannot know how wide its siblings' labels are.
+ *
+ * Below [STACK_BELOW] there is genuinely not room for two columns, so the value drops under its
+ * label rather than being squeezed into a strip a few characters wide.
+ */
+@Composable
+fun InfoRows(rows: List<Pair<String, String>>, spacing: Dp = 9.dp) {
+    val theme = LocalDashTheme.current
+    val measurer = rememberTextMeasurer()
+    val labelStyle = TextStyle(fontSize = 12.sp, fontFamily = theme.font)
+
+    val labelWidth = with(LocalDensity.current) {
+        (rows.maxOfOrNull { measurer.measure(AnnotatedString(it.first), labelStyle).size.width } ?: 0)
+            .toDp()
+    }
+
+    BoxWithConstraints(Modifier.fillMaxWidth()) {
+        val wide = maxWidth >= STACK_BELOW
+        Column(verticalArrangement = Arrangement.spacedBy(spacing)) {
+            rows.forEach { (label, value) ->
+                val name: @Composable () -> Unit = {
+                    Text(
+                        label,
+                        color = theme.textColourSecondary.copy(alpha = 0.62f),
+                        fontSize = 12.sp,
+                        fontFamily = theme.font,
+                        maxLines = 1,
+                    )
+                }
+                val reading: @Composable () -> Unit = {
+                    Text(
+                        value,
+                        color = theme.textColourSecondary,
+                        fontSize = 12.5.sp,
+                        lineHeight = 18.sp,
+                        fontFamily = theme.font,
+                        textAlign = if (wide) TextAlign.End else TextAlign.Start,
+                    )
+                }
+                if (wide) {
+                    Row(
+                        horizontalArrangement = Arrangement.spacedBy(20.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier.fillMaxWidth(),
+                    ) {
+                        Box(Modifier.width(labelWidth)) { name() }
+                        Box(Modifier.weight(1f), contentAlignment = Alignment.CenterEnd) { reading() }
+                    }
+                } else {
+                    Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                        name()
+                        reading()
+                    }
+                }
+            }
+        }
+    }
+}
+
+private val STACK_BELOW = 420.dp
 
 /** One row of a [DashMenu] — what the user reads, and the value it stands for. */
 data class MenuOption(val label: String, val value: String)

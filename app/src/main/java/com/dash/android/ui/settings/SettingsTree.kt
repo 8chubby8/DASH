@@ -115,8 +115,23 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
     SettingsCategory(
         "system", "System", listOf(
             SettingsSub("system.location", "Location", SettingsStatus.LIVE),
-            wip("system.deeplinks", "Android Settings Links", "1.5.14"),
-            wip("system.about", "About DASH", "1.5.14"),
+            SettingsSub("system.deeplinks", "Android Settings Links", SettingsStatus.LIVE),
+            // About and Licence are separate tabs on purpose (roadmap 1.5.14). About is who made
+            // DASH and where to find it; Licence is the GPL-3.0 §5(d) notice, the full text and the
+            // third-party attributions — a legal surface with enough bulk to bury the other.
+            SettingsSub("system.about", "About DASH", SettingsStatus.LIVE),
+            // Licence claims the box height only because its full-text view scrolls 674 lines
+            // lazily, which needs a finite height to measure against. It pays for that by applying
+            // the shell's own content padding itself — see LicenceContent.
+            SettingsSub("system.licence", "Licence", SettingsStatus.LIVE, fillsBox = true),
+        )
+    ),
+    // Last in the tree, where leaving belongs. Named Power rather than Exit because on Silver/Gold
+    // hardware it holds restart and shut down as well — actions on the device, not just on DASH.
+    // One subcategory, so 1.5.9's rule opens it straight from the main tree with no submenu.
+    SettingsCategory(
+        "power", "Power", listOf(
+            SettingsSub("power.exit", "Exit DASH", SettingsStatus.LIVE),
         )
     ),
     // Developer category removed (roadmap 1.5.10): its Serial + Signal Monitor moved under Modules;

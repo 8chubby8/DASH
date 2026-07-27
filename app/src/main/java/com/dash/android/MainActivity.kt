@@ -13,7 +13,9 @@ import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
+import com.dash.android.density.DensityManager
 import com.dash.android.ui.screen.MainScreen
+import kotlin.system.exitProcess
 
 class MainActivity : ComponentActivity() {
 
@@ -53,6 +55,24 @@ class MainActivity : ComponentActivity() {
         } else {
             openChangeLauncher()
         }
+    }
+
+    /**
+     * Leave DASH — hand the screen back to Android and end the process (roadmap 1.5.14, rehomed from
+     * the legacy panel's EXIT DASH).
+     *
+     * The density reset is the half that matters. DASH may have forced a display density on
+     * privileged hardware, and walking away leaving the whole device at a density the user did not
+     * choose would be DASH changing something and not putting it back.
+     *
+     * Note this only really lands where DASH is *not* the default launcher: a home app that finishes
+     * is immediately relaunched by Android, because there is nowhere else for the screen to go. The
+     * Exit tab says so, rather than leaving the user to work out why nothing happened.
+     */
+    fun exitDash() {
+        DensityManager(this).resetToDefault()
+        finish()
+        exitProcess(0)
     }
 
     fun openChangeLauncher() {

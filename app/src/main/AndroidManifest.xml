@@ -34,6 +34,31 @@
          USB host / OTG — the transport simply reports NO DEVICE and degrades gracefully. -->
     <uses-feature android:name="android.hardware.usb.host" android:required="false" />
 
+    <!-- Restart / shut down the device, Exit tab (1.5.14). Both are signature|privileged permissions:
+         they are granted to DASH as a system app on Silver/Gold hardware and can never be granted to
+         a Bronze sideload, whatever the manifest asks for. Declaring them is harmless where they are
+         refused — the install succeeds, the grant does not happen, and the two controls simply do not
+         appear (DevicePower probes the grant rather than attempting the action). This is the App
+         Density pattern: one codebase, the tier decides at runtime. -->
+    <uses-permission android:name="android.permission.REBOOT" />
+    <uses-permission android:name="android.permission.SHUTDOWN" />
+
+    <!-- Package visibility for the About DASH links (1.5.14). Since Android 11, an app targeting SDK
+         30+ cannot see which other apps can handle an intent unless it declares the query first —
+         `resolveActivity` returns null even when a browser is sitting right there. Without this DASH
+         concluded, correctly by its own lights and wrongly in fact, that the device had no browser,
+         and left the links inert.
+
+         It is deliberately narrow: DASH asks only "who can open an https page", not for the package
+         list. The Android settings screens needed no equivalent — the platform's own settings app is
+         visible to everyone. -->
+    <queries>
+        <intent>
+            <action android:name="android.intent.action.VIEW" />
+            <data android:scheme="https" />
+        </intent>
+    </queries>
+
     <application
         android:name=".DashApplication"
         android:allowBackup="true"

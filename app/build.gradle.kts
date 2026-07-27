@@ -1,3 +1,7 @@
+import java.time.LocalDate
+import java.time.format.DateTimeFormatter
+import java.util.Locale
+
 plugins {
     alias(libs.plugins.android.application)
     alias(libs.plugins.kotlin.android)
@@ -13,8 +17,17 @@ android {
         applicationId = "com.dash.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 33
-        versionName = "1.5.13"
+        versionCode = 34
+        versionName = "1.5.14"
+
+        // Stamped so About DASH can say when this build was made — a sideloaded head unit has no
+        // store listing to read a date from, and "which build is on the tablet" is the first
+        // question any bug report has to answer.
+        buildConfigField(
+            "String",
+            "BUILD_DATE",
+            "\"${LocalDate.now().format(DateTimeFormatter.ofPattern("d MMMM yyyy", Locale.UK))}\"",
+        )
     }
 
     // A fixed key for debug/nightly builds so every build (local and the CI nightly) shares one
@@ -44,8 +57,29 @@ android {
     }
     buildFeatures {
         compose = true
+        // For BUILD_DATE above, read by System › About DASH.
+        buildConfig = true
     }
 }
+
+/**
+ * Ship the GPL-3.0 text with the app (roadmap 1.5.14).
+ *
+ * GPL-3.0 §5(d) requires an interactive program to display Appropriate Legal Notices, including how
+ * to view a copy of the licence — so System › Licence reads the text at runtime rather than carrying
+ * a paraphrase. Copying it from the repo root at build time means the licence DASH shows and the
+ * licence the repo carries can never drift apart: there is one file, and it is the one in git.
+ *
+ * It copies into the source assets rather than a generated directory on purpose. A generated asset
+ * folder has to be threaded into AGP's asset-merge task ordering to be picked up reliably; copying
+ * into `src/main/assets` is a line of build script that always works, and leaves the file present
+ * and committed so an IDE build that never runs the task still has it.
+ */
+val copyLicence by tasks.registering(Copy::class) {
+    from(rootProject.file("LICENSE"))
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+tasks.named("preBuild") { dependsOn(copyLicence) }
 
 dependencies {
     implementation(libs.androidx.core.ktx)

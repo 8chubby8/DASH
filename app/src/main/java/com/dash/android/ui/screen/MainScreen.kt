@@ -64,7 +64,6 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import com.dash.android.DashApplication
 import com.dash.android.MainActivity
-import com.dash.android.density.DensityManager
 import com.dash.android.prefs.DashPreferences
 import com.dash.android.ui.debug.DiagnosticOverlay
 import com.dash.android.ui.motion.DashTransitions
@@ -101,13 +100,11 @@ import com.dash.android.ui.systembar.EditRuler
 import com.dash.android.ui.systembar.SystemBar
 import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.launch
-import kotlin.system.exitProcess
 
 @Composable
 fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val context = LocalContext.current
     val mainActivity = activity as MainActivity
-    val densityManager = remember { DensityManager(context) }
     val prefs = remember { DashPreferences(context) }
     val scope = rememberCoroutineScope()
 
@@ -514,11 +511,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 SettingsPanel(
                     activity = mainActivity,
                     prefs = prefs,
-                    onExit = {
-                        densityManager.resetToDefault()
-                        activity.finish()
-                        exitProcess(0)
-                    },
                     onDismiss = { showLegacySettings = false }
                 )
             }
