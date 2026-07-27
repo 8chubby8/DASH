@@ -53,6 +53,7 @@ class DashPreferences(private val context: Context) {
     // fades either side are transitions (Appearance › Transitions); this dwell is the splash's own.
     // COLOUR and IMAGE use it; ANIMATION ignores it — the animation's own length is its duration.
     private val splashDwellKey = intPreferencesKey("splash_dwell_millis")
+    private val serialBufferKey = intPreferencesKey("serial_buffer_lines")
     // Per-orientation image crops (roadmap 1.5.6 Phase 2), each encoded "zoom,panX,panY". A tall slice
     // and a wide slice of the same picture cannot come from one rectangle, so portrait and landscape
     // are stored apart.
@@ -73,6 +74,16 @@ class DashPreferences(private val context: Context) {
 
     val dashTextScale: Flow<Float> = context.dataStore.data.map { prefs ->
         prefs[textScaleKey] ?: DASH_TEXT_SCALE_DEFAULT
+    }
+
+    /**
+     * How many wire lines the Serial Monitor keeps (roadmap 1.5.12). A *user* setting rather than a
+     * constant because the right answer depends entirely on how busy their bus is, which DASH cannot
+     * know: one door module on a bench and twenty modules in a vehicle want very different buffers —
+     * at twenty modules reporting ten times a second, 500 lines is about two and a half seconds.
+     */
+    val serialBufferLines: Flow<Int> = context.dataStore.data.map { prefs ->
+        prefs[serialBufferKey] ?: SERIAL_BUFFER_DEFAULT
     }
 
     val autoRotate: Flow<Boolean> = context.dataStore.data.map { prefs ->
@@ -148,6 +159,10 @@ class DashPreferences(private val context: Context) {
         context.dataStore.edit { it[textScaleKey] = scale }
     }
 
+    suspend fun saveSerialBufferLines(lines: Int) {
+        context.dataStore.edit { it[serialBufferKey] = lines }
+    }
+
     suspend fun saveAutoRotate(auto: Boolean) {
         context.dataStore.edit { it[autoRotateKey] = auto }
     }
@@ -213,3 +228,17 @@ class DashPreferences(private val context: Context) {
         context.dataStore.edit { it.remove(manualLocationKey) }
     }
 }
+
+/** The Serial Monitor's default line buffer — enough to read an install handshake on a quiet bench. */
+const val SERIAL_BUFFER_DEFAULT = 500
+
+/**
+ * The buffer sizes the Serial Monitor offers.
+ *
+ * The spread is deliberately wide because bus traffic is: at twenty modules reporting ten times a
+ * second, 50 lines is a quarter of a second and 5,000 is under half a minute, while on a bench with one
+ * board 5,000 lines is hours. Small is for watching a single exchange without pressing CLEAR first;
+ * large is for catching something intermittent. Neither is the "right" answer, which is exactly why it
+ * is the user's choice and not a constant.
+ */
+val SERIAL_BUFFER_OPTIONS = listOf(50, 200, 500, 1000, 5000)

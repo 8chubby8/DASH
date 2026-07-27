@@ -13,11 +13,14 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.Text
@@ -27,6 +30,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.shadow
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalDensity
@@ -36,6 +40,13 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.unit.IntOffset
+import androidx.compose.ui.unit.IntRect
+import androidx.compose.ui.unit.IntSize
+import androidx.compose.ui.unit.LayoutDirection
+import androidx.compose.ui.window.Popup
+import androidx.compose.ui.window.PopupPositionProvider
+import androidx.compose.ui.window.PopupProperties
 import com.dash.android.ui.theme.LocalDashTheme
 
 /**
@@ -395,13 +406,14 @@ fun SettingToggle(checked: Boolean, enabled: Boolean = true, onToggle: () -> Uni
     }
 }
 
-/** A quiet inline action — deep-links out, "reset", and the like. */
+/** A quiet inline action — deep-links out, "reset", and the like. [colour] overrides the default ink
+ *  for the few actions that carry a meaning of their own (a PAUSE that is green, a CLEAR that is red). */
 @Composable
-fun LinkButton(text: String, onClick: () -> Unit) {
+fun LinkButton(text: String, colour: Color? = null, onClick: () -> Unit) {
     val theme = LocalDashTheme.current
     Text(
         text,
-        color = theme.textColourSecondary,
+        color = colour ?: theme.textColourSecondary,
         fontSize = 12.5.sp,
         fontFamily = theme.font,
         textAlign = TextAlign.End,
@@ -411,3 +423,113 @@ fun LinkButton(text: String, onClick: () -> Unit) {
             .padding(vertical = 4.dp, horizontal = 2.dp),
     )
 }
+
+/** One row of a [DashMenu] — what the user reads, and the value it stands for. */
+data class MenuOption(val label: String, val value: String)
+
+/**
+ * A DASH dropdown menu (roadmap 1.5.12).
+ *
+ * Replaces Material's `DropdownMenu`, which was the one thing on a DASH surface that could not be
+ * styled from its call site: a Material component reads its colours from `MaterialTheme`, and DASH
+ * has never provided one — deliberately, since it owns its own token system. Every other Material
+ * component DASH uses (`Text`, above all) takes an explicit colour at every call site and so never
+ * consults it, which is why the gap stayed invisible until a menu appeared.
+ *
+ * Built on `Popup` from compose-ui rather than anything in material3, so it inherits nothing from
+ * Google's design language: DASH's surface, DASH's border, DASH's font, DASH's ink. Anchor it by
+ * placing it inside the `Box` that holds the control it belongs to — it positions itself directly
+ * beneath.
+ *
+ * The rows are set at 13.5sp rather than the 12sp Material used, which was small enough to be worth
+ * complaining about.
+ */
+@Composable
+fun DashMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    options: List<MenuOption>,
+    selected: String?,
+    onSelect: (String) -> Unit,
+) {
+    if (!expanded) return
+    val theme = LocalDashTheme.current
+    val ink = theme.textColourSecondary
+    val shape = RoundedCornerShape(8.dp)
+    val rowStyle = TextStyle(fontSize = 13.5.sp, fontFamily = theme.font)
+
+    // Width is measured from the widest label rather than left to the layout. A Popup is given the
+    // whole window as its maximum, so a child calling fillMaxWidth expands to the full screen — which
+    // is exactly what the first cut did. Intrinsic sizing is not an option either, because it cannot
+    // be measured through a scrolling container. So: measure the text, add the padding, clamp.
+    val measurer = rememberTextMeasurer()
+    val widest = options.maxOfOrNull { measurer.measure(AnnotatedString(it.label), rowStyle).size.width } ?: 0
+    val menuWidth = with(LocalDensity.current) { widest.toDp() + ROW_PAD * 2 }
+        .coerceIn(MENU_MIN_WIDTH, MENU_MAX_WIDTH)
+
+    Popup(
+        popupPositionProvider = BelowAnchor,
+        onDismissRequest = onDismiss,
+        properties = PopupProperties(focusable = true),
+    ) {
+        Column(
+            modifier = Modifier
+                .shadow(10.dp, shape)
+                .clip(shape)
+                .background(theme.backgroundColourSecondary)
+                .border(1.dp, ink.copy(alpha = 0.35f), shape)
+                .width(menuWidth)
+                // Capped so a filter over a chatty bus — every module id it has ever seen — scrolls
+                // rather than running off the screen.
+                .heightIn(max = 300.dp)
+                .verticalScroll(rememberScrollState()),
+        ) {
+            options.forEach { option ->
+                val isSelected = option.value == selected
+                Text(
+                    option.label,
+                    color = if (isSelected) ink else ink.copy(alpha = 0.78f),
+                    fontSize = 13.5.sp,
+                    fontFamily = theme.font,
+                    maxLines = 1,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(if (isSelected) ink.copy(alpha = 0.12f) else Color.Transparent)
+                        .clickable { onSelect(option.value); onDismiss() }
+                        .padding(horizontal = ROW_PAD, vertical = 10.dp),
+                )
+            }
+        }
+    }
+}
+
+/**
+ * Drops the menu *below* its anchor, and keeps it on screen.
+ *
+ * `Popup`'s `alignment` parameter positions the popup **within** the anchor's bounds, so `BottomStart`
+ * aligns its bottom edge with the anchor's bottom and it grows *upwards* — which is what the first cut
+ * did. Dropping downwards means offsetting by the anchor's height, and only a position provider is
+ * given that: it receives the anchor's bounds and the measured popup size, so it can also nudge the
+ * menu left when it would overflow the right edge, and flip it above the anchor when there genuinely
+ * is not room below.
+ */
+private object BelowAnchor : PopupPositionProvider {
+    override fun calculatePosition(
+        anchorBounds: IntRect,
+        windowSize: IntSize,
+        layoutDirection: LayoutDirection,
+        popupContentSize: IntSize,
+    ): IntOffset {
+        val x = anchorBounds.left
+            .coerceAtMost(windowSize.width - popupContentSize.width)
+            .coerceAtLeast(0)
+        val below = anchorBounds.bottom
+        val y = if (below + popupContentSize.height <= windowSize.height) below
+        else (anchorBounds.top - popupContentSize.height).coerceAtLeast(0)
+        return IntOffset(x, y)
+    }
+}
+
+private val ROW_PAD = 14.dp
+private val MENU_MIN_WIDTH = 110.dp
+private val MENU_MAX_WIDTH = 320.dp

@@ -1,5 +1,6 @@
 package com.dash.android.ui.signal
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -7,6 +8,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material3.Text
@@ -18,6 +20,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
@@ -64,6 +67,14 @@ fun SignalMonitorContent() {
     val values by desk.systemState.values.collectAsState()
     val functions = remember { SystemCommands.allFunctions() }
 
+    // Show the whole vocabulary, or only what has actually been heard. Both are useful and neither is
+    // the obvious default: the full list answers "what *could* a module send me", the live-only list
+    // answers "what is my vehicle actually saying right now" — and on a bus with three signals live out
+    // of forty-three, scrolling past forty greyed-out rows to find them is a waste of a screen.
+    // Deliberately not persisted, like the Serial Monitor's filters: a view toggle, not a setting.
+    var liveOnly by remember { mutableStateOf(false) }
+    val shown = if (liveOnly) functions.filter { values.containsKey(it) } else functions
+
     // One-second ticker so the age column counts up without new data arriving.
     var now by remember { mutableStateOf(System.currentTimeMillis()) }
     LaunchedEffect(Unit) { while (true) { delay(1_000); now = System.currentTimeMillis() } }
@@ -76,13 +87,19 @@ fun SignalMonitorContent() {
         modifier = Modifier.fillMaxSize().padding(24.dp),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
-        // Pinned: how much of the vocabulary is actually live. No in-box heading — the settings nav
-        // already names the tab, the same rule Module Manager follows.
+        // Pinned: how much of the vocabulary is actually live — and the control for the toggle, because
+        // the readout is the thing you are already looking at when you decide you want fewer rows. Same
+        // idea as the Serial Monitor's clickable line count. The count stays whole in both states, so
+        // switching to live-only never looks like signals have gone missing.
         Text(
-            "${values.size} of ${functions.size} signals live",
+            "${values.size} of ${functions.size} signals live" + if (liveOnly) "  ·  live only" else "",
             color = inkFaint,
             fontSize = 12.sp,
             fontFamily = theme.font,
+            modifier = Modifier
+                .clip(RoundedCornerShape(5.dp))
+                .clickable { liveOnly = !liveOnly }
+                .padding(horizontal = 4.dp, vertical = 2.dp),
         )
 
         Row(Modifier.fillMaxWidth()) {
@@ -93,11 +110,20 @@ fun SignalMonitorContent() {
 
         // The list takes the remaining height and scrolls on its own — the tab is `fillsBox`, so the
         // count and the column heads above stay pinned.
-        LazyColumn(
+        if (shown.isEmpty()) {
+            // Only reachable in live-only with nothing heard — the full list is never empty.
+            Text(
+                "Nothing has been heard yet — no module has broadcast a signal this session.",
+                color = inkFaint,
+                fontSize = 13.sp,
+                fontFamily = theme.font,
+                modifier = Modifier.weight(1f),
+            )
+        } else LazyColumn(
             modifier = Modifier.fillMaxWidth().weight(1f),
             verticalArrangement = Arrangement.spacedBy(4.dp)
         ) {
-            items(functions, key = { it }) { function ->
+            items(shown, key = { it }) { function ->
                 val stored = values[function]
                 val live = stored != null
                 Row(Modifier.fillMaxWidth()) {

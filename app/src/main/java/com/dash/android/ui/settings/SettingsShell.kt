@@ -180,84 +180,91 @@ private fun WideSettings(
     // Breadcrumb names the category even when a leaf sub is open without its category selected.
     val crumbCategory = selectedCategory ?: findSubAcrossTree(selectedSubId)?.first
 
-    Column(Modifier.fillMaxSize()) {
-        Breadcrumb(crumbCategory?.label?.uppercase() ?: "SETTINGS")
+    // The breadcrumb heads the *tree column*, not the whole shell, so the content box starts level with
+    // it and gets the full height of the panel (Roger, 2026-07-27 — the box was starting below the
+    // heading, level with the top of the tree, and was noticeably short because of it). The Row's top
+    // padding is the breadcrumb's own former top padding, which is what puts the box's top edge on the
+    // same line as the heading text.
+    Row(modifier = Modifier.fillMaxSize().padding(top = 24.dp, bottom = 28.dp)) {
+        // Left margin: tree, or the selected category's subtree. Width scales with the font so
+        // long labels don't ellipsise as the text grows.
+        Column(
+            modifier = Modifier
+                .width((260 * fontScale).dp)
+                .fillMaxHeight()
+                .padding(start = 16.dp, end = 12.dp)
+        ) {
+            // start = 8 here plus the column's own start = 16 keeps the heading exactly where it was.
+            Breadcrumb(
+                crumbCategory?.label?.uppercase() ?: "SETTINGS",
+                Modifier.padding(start = 8.dp, bottom = 14.dp),
+            )
 
-        Row(modifier = Modifier.fillMaxSize().padding(top = 10.dp, bottom = 28.dp)) {
-            // Left margin: tree, or the selected category's subtree. Width scales with the font so
-            // long labels don't ellipsise as the text grows.
-            Column(
-                modifier = Modifier
-                    .width((260 * fontScale).dp)
-                    .fillMaxHeight()
-                    .padding(start = 16.dp, end = 12.dp)
-            ) {
-                AnimatedContent(
-                    targetState = selectedCategory,
-                    transitionSpec = {
-                        // Into a subtree is DRILL IN; back to the tree is BACK OUT — each its own speed.
-                        if (targetState != null) {
-                            val d = transitions.millis(TransitionId.SETTINGS_NAV_DRILL_IN)
-                            val slide = tween<IntOffset>(d)
-                            (slideInHorizontally(slide) { it / 3 } + fadeIn(tween(d))) togetherWith
-                                (slideOutHorizontally(slide) { -it / 3 } + fadeOut(tween(d * 2 / 3)))
-                        } else {
-                            val d = transitions.millis(TransitionId.SETTINGS_NAV_BACK_OUT)
-                            val slide = tween<IntOffset>(d)
-                            (slideInHorizontally(slide) { -it / 3 } + fadeIn(tween(d))) togetherWith
-                                (slideOutHorizontally(slide) { it / 3 } + fadeOut(tween(d * 2 / 3)))
-                        }
-                    },
-                    modifier = Modifier.weight(1f),
-                    label = "tree"
-                ) { category ->
-                    val scroll = rememberScrollState()
-                    Column(
-                        modifier = Modifier.fillMaxSize().verticalScroll(scroll),
-                        verticalArrangement = Arrangement.spacedBy((4 * fontScale).dp)
-                    ) {
-                        if (category == null) {
-                            DASH_SETTINGS_TREE.forEach { cat ->
-                                // A leaf category reads as selected when its one sub's content is open.
-                                val leafOpen = cat.subs.size == 1 && cat.subs.single().id == selectedSubId
-                                NavRow(cat.label, trailing = null, selected = leafOpen) { onSelectCategory(cat) }
-                            }
-                        } else {
-                            category.subs.forEach { sub ->
-                                NavRow(sub.label, trailing = null, selected = sub.id == selectedSubId) { onSelectSub(sub.id) }
-                            }
-                        }
-                    }
-                }
-
-                NavRow("LEGACY SETTINGS →", trailing = null, selected = false, dim = true) { onOpenLegacy() }
-                NavRow(if (showBack) "‹ BACK" else "‹ CLOSE", trailing = null, selected = false) { onBack() }
-            }
-
-            // Right: the content box. A crossfade carries the eye between the weather landing and a
-            // chosen subcategory's content (and between subcategories) rather than a hard cut.
-            Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
-                val sub = findSubAcrossTree(selectedSubId)?.second
-                // Crossfade, not AnimatedContent, for the content swap: it re-targets each state's
-                // alpha over the full duration when interrupted, so tapping back to a tab whose fade
-                // hasn't finished animates home at the chosen speed rather than snapping. At LABORIOUS
-                // the interruption window is seconds long, which is where the snap showed up.
-                Crossfade(
-                    targetState = sub,
-                    animationSpec = tween(transitions.millis(TransitionId.SETTINGS_CONTENT_SWAP)),
-                    label = "content"
-                ) { target ->
-                    if (target != null) {
-                        SettingsContentBox(target, Modifier.fillMaxSize())
+            AnimatedContent(
+                targetState = selectedCategory,
+                transitionSpec = {
+                    // Into a subtree is DRILL IN; back to the tree is BACK OUT — each its own speed.
+                    if (targetState != null) {
+                        val d = transitions.millis(TransitionId.SETTINGS_NAV_DRILL_IN)
+                        val slide = tween<IntOffset>(d)
+                        (slideInHorizontally(slide) { it / 3 } + fadeIn(tween(d))) togetherWith
+                            (slideOutHorizontally(slide) { -it / 3 } + fadeOut(tween(d * 2 / 3)))
                     } else {
-                        // Landing: the layered weather scene (roadmap 1.5.4). Renders offline from the
-                        // device clock; the live weather layer upgrades it when a source is available.
-                        WeatherLanding(Modifier.fillMaxSize())
+                        val d = transitions.millis(TransitionId.SETTINGS_NAV_BACK_OUT)
+                        val slide = tween<IntOffset>(d)
+                        (slideInHorizontally(slide) { -it / 3 } + fadeIn(tween(d))) togetherWith
+                            (slideOutHorizontally(slide) { it / 3 } + fadeOut(tween(d * 2 / 3)))
+                    }
+                },
+                modifier = Modifier.weight(1f),
+                label = "tree"
+            ) { category ->
+                val scroll = rememberScrollState()
+                Column(
+                    modifier = Modifier.fillMaxSize().verticalScroll(scroll),
+                    verticalArrangement = Arrangement.spacedBy((4 * fontScale).dp)
+                ) {
+                    if (category == null) {
+                        DASH_SETTINGS_TREE.forEach { cat ->
+                            // A leaf category reads as selected when its one sub's content is open.
+                            val leafOpen = cat.subs.size == 1 && cat.subs.single().id == selectedSubId
+                            NavRow(cat.label, trailing = null, selected = leafOpen) { onSelectCategory(cat) }
+                        }
+                    } else {
+                        category.subs.forEach { sub ->
+                            NavRow(sub.label, trailing = null, selected = sub.id == selectedSubId) { onSelectSub(sub.id) }
+                        }
                     }
                 }
             }
+
+            NavRow("LEGACY SETTINGS →", trailing = null, selected = false, dim = true) { onOpenLegacy() }
+            NavRow(if (showBack) "‹ BACK" else "‹ CLOSE", trailing = null, selected = false) { onBack() }
         }
+
+        // Right: the content box. A crossfade carries the eye between the weather landing and a
+        // chosen subcategory's content (and between subcategories) rather than a hard cut.
+        Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
+            val sub = findSubAcrossTree(selectedSubId)?.second
+            // Crossfade, not AnimatedContent, for the content swap: it re-targets each state's
+            // alpha over the full duration when interrupted, so tapping back to a tab whose fade
+            // hasn't finished animates home at the chosen speed rather than snapping. At LABORIOUS
+            // the interruption window is seconds long, which is where the snap showed up.
+            Crossfade(
+                targetState = sub,
+                animationSpec = tween(transitions.millis(TransitionId.SETTINGS_CONTENT_SWAP)),
+                label = "content"
+            ) { target ->
+                if (target != null) {
+                    SettingsContentBox(target, Modifier.fillMaxSize())
+                } else {
+                    // Landing: the layered weather scene (roadmap 1.5.4). Renders offline from the
+                    // device clock; the live weather layer upgrades it when a source is available.
+                    WeatherLanding(Modifier.fillMaxSize())
+                }
+            }
     }
+}
 }
 
 // ── Narrow: single-pane drill-down ─────────────────────────────────────────────────────────────
@@ -346,7 +353,12 @@ private fun NarrowSettings(
 }
 
 @Composable
-private fun Breadcrumb(text: String) {
+private fun Breadcrumb(
+    text: String,
+    // Positionable because the two layouts place it differently: in the narrow layout it heads the whole
+    // screen, in the wide one it heads the *tree column* so the content box can start level with it.
+    modifier: Modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 14.dp),
+) {
     val theme = LocalDashTheme.current
     Text(
         text = text,
@@ -354,7 +366,7 @@ private fun Breadcrumb(text: String) {
         fontSize = 13.sp,
         fontFamily = theme.font,
         letterSpacing = 3.sp,
-        modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 14.dp)
+        modifier = modifier,
     )
 }
 

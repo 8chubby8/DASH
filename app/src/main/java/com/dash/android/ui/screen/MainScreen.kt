@@ -259,10 +259,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             devices = transport.devices,
             lastInboundAt = transport.lastInboundAt,
             lastDashAt = controller.lastDashAt,
-            status = transport.status,
             wire = transport.wire,
             send = transport::send,
-            sendTo = transport::sendTo,
             onOpenWifiSettings = {
                 runCatching {
                     context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))

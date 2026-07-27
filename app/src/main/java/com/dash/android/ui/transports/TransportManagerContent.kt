@@ -209,8 +209,8 @@ private fun TransportCard(
 
         // Deep-links out for radio-level / pairing controls DASH never reimplements.
         when (kind) {
-            Kind.WIFI -> LinkButton("Wi-Fi settings →", onOpenWifiSettings)
-            Kind.BT -> LinkButton("Bluetooth settings →", onOpenBluetoothSettings)
+            Kind.WIFI -> LinkButton("Wi-Fi settings →") { onOpenWifiSettings() }
+            Kind.BT -> LinkButton("Bluetooth settings →") { onOpenBluetoothSettings() }
             else -> {}
         }
     }

@@ -42,13 +42,12 @@ data class TransportDesk(
     val lastDashAt: StateFlow<Map<DeviceRef, Long>>,
     val onOpenWifiSettings: () -> Unit,
     val onOpenBluetoothSettings: () -> Unit,
-    // The Serial Monitor's half (roadmap 1.5.12). It is a *view* onto this same transport layer — the
-    // read-only wire tap plus the two ways to put a line back on it — so it shares this desk rather
-    // than gaining one of its own. It never owns the connection; leaving the tab leaves the link up.
-    val status: StateFlow<TransportStatus>,
+    // The Serial Monitor's half (roadmap 1.5.12): the read-only wire tap, plus the broadcast the
+    // COMMANDS panel puts back on it. It is a *view* onto this same transport layer, so it shares this
+    // desk rather than gaining one of its own, and it never owns the connection — leaving the tab
+    // leaves every link up.
     val wire: SharedFlow<WireEvent>,
     val send: (String) -> Unit,
-    val sendTo: (TransportDevice, String) -> Unit,
 )
 
 val LocalTransportDesk = compositionLocalOf<TransportDesk?> { null }

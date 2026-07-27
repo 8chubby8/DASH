@@ -47,6 +47,44 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.13
+
+**Status:** Complete — instrument polish across the two new tabs, out of driving them on real hardware. 2026-07-27.
+
+**Scope:** This number was **cut** earlier the same day: every part of the planned 1.5.13 had already been rehomed or dropped by 1.5.10 and 1.5.12. It was then **reclaimed the same day** rather than skipping to 1.5.14, which is spoken for — the sequence stays continuous and the roadmap records both the cut and the reclaim.
+
+**Implemented:**
+- **`DashMenu`** — a DASH dropdown built on `Popup` from compose-ui, in `SettingsScaffold.kt` beside `LinkButton` so any tab gets it. Replaces Material's `DropdownMenu` in all six places on the Serial Monitor. Rows at 13.5sp rather than Material's 12sp, the current selection marked, capped at 300dp with scrolling.
+- **A position provider (`BelowAnchor`)** so the menu drops *below* its anchor, nudges left when it would overflow the right edge, and flips above only when there genuinely is not room below.
+- **Column widths are measured, not constants.** Each column takes the greater of its own 13sp header-plus-chevron and a representative 12sp sample, and re-measures when the font, the display density or the text scale changes.
+- **The Serial Monitor's line buffer is the user's** — 50 · 200 · 500 · 1000 · 5000, default 500, persisted as `serial_buffer_lines`. The count line is the control. Shrinking trims immediately rather than only capping future growth.
+- **`TRANSPORT` reads `Bluetooth` / `WiFi` / `USB`** instead of the internal tags, in the column and in its filter. An unknown transport falls back to its own tag uppercased.
+- **Top bar reworked:** PAUSE green, CLEAR red, COMMANDS in the text colour, actions grouped left with an 18dp gap, readout moved right. `LinkButton` gained an optional colour for actions that carry a meaning of their own.
+- **The send box returned as a COMMANDS drawer** — opens on request, closes on send or on pressing COMMANDS again, and pushes the grid down rather than floating over it.
+- **The settings content box aligns with the heading** rather than the top of the tree, gaining roughly 60dp it was missing. The breadcrumb now heads the *tree column* in the wide layout; the narrow layout is untouched, so `Breadcrumb` takes a modifier with its old padding as the default.
+- **The Signal Monitor's count toggles live-only**, with an honest empty state for the case where nothing has been heard.
+
+**Removed:**
+- **`SEND TO`**, then **the send box itself**, then the send box came back behind COMMANDS. The selector did not return: DASH messages carry their own addressing in field 1 of the grammar, so a line finds the right module down whichever pipe it travels — targeting at the transport layer duplicated that a layer down. `TransportManager.sendTo` is untouched and has no caller.
+- **The Serial Monitor's per-pipe status lights.** Transport Manager owns "what is connected and is it healthy"; two tabs answering the same question is two tabs that can disagree.
+
+**Regressions:**
+- **Two, both mine, both caught immediately by Roger on the device.** The first `DashMenu` filled the screen: its rows called `fillMaxWidth()` inside a `Popup`, and a Popup is handed the whole window as its maximum. `IntrinsicSize.Max` — the normal answer — cannot be measured through a scrolling container, and the menu needs to scroll, so the fix was to measure the widest label directly. The second dropped *upwards*: `Popup`'s `alignment` positions the popup **within** the anchor's bounds, so `BottomStart` aligns its bottom edge with the anchor's bottom. Only a position provider can offset by the anchor's height.
+- `LinkButton` gaining a colour parameter broke two positional call sites in `TransportManagerContent`, which passed `onClick` as the second argument. Compile-time, fixed at once.
+
+**Outstanding:**
+- **Still no `MaterialTheme`.** The Serial Monitor is clean, but `LinearProgressIndicator` (Module Manager), the settings gear `Icon`, and the legacy panel's `Button`/`TextButton` remain Material components with no theme to read. Most of that dies with the legacy panel at 1.5.16; the progress bar and the icon will want converting or bridging.
+- Transport Manager's lights and Module Manager's chips are still the mid-tone set and look muted beside the Serial Monitor's brights.
+- `ROTATION`, `CHANGE LAUNCHER →` and `EXIT DASH` are still stranded in the legacy panel.
+- Grid cells remain single-line with ellipsis; tap-to-expand is unbuilt.
+
+**Notes:**
+- **The readout is the control** has become the idiom for these instruments: the line count opens the buffer menu, the signal count toggles live-only, and each column filter lives inside the header it filters. In each case the thing you are already reading is the thing you click.
+- **Roger's naming rule, again:** DASH spells it **colour**. `Color` appears only where Compose's API forces it, and the audit confirmed every DASH-chosen identifier already follows the rule.
+- The buffer options and default live in `DashPreferences.kt` as `SERIAL_BUFFER_OPTIONS` and `SERIAL_BUFFER_DEFAULT`. A higher ceiling is one list entry, for when there is hardware busy enough to justify it.
+
+---
+
 ## Version 1.5.12
 
 **Status:** Complete — Serial Monitor and Signal Monitor rehomed under Modules, the Serial Monitor rebuilt as a filterable grid, the Developer category confirmed dead, and the settings surface taken dark. 2026-07-27.
