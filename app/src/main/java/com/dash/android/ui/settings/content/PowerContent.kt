@@ -17,9 +17,15 @@ import com.dash.android.system.DevicePower
 import kotlinx.coroutines.delay
 
 /**
- * Exit › Exit DASH (roadmap 1.5.14) — the rehome of the legacy panel's EXIT DASH.
+ * System › Power (roadmap 1.5.14) — the rehome of the legacy panel's EXIT DASH, plus the device
+ * power actions on hardware that allows them.
  *
- * It ends the DASH process and hands the screen back to Android, resetting any forced display
+ * **Named Power, and living under System.** Exit DASH alone would have been an *Exit* tab, but on
+ * Silver/Gold this surface also restarts and shuts down the whole device — and something that acts
+ * on the device belongs with the rest of the system settings rather than as a peer of Appearance and
+ * Layout.
+ *
+ * Exit ends the DASH process and hands the screen back to Android, resetting any forced display
  * density on the way out so nothing of DASH's is left behind on a device the user has walked away
  * from.
  *
@@ -32,7 +38,7 @@ import kotlinx.coroutines.delay
  * own after a few seconds if the user thinks better of it.
  */
 @Composable
-fun ExitContent() {
+fun PowerContent() {
     val context = LocalContext.current
     val activity = remember(context) { context as? MainActivity }
     val isLauncher = remember(activity) { activity?.isDefaultLauncher() == true }
@@ -45,10 +51,7 @@ fun ExitContent() {
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(24.dp),
     ) {
-        SettingsContentHeader(
-            "Exit DASH",
-            "Close DASH and return to Android. Any display density DASH has set is put back first.",
-        )
+        SettingsContentHeader("Power")
 
         SettingBlock(
             name = "Exit DASH",
@@ -57,8 +60,9 @@ fun ExitContent() {
                     "there is nowhere else for the screen to go. To leave DASH properly, change the " +
                     "home app first under System › Android Settings Links."
             } else {
-                "Ends DASH and returns you to your home screen. Everything DASH has saved stays " +
-                    "saved; opening it again picks up where you left off."
+                "Ends DASH and returns you to your home screen, putting back any display density " +
+                    "DASH has set. Everything DASH has saved stays saved; opening it again picks " +
+                    "up where you left off."
             },
             tag = if (confirming) "Tap again to confirm" else null,
             control = {

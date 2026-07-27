@@ -124,14 +124,10 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
             // lazily, which needs a finite height to measure against. It pays for that by applying
             // the shell's own content padding itself — see LicenceContent.
             SettingsSub("system.licence", "Licence", SettingsStatus.LIVE, fillsBox = true),
-        )
-    ),
-    // Last in the tree, where leaving belongs. Named Power rather than Exit because on Silver/Gold
-    // hardware it holds restart and shut down as well — actions on the device, not just on DASH.
-    // One subcategory, so 1.5.9's rule opens it straight from the main tree with no submenu.
-    SettingsCategory(
-        "power", "Power", listOf(
-            SettingsSub("power.exit", "Exit DASH", SettingsStatus.LIVE),
+            // Last in System, where leaving belongs. Named Power rather than Exit because on
+            // Silver/Gold it holds restart and shut down as well — actions on the device, not just
+            // on DASH, which is also why it sits under System rather than beside it.
+            SettingsSub("system.power", "Power", SettingsStatus.LIVE),
         )
     ),
     // Developer category removed (roadmap 1.5.10): its Serial + Signal Monitor moved under Modules;

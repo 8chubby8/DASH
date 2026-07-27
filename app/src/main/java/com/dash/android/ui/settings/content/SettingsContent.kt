@@ -33,7 +33,7 @@ fun SettingsContent(sub: SettingsSub) {
         "system.deeplinks" -> SystemLinksContent()
         "system.about" -> AboutContent()
         "system.licence" -> LicenceContent()
-        "power.exit" -> ExitContent()
+        "system.power" -> PowerContent()
         else -> WipPlaceholder(sub)
     }
 }
