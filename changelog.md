@@ -47,6 +47,49 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.12
+
+**Status:** Complete — Serial Monitor and Signal Monitor rehomed under Modules, the Serial Monitor rebuilt as a filterable grid, the Developer category confirmed dead, and the settings surface taken dark. 2026-07-27.
+
+**Scope:** Planned as a migration of the two 1.4.x dev instruments into a **Developer** tab. Roger settled the question that had been tabled since 1.5.10 — **the Developer category is dead** — so they landed under **Modules**, beside the boards they watch. Nothing is behind a safety gate; every instrument is an ordinary tab, per CLAUDE.md's *no locked features, no hidden menus, no barriers between the user and full control*.
+
+**Implemented:**
+- **Modules › Serial Monitor** and **Modules › Signal Monitor**, both `fillsBox` tabs in the settings shell.
+- **Rebuilt, not ported.** The old screens were near-black wells carrying their own `SERIAL MONITOR` headers and `CLOSE ✕` buttons — right for a standalone route, wrong for a tab where the nav names it and the shell frames it. Same decision 1.5.8 took for Module Manager.
+- **The Serial Monitor is now a grid:** TIME · DIR · TRANSPORT · BOARD · MESSAGE · MODULE ID · PAYLOAD. Every line on the wire is already a structured record (`TYPE|id|…`), so rendering it as one string made the eye do the parsing.
+- **A filter in each column header**, for DIR / TRANSPORT / BOARD / MESSAGE / MODULE ID. They combine, they filter the *view* only (nothing leaves the buffer), and a set column shows its value in full ink so a filtered grid is never mistaken for a quiet bus — helped by a "42 of 318 lines" count.
+- **Filter options are built from what has been seen**, not from a hardcoded vocabulary, so a message type invented by a community module appears the first time it is sent. Same principle as the transport cards rendering exactly the pipes that exist.
+- **Send box in the modern DASH idiom** — a token-bordered well with `BasicTextField`, replacing a Material `TextField` in navy and green. "All devices" became **"All boards"**, since that selector addresses a thing on a pipe.
+- **Desk plumbing:** `TransportDesk` gained `status`/`wire`/`send`/`sendTo` (the Serial Monitor is a view onto that same transport layer, so it shares the desk); `ModuleDesk` gained `systemState` (modules are what fill the sourceless core).
+- **Legacy panel cleanup:** both standalone full-screen routes and their `MainScreen` state deleted, the old `SerialMonitorScreen.kt` and `SignalMonitorScreen.kt` removed, and the stale **APP DENSITY** block — including "Open Display Size Settings →", a duplicate of the Appearance › Size & Scale deep-link since 1.5.3 — removed. Roger spotted that one.
+
+**The theme change (the significant part):**
+- `backgroundColourSecondary` **848482 → 2C2C2E**, and `backgroundColourPrimary` **E5E5EA → D2D2D7**, with `accentColourPrimary` **D1D1D6 → C2C2C7** following it.
+- **Why.** The Serial Monitor's colour-coded message words were unreadable, and measurement showed why: against the mid-grey surface they ran **1.06–1.28:1**. The cause was not the palette but the *background* — mid-grey sits in the middle of the luminance range, so nothing can get far from it. **Even pure black reaches only 5.60:1 on it, and pure white 3.75:1.** No hue can be readable there, which is why three attempts to fix it with colour all failed.
+- On `2C2C2E` the paired ink runs **11.10:1** (was 2.98:1) and the restored bright palette runs **4.7–8.1:1**.
+- The primary surface was then eased down so the near-white system bar sat less harshly against the now-dark panel. **`accentColourPrimary` had to move with it:** the old accent was a subtly *darker* divider, and on `D2D2D7` it measured 1.01:1 — invisible, and inverting to lighter-than-surface if the background went further. Recorded in `DashTheme.kt` as a rule: **when a surface token moves, the accent paired with it must be re-checked.**
+
+**Tried and reverted (kept for the record — three ways not to solve this):**
+- **A `categoryColours` theme token** with colours hashed from the message word, so a community message type would colour itself. Designed in full, then **rejected by Roger**: a message's colour distinguishes a *kind of traffic*, it is not part of DASH's visual identity, and it should not shift when a user picks a preset.
+- **A light grid well on `backgroundColourPrimary` plus a paired light/dark palette** selected automatically by `Color.luminance()`. Measured well (6.8–9.7:1) and looked wrong — reverted on sight.
+- **A white glyph outline behind the coloured text** (`drawStyle = Stroke`), Roger's own suggestion, on the theory that an outline sidesteps contrast entirely by putting a hard edge between glyph and background. Reverted on sight — "ugly".
+- The lesson is in the order: three attempts to work *around* a bad surface, then one change *to* the surface, which fixed it in one line.
+
+**Regressions:**
+- None found. The two instruments keep their behaviour; the transport stack was not touched.
+
+**Outstanding:**
+- **Material components ignore DASH theming entirely.** There is no `MaterialTheme` anywhere in the app, so `DropdownMenu` and `DropdownMenuItem` — the four filter dropdowns and the SEND TO selector — render in Material3's baseline scheme, and no token work on DASH's side reaches them. The same is true of the Material `Button`s left in the legacy panel. Fix is either a `MaterialTheme` mapped from the DASH tokens at the root, or DASH-native popups. **Not done, and it is visible.**
+- **Status colours elsewhere are now inconsistent with the Serial Monitor.** Transport Manager's DATA/DASH lights and Module Manager's chips are still the mid-tone set (3DA35D / C98A2B / D9534F). They improved to 3.5–4.8:1 on the dark surface, so they are readable, but they read more muted than the Serial Monitor's brights. Worth lifting to match.
+- **The legacy panel still holds ROTATION, CHANGE LAUNCHER → and EXIT DASH.** None has a home in the tree, so removing them would strand live features. Rotation arguably belongs in System; Exit and Change Launcher probably belong with About DASH at 1.5.14.
+- Grid cells are single-line with ellipsis — a long `MANIFEST` payload is clipped rather than wrapped, because wrapping breaks the alignment that makes a grid scannable. Tap-to-expand is the obvious answer if the full text is ever needed.
+
+**Notes:**
+- **1.5.13 was cut as a consequence** — transport diagnostics are what Transport Manager *is*, the log viewer became Modules › Activity Log deferred to v2, and the safety gate went with the Developer category. Nothing was left to build. The number stays in place rather than renumbering; the sequence is a record, not a tidy list.
+- Roger's naming correction, worth keeping: DASH spells it **colour**. `Color` appears only where Compose's API forces it.
+
+---
+
 ## Version 1.5.11
 
 **Status:** Complete — the transport stack now lives for the life of the process, not the life of a composable. Verified 2026-07-27.

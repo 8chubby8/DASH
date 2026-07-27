@@ -69,8 +69,8 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
         "modules", "Modules", listOf(
             SettingsSub("modules.management", "Module Manager", SettingsStatus.LIVE, fillsBox = true),
             SettingsSub("modules.transport", "Transport Manager", SettingsStatus.LIVE, fillsBox = true),
-            wip("modules.serial", "Serial Monitor", "1.5.12"),
-            wip("modules.signal", "Signal Monitor", "1.5.12"),
+            SettingsSub("modules.serial", "Serial Monitor", SettingsStatus.LIVE, fillsBox = true),
+            SettingsSub("modules.signal", "Signal Monitor", SettingsStatus.LIVE, fillsBox = true),
             // DASH's own decision log — not the wire (that's Serial Monitor) but the reasons behind the
             // refused / dropped / left-dormant outcomes that currently only reach logcat. Roger's call,
             // 2026-07-27: it belongs here beside the boards it explains, but it is v2 work, not v1.

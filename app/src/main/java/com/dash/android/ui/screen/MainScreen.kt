@@ -82,8 +82,6 @@ import com.dash.android.ui.modules.LocalModuleDesk
 import com.dash.android.ui.modules.ModuleDesk
 import com.dash.android.ui.transports.LocalTransportDesk
 import com.dash.android.ui.transports.TransportDesk
-import com.dash.android.ui.monitor.SerialMonitorScreen
-import com.dash.android.ui.signal.SignalMonitorScreen
 import com.dash.android.ui.modulepanel.MODULE_PANEL_EXPANDED_HEIGHT
 import com.dash.android.ui.modulepanel.MODULE_PANEL_MINIMISED_HEIGHT
 import com.dash.android.ui.modulepanel.ModulePanelPlaceholder
@@ -158,8 +156,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var settingsReturnTarget by remember { mutableStateOf<String?>(null) }
     var showLegacySettings by remember { mutableStateOf(false) }
     var modulePanelExpanded by remember { mutableStateOf(false) }
-    var showSerialMonitor by remember { mutableStateOf(false) }
-    var showSignalMonitor by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
     var editConfig by remember { mutableStateOf<SystemBarConfig?>(null) }
     var elementWidths by remember { mutableStateOf(mapOf<String, Int>()) }
@@ -253,6 +249,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             database = controller.database,
             reconciliation = controller.reconciliation,
             onUpdate = controller::updateModule,
+            systemState = controller.systemState,
         ),
         // The live transport desk for Modules › Transport Manager (1.5.10). Live flows off the
         // TransportManager (held for the app's life), plus the check-now sweep and the deep-links out
@@ -262,6 +259,10 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             devices = transport.devices,
             lastInboundAt = transport.lastInboundAt,
             lastDashAt = controller.lastDashAt,
+            status = transport.status,
+            wire = transport.wire,
+            send = transport::send,
+            sendTo = transport::sendTo,
             onOpenWifiSettings = {
                 runCatching {
                     context.startActivity(Intent(Settings.ACTION_WIFI_SETTINGS).addFlags(Intent.FLAG_ACTIVITY_NEW_TASK))
@@ -515,17 +516,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 SettingsPanel(
                     activity = mainActivity,
                     prefs = prefs,
-                    densityManager = densityManager,
-                    onOpenSerialMonitor = {
-                        showSerialMonitor = true
-                        showLegacySettings = false
-                        showSettings = false
-                    },
-                    onOpenSignalMonitor = {
-                        showSignalMonitor = true
-                        showLegacySettings = false
-                        showSettings = false
-                    },
                     onExit = {
                         densityManager.resetToDefault()
                         activity.finish()
@@ -539,23 +529,9 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // inside the shell — no standalone route. It reaches the controller's managers through
             // LocalModuleDesk, provided above.
 
-            // Serial Monitor overlay — full-screen dev instrument, reached from settings
-            // (mirrors the edit-workspace route). Closing returns to the main screen.
-            if (showSerialMonitor) {
-                SerialMonitorScreen(
-                    transport = transport,
-                    onDismiss = { showSerialMonitor = false }
-                )
-            }
-
-            // Signal Monitor overlay — the live board of system messages + their state in the
-            // sourceless core (roadmap 1.4.10). Dev instrument, same shelf as the Serial Monitor.
-            if (showSignalMonitor) {
-                SignalMonitorScreen(
-                    controller = controller,
-                    onDismiss = { showSignalMonitor = false }
-                )
-            }
+            // The Serial Monitor and Signal Monitor are settings tabs since 1.5.12 (Modules › Serial
+            // Monitor / Signal Monitor), rendered inside the shell — no standalone routes any more.
+            // They reach the transport layer and the sourceless core through the two desks above.
 
             // Splash overlay — sits above everything, including the settings panel
             if (showSplash) {

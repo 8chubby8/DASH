@@ -28,17 +28,30 @@ data class DashTheme(
     val font: FontFamily,
 ) {
     companion object {
-        // One default set. The light-grey primary surface carries black text/icons; the raised
-        // battleship-grey secondary surface carries light-grey text/icons. Accents are the mid
-        // greys the system bar and edit ruler use for structure.
+        // One default set. The light-grey primary surface carries black text/icons; the dark
+        // secondary surface carries light-grey text/icons. Accents are the mid greys the system bar
+        // and edit ruler use for structure.
+        //
+        // The secondary surface was a mid-grey (848482) until 1.5.12. It was changed because mid-grey
+        // sits in the middle of the luminance range, so *nothing* can get far from it — even pure black
+        // reaches only 5.6:1 on it, and the Serial Monitor's colour-coded message words managed
+        // 1.06–1.28:1, which is invisible. No palette can fix that; only the surface can. At 2C2C2E the
+        // paired ink runs 11.1:1 and colour-coding runs 4.7–8.1:1.
+        //
+        // The primary surface was then eased down too (E5E5EA → D2D2D7, 1.5.12), so the near-white
+        // system bar sits less harshly against the now-dark settings panel. Black text on it stays at
+        // 13.9:1. **accentColourPrimary had to move with it** (D1D1D6 → C2C2C7): the old accent was a
+        // subtly *darker* divider on the old surface, and on D2D2D7 it landed at 1.01:1 — invisible,
+        // and inverting to lighter-than-the-surface if the background were taken any further down.
+        // Whenever a surface token moves, the accent paired with it has to be re-checked.
         fun default() = DashTheme(
-            backgroundColourPrimary   = Color(0xFFE5E5EA),
-            backgroundColourSecondary = Color(0xFF848482),
+            backgroundColourPrimary   = Color(0xFFD2D2D7),
+            backgroundColourSecondary = Color(0xFF2C2C2E),
             textColourPrimary         = Color(0xFF000000),
             textColourSecondary       = Color(0xFFE5E5EA),
             iconColourPrimary         = Color(0xFF000000),
             iconColourSecondary       = Color(0xFFE5E5EA),
-            accentColourPrimary       = Color(0xFFD1D1D6),
+            accentColourPrimary       = Color(0xFFC2C2C7),
             accentColourSecondary     = Color(0xFF8E8E93),
             font                      = FontFamily.Monospace,
         )

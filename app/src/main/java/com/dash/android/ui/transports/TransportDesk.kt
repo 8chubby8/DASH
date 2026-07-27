@@ -4,6 +4,8 @@ import androidx.compose.runtime.compositionLocalOf
 import com.dash.android.transport.DeviceRef
 import com.dash.android.transport.TransportDevice
 import com.dash.android.transport.TransportStatus
+import com.dash.android.transport.WireEvent
+import kotlinx.coroutines.flow.SharedFlow
 import kotlinx.coroutines.flow.StateFlow
 
 /**
@@ -40,6 +42,13 @@ data class TransportDesk(
     val lastDashAt: StateFlow<Map<DeviceRef, Long>>,
     val onOpenWifiSettings: () -> Unit,
     val onOpenBluetoothSettings: () -> Unit,
+    // The Serial Monitor's half (roadmap 1.5.12). It is a *view* onto this same transport layer — the
+    // read-only wire tap plus the two ways to put a line back on it — so it shares this desk rather
+    // than gaining one of its own. It never owns the connection; leaving the tab leaves the link up.
+    val status: StateFlow<TransportStatus>,
+    val wire: SharedFlow<WireEvent>,
+    val send: (String) -> Unit,
+    val sendTo: (TransportDevice, String) -> Unit,
 )
 
 val LocalTransportDesk = compositionLocalOf<TransportDesk?> { null }

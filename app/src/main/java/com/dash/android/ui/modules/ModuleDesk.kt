@@ -1,6 +1,7 @@
 package com.dash.android.ui.modules
 
 import androidx.compose.runtime.compositionLocalOf
+import com.dash.android.core.SystemState
 import com.dash.android.transport.Discovery
 import com.dash.android.transport.Install
 import com.dash.android.transport.ModuleDatabase
@@ -25,6 +26,14 @@ data class ModuleDesk(
     val database: ModuleDatabase,
     val reconciliation: Reconciliation,
     val onUpdate: (String) -> Unit,
+    /**
+     * The sourceless core the Signal Monitor renders (roadmap 1.5.12). It belongs on this desk because
+     * modules are what fill it: every `BROADCAST` that passes the gatekeeper lands here as a value.
+     * It is deliberately *sourceless* (arduino.md §5) — the store holds "the current state of
+     * `gear_position`", never "what module X said" — which is exactly why two boards can both feed
+     * `ambient_temp` and the monitor simply shows the latest.
+     */
+    val systemState: SystemState,
 )
 
 val LocalModuleDesk = compositionLocalOf<ModuleDesk?> { null }
