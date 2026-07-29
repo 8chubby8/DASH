@@ -13,7 +13,6 @@ import androidx.datastore.preferences.preferencesDataStore
 import com.dash.android.density.DensityPreset
 import com.dash.android.ui.motion.TransitionId
 import com.dash.android.ui.motion.TransitionSpeed
-import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
 import com.dash.android.ui.splash.SPLASH_DWELL_DEFAULT_MS
 import com.dash.android.ui.splash.SplashCrop
@@ -36,7 +35,6 @@ class DashPreferences(private val context: Context) {
     private val json = Json { ignoreUnknownKeys = true; encodeDefaults = true }
 
     private val densityKey = stringPreferencesKey("density_preset")
-    private val scaleKey = floatPreferencesKey("dash_scale")
     private val textScaleKey = floatPreferencesKey("dash_text_scale")
     private val autoRotateKey = booleanPreferencesKey("auto_rotate")
     private val lockedOrientationKey = stringPreferencesKey("locked_orientation")
@@ -68,9 +66,6 @@ class DashPreferences(private val context: Context) {
         prefs[densityKey]?.let { name -> DensityPreset.entries.find { it.name == name } }
     }
 
-    val dashScale: Flow<Float> = context.dataStore.data.map { prefs ->
-        prefs[scaleKey] ?: DASH_SCALE_DEFAULT
-    }
 
     val dashTextScale: Flow<Float> = context.dataStore.data.map { prefs ->
         prefs[textScaleKey] ?: DASH_TEXT_SCALE_DEFAULT
@@ -151,9 +146,6 @@ class DashPreferences(private val context: Context) {
         context.dataStore.edit { it[densityKey] = preset.name }
     }
 
-    suspend fun saveDashScale(scale: Float) {
-        context.dataStore.edit { it[scaleKey] = scale }
-    }
 
     suspend fun saveDashTextScale(scale: Float) {
         context.dataStore.edit { it[textScaleKey] = scale }

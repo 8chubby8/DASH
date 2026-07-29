@@ -54,6 +54,10 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
     ),
     SettingsCategory(
         "layout", "Layout", listOf(
+            // First in Layout (roadmap 1.5.15, Roger's call). Layout owns the structural decisions —
+            // where the bar sits, how zones divide, where panels dock — and which way the whole
+            // screen faces is the most structural of them, so it comes before the rest.
+            SettingsSub("layout.rotation", "Rotation", SettingsStatus.LIVE),
             SettingsSub("layout.systembar", "System Bar", SettingsStatus.LIVE),
             wip("layout.modulepanel", "Module Panel", "1.6.x"),
             wip("layout.launcher", "App Launcher", "1.8.x"),

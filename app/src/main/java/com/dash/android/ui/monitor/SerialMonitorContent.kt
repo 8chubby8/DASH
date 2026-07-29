@@ -63,6 +63,11 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
+import com.dash.android.ui.common.BOX_PAD
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.TINY
+
 
 private val TIME_FMT = SimpleDateFormat("HH:mm:ss.SSS", Locale.UK)
 private const val ALL = "ALL"
@@ -114,8 +119,8 @@ private fun rememberColumnWidths(font: FontFamily): ColumnWidths {
     val density = LocalDensity.current
     // Keyed on the things that change rendered width: the font itself, and the display/text scale.
     return remember(font, density.density, density.fontScale) {
-        val cell = TextStyle(fontSize = 12.sp, fontFamily = font)
-        val head = TextStyle(fontSize = 13.sp, letterSpacing = 1.2.sp, fontFamily = font)
+        val cell = TextStyle(fontSize = BODY, fontFamily = font)
+        val head = TextStyle(fontSize = BODY, letterSpacing = 1.2.sp, fontFamily = font)
         fun px(text: String, style: TextStyle) = measurer.measure(AnnotatedString(text), style).size.width
         // The header carries a chevron on every filterable column; TIME and PAYLOAD do not, but
         // measuring one costs nothing and keeps the columns from sitting tight against each other.
@@ -232,11 +237,11 @@ fun SerialMonitorContent() {
     val theme = LocalDashTheme.current
     val desk = LocalTransportDesk.current
     if (desk == null) {
-        Box(Modifier.fillMaxSize().padding(24.dp)) {
+        Box(Modifier.fillMaxSize().padding(BOX_PAD)) {
             Text(
                 "Transport desk unavailable.",
                 color = theme.textColourSecondary.copy(alpha = 0.7f),
-                fontSize = 13.sp,
+                fontSize = MAINBODY,
                 fontFamily = theme.font,
             )
         }
@@ -316,7 +321,7 @@ fun SerialMonitorContent() {
     Column(
         // imePadding() shrinks this column when the keyboard shows, so the weight(1f) grid resizes and
         // the COMMANDS drawer stays above the keyboard rather than behind it.
-        modifier = Modifier.fillMaxSize().imePadding().padding(24.dp),
+        modifier = Modifier.fillMaxSize().imePadding().padding(BOX_PAD),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         // Pinned controls. Actions left, readout right — two different kinds of thing, so separating
@@ -343,7 +348,7 @@ fun SerialMonitorContent() {
                     (if (filtered) "${shown.size} of ${rows.size} lines" else "${rows.size} lines") +
                         "  ·  keeping $bufferLines  ▾",
                     color = inkFaint,
-                    fontSize = 12.sp,
+                    fontSize = BODY,
                     fontFamily = theme.font,
                     modifier = Modifier
                         .clip(RoundedCornerShape(5.dp))
@@ -383,7 +388,7 @@ fun SerialMonitorContent() {
                         Text(
                             "type a line, e.g. DISCOVER",
                             color = ink.copy(alpha = 0.4f),
-                            fontSize = 13.sp,
+                            fontSize = MAINBODY,
                             fontFamily = theme.font,
                         )
                     }
@@ -391,7 +396,7 @@ fun SerialMonitorContent() {
                         value = sendText,
                         onValueChange = { sendText = it.replace("\n", "") },
                         singleLine = true,
-                        textStyle = TextStyle(fontFamily = theme.font, fontSize = 13.sp, color = ink),
+                        textStyle = TextStyle(fontFamily = theme.font, fontSize = MAINBODY, color = ink),
                         cursorBrush = SolidColor(ink),
                         keyboardOptions = KeyboardOptions(imeAction = ImeAction.Send),
                         keyboardActions = KeyboardActions(onSend = { send() }),
@@ -406,7 +411,7 @@ fun SerialMonitorContent() {
                         .padding(horizontal = 20.dp, vertical = 11.dp),
                     contentAlignment = Alignment.Center,
                 ) {
-                    Text("SEND", color = ink, fontSize = 12.sp, fontFamily = theme.font, letterSpacing = 1.sp)
+                    Text("SEND", color = ink, fontSize = TINY, fontFamily = theme.font, letterSpacing = 1.sp)
                 }
             }
         }
@@ -438,7 +443,7 @@ fun SerialMonitorContent() {
                     Text(
                         if (rows.isEmpty()) "Nothing on the wire yet." else "Nothing matches these filters.",
                         color = inkFaint,
-                        fontSize = 13.sp,
+                        fontSize = MAINBODY,
                         fontFamily = theme.font,
                     )
                 } else {
@@ -459,7 +464,7 @@ fun SerialMonitorContent() {
 /** A column head with nothing to filter on — TIME and MESSAGE. */
 @Composable
 private fun HeaderLabel(text: String, width: Dp, colour: Color, font: FontFamily) {
-    Text(text, color = colour, fontSize = 13.sp, letterSpacing = 1.2.sp, fontFamily = font, modifier = Modifier.width(width))
+    Text(text, color = colour, fontSize = BODY, letterSpacing = 1.2.sp, fontFamily = font, modifier = Modifier.width(width))
 }
 
 /**
@@ -493,14 +498,14 @@ private fun FilterHeader(
             Text(
                 if (on) selected else name,
                 color = if (on) ink else inkFaint,
-                fontSize = 13.sp,
+                fontSize = BODY,
                 letterSpacing = if (on) 0.sp else 1.2.sp,
                 fontFamily = font,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis,
                 modifier = Modifier.weight(1f, fill = false),
             )
-            Text(" ▾", color = if (on) ink else inkFaint, fontSize = 11.sp, fontFamily = font)
+            Text(" ▾", color = if (on) ink else inkFaint, fontSize = BODY, fontFamily = font)
         }
         // ALL first, then whatever has actually been seen on the wire.
         DashMenu(
@@ -544,7 +549,7 @@ private fun Cell(
     Text(
         text,
         color = colour,
-        fontSize = 12.sp,
+        fontSize = BODY,
         fontFamily = font,
         maxLines = 1,
         overflow = TextOverflow.Ellipsis,

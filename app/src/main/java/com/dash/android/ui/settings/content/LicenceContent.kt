@@ -25,7 +25,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.dash.android.ui.common.BOX_PAD
 import com.dash.android.ui.theme.LocalDashTheme
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.MAINBODY_LINE
+import com.dash.android.ui.common.BODY_LINE
 
 /**
  * System › Licence (roadmap 1.5.14).
@@ -41,10 +46,6 @@ import com.dash.android.ui.theme.LocalDashTheme
  * of its own rather than a well inside this page: 674 lines inside a scrolling page means a scroll
  * within a scroll, which is unpleasant on a touchscreen and worse in a moving vehicle.
  */
-/** The padding the settings shell applies to an ordinary tab. Mirrored here because a `fillsBox` tab
- *  is handed the bare box — see `SettingsContentBox`. Keep the two in step. */
-private val CONTENT_PAD = 28.dp
-
 @Composable
 fun LicenceContent() {
     var showingFullText by remember { mutableStateOf(false) }
@@ -59,7 +60,7 @@ private fun LicenceOverview(onViewFullText: () -> Unit) {
         modifier = Modifier
             .fillMaxWidth()
             .verticalScroll(rememberScrollState())
-            .padding(CONTENT_PAD),
+            .padding(BOX_PAD),
         verticalArrangement = Arrangement.spacedBy(40.dp),
     ) {
 
@@ -70,13 +71,13 @@ private fun LicenceOverview(onViewFullText: () -> Unit) {
                 Text(
                     "DASH — Dynamic Automotive System Hub",
                     color = theme.textColourSecondary,
-                    fontSize = 14.sp,
+                    fontSize = MAINBODY,
                     fontFamily = theme.font,
                 )
                 Text(
                     "Copyright © 2026 8chubby8",
                     color = theme.textColourSecondary.copy(alpha = 0.72f),
-                    fontSize = 13.sp,
+                    fontSize = MAINBODY,
                     fontFamily = theme.font,
                 )
             }
@@ -110,24 +111,20 @@ private fun LicenceOverview(onViewFullText: () -> Unit) {
 
         // ── Third-party ──────────────────────────────────────────────────────────────────────
         Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-            SettingsContentHeader(
-                "Open source components",
-                "DASH is built on these. Their licences require the acknowledgement, and it is " +
-                    "owed regardless.",
-            )
+            SettingsContentHeader("Open source components")
             DEPENDENCIES.forEach { dep ->
                 Column(verticalArrangement = Arrangement.spacedBy(3.dp)) {
                     Text(
                         "${dep.name} ${dep.version}",
                         color = theme.textColourSecondary,
-                        fontSize = 13.sp,
+                        fontSize = MAINBODY,
                         fontFamily = theme.font,
                     )
                     Text(
                         "${dep.licence} · ${dep.url}",
                         color = theme.textColourSecondary.copy(alpha = 0.62f),
-                        fontSize = 11.5.sp,
-                        lineHeight = 16.sp,
+                        fontSize = BODY,
+                        lineHeight = BODY_LINE,
                         fontFamily = theme.font,
                     )
                 }
@@ -143,7 +140,7 @@ private fun FullLicence(onBack: () -> Unit) {
     val lines = remember { readLicenceAsset(context) }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(CONTENT_PAD),
+        modifier = Modifier.fillMaxSize().padding(BOX_PAD),
         verticalArrangement = Arrangement.spacedBy(14.dp),
     ) {
         SettingsContentHeader("GNU General Public License v3")
@@ -172,8 +169,8 @@ private fun FullLicence(onBack: () -> Unit) {
                 Text(
                     line.ifBlank { " " },
                     color = theme.textColourSecondary.copy(alpha = 0.78f),
-                    fontSize = 11.5.sp,
-                    lineHeight = 17.sp,
+                    fontSize = BODY,
+                    lineHeight = BODY_LINE,
                     fontFamily = FontFamily.Monospace,
                 )
             }
@@ -187,8 +184,8 @@ private fun Body(text: String) {
     Text(
         text,
         color = theme.textColourSecondary.copy(alpha = 0.8f),
-        fontSize = 13.sp,
-        lineHeight = 20.sp,
+        fontSize = MAINBODY,
+        lineHeight = MAINBODY_LINE,
         fontFamily = theme.font,
     )
 }

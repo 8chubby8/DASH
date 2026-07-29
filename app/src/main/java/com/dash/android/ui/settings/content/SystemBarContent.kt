@@ -36,6 +36,12 @@ import com.dash.android.ui.systembar.SystemBarConfig
 import com.dash.android.ui.theme.LocalDashTheme
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+import com.dash.android.ui.common.SETTING_SPACING
+import com.dash.android.ui.common.CONTROL_WIDTH
+import com.dash.android.ui.common.DashButton
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.width
+import com.dash.android.ui.common.controlWidth
 
 /**
  * Layout › System Bar (roadmap 1.5.7). Per interface.md this tab is the *door* to the bar, not a
@@ -43,8 +49,6 @@ import kotlinx.coroutines.launch
  * layout** entry into the edit-mode workspace where height, zones and element sizing are set on the
  * bar itself, and **Reset** to defaults.
  */
-private const val WITHIN_SECTION = 28
-private const val BETWEEN_SECTIONS = 44
 
 @Composable
 fun SystemBarContent() {
@@ -59,21 +63,24 @@ fun SystemBarContent() {
     // The confirm state is a moment, not a mode — it lapses on its own if the user thinks better of it.
     LaunchedEffect(confirmReset) { if (confirmReset) { delay(3500); confirmReset = false } }
 
+    // Every control in the nook takes the same width, so the four line up as a column rather than
+    // each sizing itself to its own words (roadmap 1.5.15, Roger).
+    val controlWidth = Modifier.width(controlWidth(LocalDensity.current.fontScale))
+
     Column(modifier = Modifier.fillMaxWidth()) {
 
-        // ── Position ─────────────────────────────────────────────────────────────────────────────
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
-            SettingsContentHeader(
-                title = "System Bar",
-                description = "Where the bar sits, and the way in to editing its layout.",
-            )
+        // One flow, not three. The four settings all concern the same bar, so there are no sections
+        // to name — the page used to split them across three Columns, which only made the gaps
+        // between them uneven (roadmap 1.5.15).
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_SPACING)) {
+            SettingsContentHeader("System Bar")
             SettingBlock(
                 name = "Position",
-                help = "Which edge the system bar docks to.",
                 control = {
                     PresetSegment(
                         labels = listOf("Bottom", "Top"),
                         selected = if (barConfig.position == BarPosition.TOP) 1 else 0,
+                        modifier = controlWidth,
                     ) { i ->
                         val pos = if (i == 1) BarPosition.TOP else BarPosition.BOTTOM
                         scope.launch { prefs.saveSystemBarConfig(barConfig.copy(position = pos)) }
@@ -83,46 +90,36 @@ fun SystemBarContent() {
             )
             SettingBlock(
                 name = "Zones",
-                help = "How many zones the bar is split into. Their boundaries are then positioned on " +
-                    "the bar itself in edit mode.",
                 control = {
                     PresetSegment(
                         labels = listOf("1", "2", "3"),
                         selected = (barConfig.zones.size - 1).coerceIn(0, 2),
+                        modifier = controlWidth,
                     ) { i -> scope.launch { prefs.saveSystemBarConfig(barConfig.withZoneCount(i + 1)) } }
                 },
             )
-        }
 
-        Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
-
-        // ── Edit-mode entry ──────────────────────────────────────────────────────────────────────
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
             SettingBlock(
                 name = "Layout",
-                help = "Height, zones and element sizing are set live on the bar itself, in edit mode.",
-                control = { LinkButton("Edit bar layout →") { enterEdit() } },
+                control = { DashButton("Edit bar layout", { enterEdit() }, modifier = controlWidth) },
             )
-        }
 
-        Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
-
-        // ── Reset ────────────────────────────────────────────────────────────────────────────────
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
             SettingBlock(
                 name = "Reset",
-                help = "Restore the bar to its default position and layout. This clears any custom " +
-                    "zones and element sizing.",
                 tag = if (confirmReset) "Tap again to confirm" else null,
                 control = {
-                    LinkButton(if (confirmReset) "Confirm reset" else "Reset to defaults") {
-                        if (confirmReset) {
-                            scope.launch { prefs.saveSystemBarConfig(SystemBarConfig.default()) }
-                            confirmReset = false
-                        } else {
-                            confirmReset = true
-                        }
-                    }
+                    DashButton(
+                        label = if (confirmReset) "Confirm reset" else "Reset to defaults",
+                        modifier = controlWidth,
+                        onClick = {
+                            if (confirmReset) {
+                                scope.launch { prefs.saveSystemBarConfig(SystemBarConfig.default()) }
+                                confirmReset = false
+                            } else {
+                                confirmReset = true
+                            }
+                        },
+                    )
                 },
             )
         }

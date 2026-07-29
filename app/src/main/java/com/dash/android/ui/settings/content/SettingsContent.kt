@@ -12,6 +12,8 @@ import com.dash.android.ui.signal.SignalMonitorContent
 import com.dash.android.ui.transports.TransportManagerContent
 import com.dash.android.ui.settings.SettingsSub
 import com.dash.android.ui.theme.LocalDashTheme
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.SUBHEADING
 
 /**
  * The content router for the settings box. Each subcategory that has gone live claims its id here;
@@ -24,6 +26,7 @@ fun SettingsContent(sub: SettingsSub) {
         "appearance.density" -> SizeScaleContent()
         "appearance.transitions" -> MotionContent()
         "appearance.splash" -> SplashContent()
+        "layout.rotation" -> RotationContent()
         "layout.systembar" -> SystemBarContent()
         "modules.management" -> ModulesContent()
         "modules.transport" -> TransportManagerContent()
@@ -45,14 +48,14 @@ private fun WipPlaceholder(sub: SettingsSub) {
         Text(
             sub.label.uppercase(),
             color = theme.textColourSecondary,
-            fontSize = 16.sp,
+            fontSize = SUBHEADING,
             fontFamily = theme.font,
             letterSpacing = 2.sp,
         )
         Text(
             sub.wipVersion?.let { "Arrives with $it." } ?: "Empty — wired in a later 1.5.x version.",
             color = theme.textColourSecondary.copy(alpha = 0.7f),
-            fontSize = 13.sp,
+            fontSize = MAINBODY,
             fontFamily = theme.font,
         )
     }

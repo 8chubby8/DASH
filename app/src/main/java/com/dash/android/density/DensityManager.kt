@@ -10,10 +10,6 @@ class DensityManager(private val context: Context) {
     fun readCurrentSystemDpi(): Int =
         context.applicationContext.resources.displayMetrics.densityDpi
 
-    fun formatDpi(dpi: Int): String {
-        val match = DensityPreset.entries.firstOrNull { it.dpi == dpi }
-        return if (match != null) "${match.label} (${dpi} dpi)" else "Custom (${dpi} dpi)"
-    }
 
     /**
      * Whether this installation can drive Android's display density. The only honest way to know is

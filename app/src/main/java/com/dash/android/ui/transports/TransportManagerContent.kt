@@ -37,14 +37,25 @@ import com.dash.android.transport.TransportDevice
 import com.dash.android.transport.TransportState
 import com.dash.android.transport.TransportStatus
 import com.dash.android.ui.settings.content.LinkButton
+import com.dash.android.ui.common.DashStatus
 import com.dash.android.ui.theme.LocalDashTheme
 import kotlinx.coroutines.delay
+import com.dash.android.ui.common.BOX_PAD
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.TINY
+import com.dash.android.ui.common.SUBHEADING
+import com.dash.android.ui.common.MAINBODY_LINE
 
-// Semantic light colours — these carry meaning (a board's health), so they stay literal rather than
-// theme tokens, exactly as the Module Manager status chips do.
-private val GOOD = Color(0xFF3DA35D)   // green — this stage is reached
-private val WAIT = Color(0xFFC98A2B)   // amber — not yet, but nothing is wrong
-private val BAD = Color(0xFFD9534F)    // red — this is a fault: something is there and it is wrong
+
+// Semantic light colours — these carry meaning (a board's health), so they are deliberately not
+// theme tokens: green means reached in every preset, in every car.
+// The local names carry this screen's meaning; the values come from the shared status palette
+// (roadmap 1.5.15), so Transport Manager's lights and Module Manager's chips cannot drift apart —
+// they were three duplicated hex literals until then.
+private val GOOD = DashStatus.ok    // green — this stage is reached
+private val WAIT = DashStatus.wait  // amber — not yet, but nothing is wrong
+private val BAD = DashStatus.fail   // red — this is a fault: something is there and it is wrong
 
 /** A pipe's kind, from its tag — decides the wording and which helper the card offers. */
 private enum class Kind { USB, WIFI, BT, OTHER }
@@ -82,11 +93,11 @@ fun TransportManagerContent() {
     val theme = LocalDashTheme.current
     val desk = LocalTransportDesk.current
     if (desk == null) {
-        Box(Modifier.fillMaxSize().padding(24.dp)) {
+        Box(Modifier.fillMaxSize().padding(BOX_PAD)) {
             Text(
                 "Transport desk unavailable.",
                 color = theme.textColourSecondary.copy(alpha = 0.7f),
-                fontSize = 13.sp,
+                fontSize = MAINBODY,
                 fontFamily = theme.font,
             )
         }
@@ -116,7 +127,7 @@ fun TransportManagerContent() {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp).verticalScroll(rememberScrollState()),
+        modifier = Modifier.fillMaxSize().padding(BOX_PAD).verticalScroll(rememberScrollState()),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         statuses.forEach { (tag, status) ->
@@ -136,7 +147,7 @@ fun TransportManagerContent() {
             Text(
                 "No transports.",
                 color = theme.textColourSecondary.copy(alpha = 0.7f),
-                fontSize = 13.sp,
+                fontSize = MAINBODY,
                 fontFamily = theme.font,
             )
         }
@@ -181,7 +192,7 @@ private fun TransportCard(
             .padding(horizontal = 14.dp, vertical = 12.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        Text(name, color = ink, fontSize = 16.sp, fontFamily = theme.font)
+        Text(name, color = ink, fontSize = MAINBODY, fontFamily = theme.font)
 
         // "Point your board here" — the single thing that makes connecting an addressable board
         // painless. Driven off the pipe *declaring* an address rather than off its kind, so this is not
@@ -197,9 +208,9 @@ private fun TransportCard(
             Text(
                 pipeLine(status, kind),
                 color = inkMuted,
-                fontSize = 13.sp,
+                fontSize = MAINBODY,
+                lineHeight = MAINBODY_LINE,
                 fontFamily = theme.font,
-                lineHeight = 18.sp,
             )
         } else {
             Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
@@ -237,11 +248,11 @@ private fun BoardRow(
             horizontalArrangement = Arrangement.spacedBy(10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("•", color = inkFaint, fontSize = 15.sp, fontFamily = font)
+            Text("•", color = inkFaint, fontSize = BODY, fontFamily = font)
             Text(
                 label,
                 color = ink,
-                fontSize = 15.sp,
+                fontSize = BODY,
                 fontFamily = font,
                 modifier = if (roomForWords) Modifier else Modifier.weight(1f),
             )
@@ -251,7 +262,7 @@ private fun BoardRow(
                 Text(
                     explain(health),
                     color = inkFaint,
-                    fontSize = 12.sp,
+                    fontSize = BODY,
                     fontFamily = font,
                     modifier = Modifier.weight(1f),
                 )
@@ -314,8 +325,8 @@ private fun AddressPanel(address: String, ink: Color, inkFaint: Color, font: Fon
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
-            Text("POINT YOUR BOARD AT", color = inkFaint, fontSize = 9.5.sp, letterSpacing = 1.5.sp, fontFamily = font)
-            Text(address, color = ink, fontSize = 16.sp, fontFamily = font)
+            Text("POINT YOUR BOARD AT", color = inkFaint, fontSize = TINY, letterSpacing = 1.5.sp, fontFamily = font)
+            Text(address, color = ink, fontSize = MAINBODY, fontFamily = font)
         }
         Box(
             modifier = Modifier
@@ -324,7 +335,7 @@ private fun AddressPanel(address: String, ink: Color, inkFaint: Color, font: Fon
                 .clickable { clipboard.setText(AnnotatedString(address)) }
                 .padding(horizontal = 14.dp, vertical = 8.dp)
         ) {
-            Text("COPY", color = ink, fontSize = 11.sp, fontFamily = font, letterSpacing = 1.sp)
+            Text("COPY", color = ink, fontSize = TINY, fontFamily = font, letterSpacing = 1.sp)
         }
     }
 }
@@ -337,7 +348,7 @@ private fun Light(label: String, colour: Color, font: FontFamily) {
             .background(colour.copy(alpha = 0.18f))
             .padding(horizontal = 9.dp, vertical = 4.dp)
     ) {
-        Text(label, color = colour, fontSize = 10.sp, fontFamily = font, letterSpacing = 1.sp)
+        Text(label, color = colour, fontSize = TINY, fontFamily = font, letterSpacing = 1.sp)
     }
 }
 

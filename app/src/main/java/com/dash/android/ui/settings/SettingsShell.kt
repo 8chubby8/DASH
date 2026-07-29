@@ -34,6 +34,8 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.Spacer
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
@@ -46,6 +48,13 @@ import com.dash.android.ui.weather.LocalWeatherSnapshot
 import com.dash.android.ui.weather.WeatherScene
 import com.dash.android.weather.WeatherArt
 import com.dash.android.weather.WeatherSnapshot
+import com.dash.android.ui.common.BOX_PAD
+import com.dash.android.ui.common.NAV_ROW_INSET
+import com.dash.android.ui.common.PANEL_GAP
+import com.dash.android.ui.common.TREE_GUTTER
+import com.dash.android.ui.common.HEADING_LINE
+import com.dash.android.ui.common.HeadingRule
+import com.dash.android.ui.common.MAINBODY
 
 /**
  * The DASH settings shell. **Adaptive** (roadmap 1.5.x): it lays itself out from the space actually
@@ -84,7 +93,6 @@ private fun findSubAcrossTree(id: String?): Pair<SettingsCategory, SettingsSub>?
 @Composable
 fun SettingsShell(
     onClose: () -> Unit,
-    onOpenLegacy: () -> Unit,
     modifier: Modifier = Modifier,
     initialSubId: String? = null,
 ) {
@@ -128,7 +136,6 @@ fun SettingsShell(
                 selectedSubId = selectedSubId,
                 onSelectCategory = selectCategory,
                 onSelectSub = { selectedSubId = it },
-                onOpenLegacy = onOpenLegacy,
                 onBack = {
                     when {
                         selectedCategory != null -> {
@@ -148,7 +155,6 @@ fun SettingsShell(
                 selectedSubId = selectedSubId,
                 onSelectCategory = selectCategory,
                 onSelectSub = { selectedSubId = it },
-                onOpenLegacy = onOpenLegacy,
                 onBack = {
                     when {
                         selectedSubId != null -> selectedSubId = null
@@ -168,7 +174,6 @@ private fun WideSettings(
     selectedSubId: String?,
     onSelectCategory: (SettingsCategory) -> Unit,
     onSelectSub: (String) -> Unit,
-    onOpenLegacy: () -> Unit,
     onBack: () -> Unit,
 ) {
     val theme = LocalDashTheme.current
@@ -185,19 +190,25 @@ private fun WideSettings(
     // heading, level with the top of the tree, and was noticeably short because of it). The Row's top
     // padding is the breadcrumb's own former top padding, which is what puts the box's top edge on the
     // same line as the heading text.
-    Row(modifier = Modifier.fillMaxSize().padding(top = 24.dp, bottom = 28.dp)) {
+    // One gap on all four outer margins (roadmap 1.5.15, Roger). They had grown apart — 24 top, 28
+    // bottom, 16 at each screen edge — which read as the box sitting slightly wrong rather than as any
+    // one margin being obviously off. The gutter between the tree and the box is a different thing —
+    // internal spacing, not a margin — and stays its own smaller value.
+    Row(modifier = Modifier.fillMaxSize().padding(PANEL_GAP)) {
         // Left margin: tree, or the selected category's subtree. Width scales with the font so
         // long labels don't ellipsise as the text grows.
         Column(
             modifier = Modifier
                 .width((260 * fontScale).dp)
                 .fillMaxHeight()
-                .padding(start = 16.dp, end = 12.dp)
+                .padding(end = TREE_GUTTER)
         ) {
-            // start = 8 here plus the column's own start = 16 keeps the heading exactly where it was.
+            // Dropped by the content box's own inner padding so the tree's heading sits on the same
+            // line as the heading inside the box (roadmap 1.5.15, Roger). Without it the breadcrumb
+            // sat at the panel's top edge while every box header started BOX_PAD lower.
             Breadcrumb(
                 crumbCategory?.label?.uppercase() ?: "SETTINGS",
-                Modifier.padding(start = 8.dp, bottom = 14.dp),
+                Modifier.padding(start = NAV_ROW_INSET, top = BOX_PAD, bottom = 14.dp),
             )
 
             AnimatedContent(
@@ -238,13 +249,12 @@ private fun WideSettings(
                 }
             }
 
-            NavRow("LEGACY SETTINGS →", trailing = null, selected = false, dim = true) { onOpenLegacy() }
             NavRow(if (showBack) "‹ BACK" else "‹ CLOSE", trailing = null, selected = false) { onBack() }
         }
 
         // Right: the content box. A crossfade carries the eye between the weather landing and a
         // chosen subcategory's content (and between subcategories) rather than a hard cut.
-        Box(modifier = Modifier.weight(1f).fillMaxHeight().padding(end = 16.dp)) {
+        Box(modifier = Modifier.weight(1f).fillMaxHeight()) {
             val sub = findSubAcrossTree(selectedSubId)?.second
             // Crossfade, not AnimatedContent, for the content swap: it re-targets each state's
             // alpha over the full duration when interrupted, so tapping back to a tab whose fade
@@ -274,7 +284,6 @@ private fun NarrowSettings(
     selectedSubId: String?,
     onSelectCategory: (SettingsCategory) -> Unit,
     onSelectSub: (String) -> Unit,
-    onOpenLegacy: () -> Unit,
     onBack: () -> Unit,
 ) {
     val theme = LocalDashTheme.current
@@ -311,13 +320,13 @@ private fun NarrowSettings(
                 s.subId != null -> {
                     val sub = findSubAcrossTree(s.subId)?.second
                     if (sub != null) {
-                        SettingsContentBox(sub, Modifier.fillMaxSize().padding(horizontal = 16.dp))
+                        SettingsContentBox(sub, Modifier.fillMaxSize().padding(horizontal = PANEL_GAP))
                     }
                 }
                 s.category != null -> {
                     val scroll = rememberScrollState()
                     Column(
-                        modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = PANEL_GAP),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         s.category.subs.forEach { sub ->
@@ -328,20 +337,19 @@ private fun NarrowSettings(
                 else -> {
                     val scroll = rememberScrollState()
                     Column(
-                        modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = 16.dp),
+                        modifier = Modifier.fillMaxSize().verticalScroll(scroll).padding(horizontal = PANEL_GAP),
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         DASH_SETTINGS_TREE.forEach { cat ->
                             NavRow(cat.label, trailing = null, selected = false) { onSelectCategory(cat) }
                         }
-                        NavRow("LEGACY SETTINGS →", trailing = null, selected = false, dim = true) { onOpenLegacy() }
-                    }
+                                }
                 }
             }
         }
 
         // Back control pinned to the bottom — one level down, or close at the top.
-        Box(modifier = Modifier.fillMaxWidth().padding(start = 16.dp, end = 16.dp, top = 4.dp, bottom = 16.dp)) {
+        Box(modifier = Modifier.fillMaxWidth().padding(start = PANEL_GAP, end = PANEL_GAP, top = 4.dp, bottom = PANEL_GAP)) {
             NavRow(
                 label = if (screen.depth > 0) "‹ BACK" else "‹ CLOSE",
                 trailing = null,
@@ -360,14 +368,21 @@ private fun Breadcrumb(
     modifier: Modifier = Modifier.padding(start = 24.dp, top = 24.dp, bottom = 14.dp),
 ) {
     val theme = LocalDashTheme.current
-    Text(
-        text = text,
-        color = theme.textColourPrimary,
-        fontSize = 13.sp,
-        fontFamily = theme.font,
-        letterSpacing = 3.sp,
-        modifier = modifier,
-    )
+    // Carries the same art-deco rule as the headings inside the content box (roadmap 1.5.15, Roger),
+    // drawn in the primary ink because the tree sits on the light panel rather than the dark box.
+    Column(modifier = modifier, verticalArrangement = Arrangement.spacedBy(8.dp)) {
+        Text(
+            text = text,
+            color = theme.textColourPrimary,
+            fontSize = MAINBODY,
+            // Same line box as the box's headings, so both rules sit on one line despite the
+            // seven-point difference in type size. See HEADING_LINE.
+            lineHeight = HEADING_LINE,
+            fontFamily = theme.font,
+            letterSpacing = 3.sp,
+        )
+        HeadingRule(theme.textColourPrimary)
+    }
 }
 
 @Composable
@@ -388,6 +403,7 @@ private fun WeatherLanding(modifier: Modifier = Modifier) {
     }
 }
 
+
 @Composable
 private fun SettingsContentBox(sub: SettingsSub, modifier: Modifier = Modifier) {
     val theme = LocalDashTheme.current
@@ -404,7 +420,7 @@ private fun SettingsContentBox(sub: SettingsSub, modifier: Modifier = Modifier) 
         Column(
             modifier = surface
                 .verticalScroll(rememberScrollState())
-                .padding(28.dp)
+                .padding(BOX_PAD)
         ) {
             SettingsContent(sub)
         }
@@ -427,21 +443,21 @@ private fun NavRow(
             .clip(RoundedCornerShape(8.dp))
             .background(if (selected) theme.accentColourPrimary else theme.backgroundColourPrimary)
             .clickable { onClick() }
-            .padding(horizontal = 14.dp, vertical = (12 * fontScale).dp),
+            .padding(horizontal = NAV_ROW_INSET, vertical = (12 * fontScale).dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
         Text(
             label,
             color = if (dim) theme.textColourPrimary.copy(alpha = 0.45f) else theme.textColourPrimary,
-            fontSize = 13.sp,
+            fontSize = MAINBODY,
             fontFamily = theme.font,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis,
             modifier = Modifier.weight(1f, fill = false)
         )
         if (trailing != null) {
-            Text(trailing, color = theme.textColourPrimary.copy(alpha = 0.5f), fontSize = 14.sp, fontFamily = theme.font)
+            Text(trailing, color = theme.textColourPrimary.copy(alpha = 0.5f), fontSize = MAINBODY, fontFamily = theme.font)
         }
     }
 }

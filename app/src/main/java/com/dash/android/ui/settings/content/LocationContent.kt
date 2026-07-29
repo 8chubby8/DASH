@@ -48,6 +48,14 @@ import com.dash.android.prefs.DashPreferences
 import com.dash.android.ui.theme.LocalDashTheme
 import com.dash.android.weather.WeatherProvider
 import kotlinx.coroutines.launch
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.SETTING_SPACING
+import com.dash.android.ui.common.CONTROL_WIDTH
+import com.dash.android.ui.common.DashButton
+import androidx.compose.ui.platform.LocalDensity
+import com.dash.android.ui.common.TINY
+import com.dash.android.ui.common.controlWidth
 
 /**
  * System › Location (roadmap 1.5.4). The two controls that let a user decide *how DASH knows where
@@ -85,27 +93,28 @@ fun LocationContent() {
         ActivityResultContracts.RequestPermission()
     ) { granted = it || hasCoarseLocation(context) }
 
-    Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-        SettingsContentHeader(
-            "Location",
-            "How DASH works out where you are, for the weather scene. DASH never asks for your " +
-                "location on its own — everything here is yours to switch on.",
-        )
+    val controlWidth = Modifier.width(controlWidth(LocalDensity.current.fontScale))
+
+    Column(verticalArrangement = Arrangement.spacedBy(SETTING_SPACING)) {
+        SettingsContentHeader("Location")
 
         SettingBlock(
             name = "Use device location",
-            help = if (granted) {
-                "On. DASH reads your device's location for a precise, local forecast."
-            } else {
-                "Off. DASH uses an approximate location from your internet connection, which can be " +
-                    "a town or two out. Turn on to use your device's GPS instead."
-            },
+            // A DASH selector rather than a toggle (roadmap 1.5.15, Roger). A toggle promises it can
+            // be flipped both ways, and this one cannot: DASH can *ask* for the permission, but only
+            // Android can revoke it. So the left cell says what the tap will actually do — "Off"
+            // while it is off and there is nothing to undo, "Settings" while it is on and turning it
+            // off means a trip to Android's own page. The control stops pretending.
             control = {
-                SettingToggle(checked = granted) {
-                    // Android alone can revoke a granted permission, so send the user there for that;
-                    // otherwise raise the system grant dialog.
-                    if (granted) openAppSettings(context)
-                    else permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                PresetSegment(
+                    labels = listOf(if (granted) "Settings" else "Off", "On"),
+                    selected = if (granted) 1 else 0,
+                    modifier = controlWidth,
+                ) { i ->
+                    if (i == 0 && granted) openAppSettings(context)
+                    else if (i == 1 && !granted) {
+                        permissionLauncher.launch(Manifest.permission.ACCESS_COARSE_LOCATION)
+                    }
                 }
             },
         )
@@ -131,20 +140,20 @@ private fun ManualLocationBlock(
     onClear: () -> Unit,
 ) {
     val theme = LocalDashTheme.current
+    val controlWidth = Modifier.width(controlWidth(LocalDensity.current.fontScale))
     var text by remember { mutableStateOf("") }
     var searching by remember { mutableStateOf(false) }
     var notFound by remember { mutableStateOf(false) }
 
     SettingBlock(
         name = "Manual location",
-        help = "Pin the weather to a place you choose. When set it overrides both device and " +
-            "internet location. Leave it on automatic to let DASH decide.",
         control = {
             Column(
                 horizontalAlignment = Alignment.End,
                 verticalArrangement = Arrangement.spacedBy(8.dp),
             ) {
                 CityField(
+                    modifier = controlWidth,
                     value = text,
                     onValueChange = { text = it; notFound = false },
                     onSubmit = {
@@ -160,30 +169,42 @@ private fun ManualLocationBlock(
                         }
                     },
                 )
+                // Nothing is shown in the resting state. "Automatic (device or internet)" was
+                // describing the absence of a setting, which is the same restating-the-obvious the
+                // help lines were doing (roadmap 1.5.15, Roger). The line now only appears when it
+                // has something to report.
                 val status = when {
                     searching -> "Searching…"
                     notFound -> "No place found by that name."
                     current != null -> "Set to $current"
-                    else -> "Automatic (device or internet)"
+                    else -> null
                 }
-                Text(
-                    status,
-                    color = theme.textColourSecondary.copy(alpha = 0.7f),
-                    fontSize = 11.sp,
-                    fontFamily = theme.font,
-                )
-                if (current != null) LinkButton("Use automatic") { onClear() }
+                if (status != null) {
+                    Text(
+                        status,
+                        color = theme.textColourSecondary.copy(alpha = 0.7f),
+                        fontSize = BODY,
+                        fontFamily = theme.font,
+                    )
+                }
+                if (current != null) {
+                    DashButton("Use automatic", { onClear() }, modifier = controlWidth)
+                }
             }
         },
     )
 }
 
 @Composable
-private fun CityField(value: String, onValueChange: (String) -> Unit, onSubmit: () -> Unit) {
+private fun CityField(
+    value: String,
+    modifier: Modifier = Modifier,
+    onValueChange: (String) -> Unit,
+    onSubmit: () -> Unit,
+) {
     val theme = LocalDashTheme.current
     Row(
-        modifier = Modifier
-            .width(230.dp)
+        modifier = modifier
             .clip(RoundedCornerShape(10.dp))
             .background(theme.textColourSecondary.copy(alpha = 0.08f))
             .border(1.dp, theme.textColourSecondary.copy(alpha = 0.18f), RoundedCornerShape(10.dp))
@@ -195,7 +216,7 @@ private fun CityField(value: String, onValueChange: (String) -> Unit, onSubmit: 
                 Text(
                     "Town or city",
                     color = theme.textColourSecondary.copy(alpha = 0.4f),
-                    fontSize = 14.sp,
+                    fontSize = BODY,
                     fontFamily = theme.font,
                 )
             }
@@ -205,7 +226,7 @@ private fun CityField(value: String, onValueChange: (String) -> Unit, onSubmit: 
                 singleLine = true,
                 textStyle = TextStyle(
                     color = theme.textColourSecondary,
-                    fontSize = 14.sp,
+                    fontSize = BODY,
                     fontFamily = theme.font,
                 ),
                 cursorBrush = SolidColor(theme.textColourSecondary),
@@ -218,7 +239,7 @@ private fun CityField(value: String, onValueChange: (String) -> Unit, onSubmit: 
         Text(
             "Set",
             color = theme.textColourSecondary,
-            fontSize = 13.sp,
+            fontSize = TINY,
             fontFamily = theme.font,
             modifier = Modifier
                 .clip(RoundedCornerShape(6.dp))

@@ -33,6 +33,9 @@ import com.dash.android.prefs.DashPreferences
 import com.dash.android.system.buildDeviceReport
 import com.dash.android.system.formatDeviceReport
 import com.dash.android.ui.theme.LocalDashTheme
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.MAINBODY_LINE
 
 /**
  * System › About DASH (roadmap 1.5.14).
@@ -86,13 +89,13 @@ fun AboutContent() {
             Text(
                 "Version ${BuildConfig.VERSION_NAME} (${BuildConfig.VERSION_CODE})",
                 color = theme.textColourSecondary,
-                fontSize = 14.sp,
+                fontSize = MAINBODY,
                 fontFamily = theme.font,
             )
             Text(
                 "Built ${BuildConfig.BUILD_DATE}",
                 color = theme.textColourSecondary.copy(alpha = 0.62f),
-                fontSize = 12.sp,
+                fontSize = BODY,
                 fontFamily = theme.font,
             )
         }
@@ -151,7 +154,7 @@ fun AboutContent() {
                     Text(
                         "Paste it into your bug report.",
                         color = theme.textColourSecondary.copy(alpha = 0.62f),
-                        fontSize = 11.5.sp,
+                        fontSize = BODY,
                         fontFamily = theme.font,
                     )
                 }
@@ -166,8 +169,8 @@ private fun Paragraph(text: String) {
     Text(
         text,
         color = theme.textColourSecondary.copy(alpha = 0.8f),
-        fontSize = 13.sp,
-        lineHeight = 20.sp,
+        fontSize = MAINBODY,
+        lineHeight = MAINBODY_LINE,
         fontFamily = theme.font,
     )
 }

@@ -16,6 +16,7 @@ import com.dash.android.ui.motion.LocalDashTransitions
 import com.dash.android.ui.motion.TransitionId
 import com.dash.android.ui.motion.TransitionSpeed
 import kotlinx.coroutines.launch
+import com.dash.android.ui.common.SETTING_SPACING
 
 /**
  * Appearance › Transitions (roadmap 1.5.5). The rule: **if it's a transition, it goes here.** A
@@ -26,8 +27,6 @@ import kotlinx.coroutines.launch
  * The list is driven straight off the [TransitionId] registry, so a new surface's transition gains a
  * control here the moment it registers — no rework. Order is chronological-as-added for now.
  */
-private const val WITHIN_SECTION = 28
-private const val BETWEEN_SECTIONS = 48
 
 @Composable
 fun MotionContent() {
@@ -50,17 +49,15 @@ fun MotionContent() {
 
     Column(modifier = Modifier.fillMaxWidth()) {
 
+        // The page is titled once; its two sections sit a rank below (roadmap 1.5.15).
+        SettingsContentHeader("Transitions")
+
         // ── Master pace ────────────────────────────────────────────────────────────────────────
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
-            SettingsContentHeader(
-                title = "Transitions",
-                description = "DASH has no opinion on how fast your interface should move. Set a master pace, or " +
-                    "break out any single transition below — INSTANT is a hard cut, LABORIOUS is gloriously slow.",
-            )
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_SPACING)) {
+            SettingsSectionHeader("Master pace")
 
             SettingBlock(
-                name = "Master pace",
-                help = "Sets every transition at once. Change any single one below and this reads Custom.",
+                name = "Every transition at once",
                 tag = if (master == null) "Custom" else null,
                 fullWidthControl = true,
                 control = {
@@ -72,17 +69,15 @@ fun MotionContent() {
             )
         }
 
-        Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
 
         // ── Every transition ───────────────────────────────────────────────────────────────────
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
-            SettingsContentHeader(title = "Every transition")
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_SPACING)) {
+            SettingsSectionHeader("One at a time")
 
             TransitionId.entries.forEach { id ->
                 val speed = current(id)
                 SettingBlock(
                     name = id.label,
-                    help = id.hint,
                     fullWidthControl = true,
                     control = {
                         FitPresetSegment(speeds.map { it.label }, speeds.indexOf(speed)) { i ->

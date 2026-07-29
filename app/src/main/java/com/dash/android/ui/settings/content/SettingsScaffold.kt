@@ -52,6 +52,16 @@ import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupPositionProvider
 import androidx.compose.ui.window.PopupProperties
 import com.dash.android.ui.theme.LocalDashTheme
+import com.dash.android.ui.common.HEADING
+import com.dash.android.ui.common.HEADING_LINE
+import com.dash.android.ui.common.SECTION_HEADER_GAP
+import com.dash.android.ui.common.SUBHEADING_LINE
+import com.dash.android.ui.common.HeadingRule
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.TINY
+import com.dash.android.ui.common.SUBHEADING
+import com.dash.android.ui.common.BODY_LINE
 
 /**
  * Reusable building blocks for a settings content box (roadmap 1.5.3). Every subcategory that goes
@@ -65,60 +75,71 @@ import com.dash.android.ui.theme.LocalDashTheme
  */
 
 /**
- * Header zone — identical shape on every subcategory: title, art-deco rule, and an *optional*
- * description. Leave the description off unless it tells the user something the controls below don't
- * already make plain; most tabs don't need one.
+ * Header zone — identical on every subcategory and every section within one: a title and the art-deco
+ * rule beneath it. Nothing else.
+ *
+ * **There is deliberately no description.** It used to take an optional one, and the result was that
+ * some pages had a paragraph between the title and the rule and some didn't, so no two tabs opened
+ * the same way (roadmap 1.5.15, Roger). Removing the parameter rather than merely emptying the call
+ * sites is what keeps it that way — the rule now enforces itself instead of relying on whoever writes
+ * the next tab remembering it.
+ *
+ * Anything a user genuinely needs told belongs on the control it concerns, as [SettingBlock]'s `help`
+ * — beside the thing it explains rather than in a preamble above everything.
  */
 @Composable
-fun SettingsContentHeader(title: String, description: String? = null) {
+fun SettingsContentHeader(title: String) {
     val theme = LocalDashTheme.current
     Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
         Text(
             title,
             color = theme.textColourSecondary,
-            fontSize = 20.sp,
+            fontSize = HEADING,
+            lineHeight = HEADING_LINE,
             fontFamily = theme.font,
             letterSpacing = 0.5.sp,
         )
-        if (!description.isNullOrBlank()) {
-            Text(
-                description,
-                color = theme.textColourSecondary.copy(alpha = 0.72f),
-                fontSize = 13.sp,
-                lineHeight = 19.sp,
-                fontFamily = theme.font,
-            )
-        }
-        Row(
-            verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(top = 2.dp).fillMaxWidth(),
-        ) {
-            Box(
-                Modifier.width(22.dp).height(3.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(theme.textColourSecondary)
-            )
-            Spacer(Modifier.width(6.dp))
-            Box(
-                Modifier.weight(1f).height(2.dp).background(
-                    Brush.horizontalGradient(
-                        listOf(theme.textColourSecondary.copy(alpha = 0.5f), Color.Transparent)
-                    )
-                )
-            )
-        }
+        HeadingRule(theme.textColourSecondary)
     }
 }
 
 /**
- * One setting: name + plain-language help on one side, the control on the other, with an optional
+ * A section heading *within* a page — the second rank, under the page's own
+ * [SettingsContentHeader]. One tier down in type, so a page reads as a title and then its sections
+ * rather than as a stack of equal shouts (roadmap 1.5.15, Roger).
+ *
+ * **No rule beneath it.** The rule is what marks the top of a page; giving it to every section too
+ * would spend the one piece of punctuation DASH has on something that is not the page's title, and
+ * the hierarchy stops being visible at a glance.
+ */
+@Composable
+fun SettingsSectionHeader(title: String) {
+    val theme = LocalDashTheme.current
+    Text(
+        title,
+        color = theme.textColourSecondary,
+        fontSize = SUBHEADING,
+        lineHeight = SUBHEADING_LINE,
+        fontFamily = theme.font,
+        letterSpacing = 0.5.sp,
+        modifier = Modifier.padding(top = SECTION_HEADER_GAP),
+    )
+}
+
+/**
+ * One setting: name + optional help on one side, the control on the other, with an optional
  * full-width live preview beneath. Splits left/right when the box is wide enough, stacks when it
  * isn't — the responsive behaviour that keeps it readable from a phone to a head unit.
+ *
+ * [fullWidthControl] is the **escape hatch** from the right-hand-column rule described on
+ * [com.dash.android.ui.common.CONTROL_WIDTH]: a control that cannot be used at the shared width
+ * stacks under its label at full width instead. Transitions' six-speed segments are the case it
+ * exists for. Do not reach for it to make something look better — only when it is otherwise unusable.
  */
 @Composable
 fun SettingBlock(
     name: String,
-    help: String,
+    help: String? = null,
     tag: String? = null,
     fullWidthControl: Boolean = false,
     control: @Composable () -> Unit,
@@ -127,14 +148,16 @@ fun SettingBlock(
     val theme = LocalDashTheme.current
     val label: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(5.dp)) {
-            Text(name, color = theme.textColourSecondary, fontSize = 14.sp, fontFamily = theme.font)
-            Text(
-                help,
-                color = theme.textColourSecondary.copy(alpha = 0.68f),
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                fontFamily = theme.font,
-            )
+            Text(name, color = theme.textColourSecondary, fontSize = BODY, fontFamily = theme.font)
+            if (!help.isNullOrBlank()) {
+                Text(
+                    help,
+                    color = theme.textColourSecondary.copy(alpha = 0.68f),
+                    fontSize = BODY,
+                    lineHeight = BODY_LINE,
+                    fontFamily = theme.font,
+                )
+            }
             if (tag != null) Tag(tag)
         }
     }
@@ -167,7 +190,7 @@ private fun Tag(text: String) {
     Text(
         text.uppercase(),
         color = theme.textColourSecondary.copy(alpha = 0.9f),
-        fontSize = 10.sp,
+        fontSize = TINY,
         letterSpacing = 1.sp,
         fontFamily = theme.font,
         modifier = Modifier
@@ -179,14 +202,18 @@ private fun Tag(text: String) {
 
 /** A rounded segmented selector — the preset control (density, bar position, and so on). */
 @Composable
-fun PresetSegment(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) {
+fun PresetSegment(
+    labels: List<String>,
+    selected: Int,
+    modifier: Modifier = Modifier,
+    onSelect: (Int) -> Unit,
+) {
     val theme = LocalDashTheme.current
     Row(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(11.dp))
             .background(theme.textColourSecondary.copy(alpha = 0.08f))
             .border(1.dp, theme.textColourSecondary.copy(alpha = 0.18f), RoundedCornerShape(11.dp))
-            .horizontalScroll(rememberScrollState())
             .padding(3.dp),
         horizontalArrangement = Arrangement.spacedBy(2.dp),
         verticalAlignment = Alignment.CenterVertically,
@@ -195,16 +222,19 @@ fun PresetSegment(labels: List<String>, selected: Int, onSelect: (Int) -> Unit) 
             val sel = i == selected
             Box(
                 Modifier
+                    .weight(1f)
                     .clip(RoundedCornerShape(8.dp))
                     .background(if (sel) theme.textColourSecondary else Color.Transparent)
                     .clickable { onSelect(i) }
-                    .padding(horizontal = 13.dp, vertical = 8.dp)
+                    .padding(horizontal = 6.dp, vertical = 8.dp),
+                contentAlignment = Alignment.Center,
             ) {
                 Text(
                     l,
                     color = if (sel) theme.backgroundColourSecondary else theme.textColourSecondary.copy(alpha = 0.75f),
-                    fontSize = 12.5.sp,
+                    fontSize = BODY,
                     fontFamily = theme.font,
+                    textAlign = TextAlign.Center,
                 )
             }
         }
@@ -298,31 +328,38 @@ fun Stepper(
     value: String,
     sub: String? = null,
     enabled: Boolean = true,
+    modifier: Modifier = Modifier,
     onMinus: () -> Unit,
     onPlus: () -> Unit,
 ) {
     val theme = LocalDashTheme.current
     val ink = if (enabled) theme.textColourSecondary else theme.textColourSecondary.copy(alpha = 0.4f)
+    // The readout scales with the text, so "72 dp" stays on one line at any DASH text size — at 1.4x
+    // a fixed 66dp box wrapped the unit onto a second line (roadmap 1.5.15, Roger). One width for
+    // every stepper on the page, so a column of them lines up whatever each one happens to read.
+    val fontScale = LocalDensity.current.fontScale
     Row(
-        modifier = Modifier
+        modifier = modifier
             .clip(RoundedCornerShape(11.dp))
             .background(theme.textColourSecondary.copy(alpha = if (enabled) 0.08f else 0.04f))
             .border(1.dp, theme.textColourSecondary.copy(alpha = if (enabled) 0.18f else 0.1f), RoundedCornerShape(11.dp))
             .padding(3.dp),
         verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(2.dp),
+        // SpaceBetween so a stepper given the shared control width puts its buttons at the ends and
+        // the readout in the middle; with no width imposed it still sizes to its content.
+        horizontalArrangement = Arrangement.SpaceBetween,
     ) {
         StepButton("−", ink, enabled, onMinus)
         Column(
-            modifier = Modifier.width(66.dp),
+            modifier = Modifier.weight(1f, fill = false).widthIn(min = (STEPPER_VALUE_WIDTH * fontScale).dp),
             horizontalAlignment = Alignment.CenterHorizontally,
         ) {
-            Text(value, color = ink, fontSize = 16.sp, fontFamily = theme.font)
+            Text(value, color = ink, fontSize = SUBHEADING, fontFamily = theme.font, maxLines = 1, softWrap = false)
             if (sub != null) {
                 Text(
                     sub.uppercase(),
                     color = ink.copy(alpha = 0.55f),
-                    fontSize = 9.sp,
+                    fontSize = TINY,
                     letterSpacing = 1.2.sp,
                     fontFamily = theme.font,
                 )
@@ -342,7 +379,7 @@ private fun StepButton(sign: String, ink: Color, enabled: Boolean, onClick: () -
             .clickable(enabled = enabled) { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        Text(sign, color = ink, fontSize = 20.sp, fontFamily = theme.font)
+        Text(sign, color = ink, fontSize = SUBHEADING, fontFamily = theme.font)
     }
 }
 
@@ -363,7 +400,7 @@ fun LivePreviewCard(label: String, content: @Composable () -> Unit) {
             Text(
                 label.uppercase(),
                 color = theme.textColourSecondary.copy(alpha = 0.55f),
-                fontSize = 10.sp,
+                fontSize = TINY,
                 letterSpacing = 1.6.sp,
                 fontFamily = theme.font,
             )
@@ -371,42 +408,6 @@ fun LivePreviewCard(label: String, content: @Composable () -> Unit) {
             Box(Modifier.weight(1f).height(1.dp).background(theme.textColourSecondary.copy(alpha = 0.14f)))
         }
         content()
-    }
-}
-
-/**
- * A pill toggle for an on/off setting, drawn in the secondary set like the rest of the scaffold. The
- * caller owns the state — [onToggle] fires on tap and the composable simply reflects [checked].
- */
-@Composable
-fun SettingToggle(checked: Boolean, enabled: Boolean = true, onToggle: () -> Unit) {
-    val theme = LocalDashTheme.current
-    val trackWidth = 46.dp
-    val trackHeight = 28.dp
-    val thumb = 22.dp
-    val offset by animateDpAsState(if (checked) trackWidth - trackHeight else 0.dp, label = "toggle")
-    Box(
-        modifier = Modifier
-            .size(trackWidth, trackHeight)
-            .clip(RoundedCornerShape(999.dp))
-            .background(
-                if (checked) theme.textColourSecondary
-                else theme.textColourSecondary.copy(alpha = if (enabled) 0.18f else 0.08f)
-            )
-            .clickable(enabled = enabled) { onToggle() }
-            .padding(3.dp),
-        contentAlignment = Alignment.CenterStart,
-    ) {
-        Box(
-            Modifier
-                .offset(x = offset)
-                .size(thumb)
-                .clip(CircleShape)
-                .background(
-                    if (checked) theme.backgroundColourSecondary
-                    else theme.textColourSecondary.copy(alpha = 0.55f)
-                )
-        )
     }
 }
 
@@ -418,7 +419,7 @@ fun LinkButton(text: String, colour: Color? = null, onClick: () -> Unit) {
     Text(
         text,
         color = colour ?: theme.textColourSecondary,
-        fontSize = 12.5.sp,
+        fontSize = TINY,
         fontFamily = theme.font,
         textAlign = TextAlign.End,
         modifier = Modifier
@@ -476,12 +477,12 @@ fun LinkRow(
     val theme = LocalDashTheme.current
     val details: @Composable () -> Unit = {
         Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-            Text(label, color = theme.textColourSecondary, fontSize = 14.sp, fontFamily = theme.font)
+            Text(label, color = theme.textColourSecondary, fontSize = MAINBODY, fontFamily = theme.font)
             Text(
                 url,
                 color = theme.textColourSecondary.copy(alpha = 0.68f),
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
+                fontSize = BODY,
+                lineHeight = BODY_LINE,
                 fontFamily = theme.font,
             )
         }
@@ -505,7 +506,6 @@ fun LinkRow(
             ) {
                 Box(Modifier.weight(1f)) { details() }
                 QrPanel(qr, "$label QR code")
-                if (onOpen != null) Chevron()
             }
         } else {
             Column(
@@ -514,26 +514,13 @@ fun LinkRow(
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(Modifier.weight(1f)) { details() }
-                    if (onOpen != null) Chevron()
-                }
+                    }
                 QrPanel(qr, "$label QR code")
             }
         }
     }
 }
 
-/** The quiet affordance on a row that leads somewhere — it says "this goes" without dressing itself
- *  up as a button. */
-@Composable
-fun Chevron() {
-    val theme = LocalDashTheme.current
-    Text(
-        "›",
-        color = theme.textColourSecondary.copy(alpha = 0.45f),
-        fontSize = 22.sp,
-        fontFamily = theme.font,
-    )
-}
 
 /**
  * A block of label-and-value lines — the device report, and anything else that is read rather than
@@ -553,7 +540,7 @@ fun Chevron() {
 fun InfoRows(rows: List<Pair<String, String>>, spacing: Dp = 9.dp) {
     val theme = LocalDashTheme.current
     val measurer = rememberTextMeasurer()
-    val labelStyle = TextStyle(fontSize = 12.sp, fontFamily = theme.font)
+    val labelStyle = TextStyle(fontSize = BODY, fontFamily = theme.font)
 
     val labelWidth = with(LocalDensity.current) {
         (rows.maxOfOrNull { measurer.measure(AnnotatedString(it.first), labelStyle).size.width } ?: 0)
@@ -568,7 +555,7 @@ fun InfoRows(rows: List<Pair<String, String>>, spacing: Dp = 9.dp) {
                     Text(
                         label,
                         color = theme.textColourSecondary.copy(alpha = 0.62f),
-                        fontSize = 12.sp,
+                        fontSize = BODY,
                         fontFamily = theme.font,
                         maxLines = 1,
                     )
@@ -577,8 +564,8 @@ fun InfoRows(rows: List<Pair<String, String>>, spacing: Dp = 9.dp) {
                     Text(
                         value,
                         color = theme.textColourSecondary,
-                        fontSize = 12.5.sp,
-                        lineHeight = 18.sp,
+                        fontSize = BODY,
+                        lineHeight = BODY_LINE,
                         fontFamily = theme.font,
                         textAlign = if (wide) TextAlign.End else TextAlign.Start,
                     )
@@ -637,7 +624,7 @@ fun DashMenu(
     val theme = LocalDashTheme.current
     val ink = theme.textColourSecondary
     val shape = RoundedCornerShape(8.dp)
-    val rowStyle = TextStyle(fontSize = 13.5.sp, fontFamily = theme.font)
+    val rowStyle = TextStyle(fontSize = MAINBODY, fontFamily = theme.font)
 
     // Width is measured from the widest label rather than left to the layout. A Popup is given the
     // whole window as its maximum, so a child calling fillMaxWidth expands to the full screen — which
@@ -670,7 +657,7 @@ fun DashMenu(
                 Text(
                     option.label,
                     color = if (isSelected) ink else ink.copy(alpha = 0.78f),
-                    fontSize = 13.5.sp,
+                    fontSize = MAINBODY,
                     fontFamily = theme.font,
                     maxLines = 1,
                     modifier = Modifier
@@ -710,6 +697,10 @@ private object BelowAnchor : PopupPositionProvider {
         return IntOffset(x, y)
     }
 }
+
+/** The stepper readout's width at 1.0 text scale; it grows with the text from there. Sized to hold
+ *  the widest thing a stepper says — a three-digit value and its unit, "120 dp". */
+private const val STEPPER_VALUE_WIDTH = 78
 
 private val ROW_PAD = 14.dp
 private val MENU_MIN_WIDTH = 110.dp

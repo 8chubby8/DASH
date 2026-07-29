@@ -28,7 +28,6 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -36,8 +35,6 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
-import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -65,7 +62,7 @@ import androidx.lifecycle.LifecycleEventObserver
 import com.dash.android.DashApplication
 import com.dash.android.MainActivity
 import com.dash.android.prefs.DashPreferences
-import com.dash.android.ui.debug.DiagnosticOverlay
+import com.dash.android.ui.common.DashButton
 import com.dash.android.ui.motion.DashTransitions
 import com.dash.android.ui.motion.LocalDashTransitions
 import com.dash.android.ui.motion.TransitionId
@@ -74,17 +71,15 @@ import com.dash.android.weather.WeatherProvider
 import com.dash.android.weather.WeatherSnapshot
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.unit.Density
-import com.dash.android.ui.scale.DASH_SCALE_DEFAULT
 import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
-import com.dash.android.ui.scale.LocalDashScale
 import com.dash.android.ui.modules.LocalModuleDesk
 import com.dash.android.ui.modules.ModuleDesk
 import com.dash.android.ui.transports.LocalTransportDesk
 import com.dash.android.ui.transports.TransportDesk
+import com.dash.android.ui.rotation.DashOrientation
 import com.dash.android.ui.modulepanel.MODULE_PANEL_EXPANDED_HEIGHT
 import com.dash.android.ui.modulepanel.MODULE_PANEL_MINIMISED_HEIGHT
 import com.dash.android.ui.modulepanel.ModulePanelPlaceholder
-import com.dash.android.ui.settings.SettingsPanel
 import com.dash.android.ui.settings.SettingsShell
 import com.dash.android.ui.theme.DashTheme
 import com.dash.android.ui.theme.LocalDashTheme
@@ -151,7 +146,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     // Where to reopen settings after a focused task (bar edit mode) takes over the screen — so Save/
     // Cancel returns to the tab the user left, not the home screen.
     var settingsReturnTarget by remember { mutableStateOf<String?>(null) }
-    var showLegacySettings by remember { mutableStateOf(false) }
     var modulePanelExpanded by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
     var editConfig by remember { mutableStateOf<SystemBarConfig?>(null) }
@@ -194,11 +188,9 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         onDispose { activity.unregisterReceiver(receiver) }
     }
 
-    val dashScale by prefs.dashScale.collectAsState(initial = DASH_SCALE_DEFAULT)
     val dashTextScale by prefs.dashTextScale.collectAsState(initial = DASH_TEXT_SCALE_DEFAULT)
     val transitionMap by prefs.transitions.collectAsState(initial = emptyMap())
     val transitions = remember(transitionMap) { DashTransitions(transitionMap) }
-    val selectedPreset by prefs.densityPreset.collectAsState(initial = null)
     val autoRotate by prefs.autoRotate.collectAsState(initial = true)
     val lockedOrientation by prefs.lockedOrientation.collectAsState(initial = "LANDSCAPE")
     val splashMode by prefs.splashMode.collectAsState(initial = "COLOUR")
@@ -212,10 +204,14 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
 
     LaunchedEffect(autoRotate, lockedOrientation) {
         activity.requestedOrientation = if (autoRotate) {
-            ActivityInfo.SCREEN_ORIENTATION_SENSOR
-        } else when (lockedOrientation) {
-            "PORTRAIT" -> ActivityInfo.SCREEN_ORIENTATION_PORTRAIT
-            else -> ActivityInfo.SCREEN_ORIENTATION_LANDSCAPE
+            // FULL_SENSOR, not SENSOR (roadmap 1.5.15). Plain SENSOR deliberately refuses to rotate
+            // into reverse portrait on most devices — so with Layout › Rotation offering all four
+            // fixed orientations, SENSOR would leave Auto unable to reach one of them. A tab that
+            // will hold an orientation on demand but never rotate into it on its own contradicts
+            // itself; FULL_SENSOR gives Auto the same four positions the tab offers.
+            ActivityInfo.SCREEN_ORIENTATION_FULL_SENSOR
+        } else {
+            DashOrientation.from(lockedOrientation).activityInfo
         }
     }
 
@@ -226,7 +222,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val baseDensity = LocalDensity.current
     CompositionLocalProvider(
         LocalDensity provides Density(baseDensity.density, dashTextScale),
-        LocalDashScale provides dashScale,
         LocalDashTransitions provides transitions,
         LocalWeatherSnapshot provides weather,
         LocalDashTheme provides DashTheme.default(),
@@ -295,14 +290,11 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 }
             }
 
-            DiagnosticOverlay(
-                modifier = Modifier
-                    .align(Alignment.TopStart)
-                    .padding(top = if (!isDefaultLauncher && barConfig.position != BarPosition.TOP) 48.dp else 0.dp, start = 16.dp),
-                dashScale = dashScale,
-                selectedPreset = selectedPreset
-            )
-
+            // The diagnostic overlay is gone (roadmap 1.5.15). Four lines of grey 10sp — pixel size,
+            // native dpi, the applied density preset and the old dashScale — pinned permanently over
+            // the top-left of the user's home screen since 1.1.x, when reading those numbers while
+            // changing density was the whole job. It never got a gate. System › About DASH now
+            // reports all of it and more, on demand, which is where a device readout belongs.
             // Settings shell (roadmap 1.5.2). Drawn *before* the bar so the bar stays on top and
             // reachable while the panel is open. It rolls out from under the bar like a blind: an
             // explicitly animated height from 0 to the region's measured full height, clipped so the
@@ -349,7 +341,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                             SettingsShell(
                                 initialSubId = settingsReturnTarget,
                                 onClose = { showSettings = false; settingsReturnTarget = null },
-                                onOpenLegacy = { showLegacySettings = true }
                             )
                         }
                     }
@@ -459,35 +450,31 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.align(Alignment.Center)
                 ) {
-                    Button(
+                    // On the DASH button idiom since 1.5.15. These two were the last controls in
+                    // DASH still wearing Material's shape, elevation, ripple and padding — everything
+                    // else moved across at 1.5.8 and these were missed, which is why edit mode was
+                    // the one workspace that didn't look like the rest of the system.
+                    DashButton(
+                        label = "CANCEL",
+                        fill = editTheme.accentColourSecondary,
+                        ink = editTheme.textColourSecondary,
                         onClick = {
                             editConfig = null
                             editMode = false
                             if (settingsReturnTarget != null) showSettings = true
                         },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = editTheme.accentColourSecondary,
-                            contentColor = editTheme.textColourSecondary
-                        ),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
-                    ) {
-                        Text("CANCEL", fontSize = 11.sp, fontFamily = editTheme.font, letterSpacing = 1.sp)
-                    }
-                    Button(
+                    )
+                    DashButton(
+                        label = "SAVE",
+                        fill = editTheme.backgroundColourPrimary,
+                        ink = editTheme.textColourPrimary,
                         onClick = {
                             editConfig?.let { scope.launch { prefs.saveSystemBarConfig(it) } }
                             editConfig = null
                             editMode = false
                             if (settingsReturnTarget != null) showSettings = true
                         },
-                        colors = ButtonDefaults.buttonColors(
-                            containerColor = editTheme.backgroundColourPrimary,
-                            contentColor = editTheme.textColourPrimary
-                        ),
-                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 8.dp)
-                    ) {
-                        Text("SAVE", fontSize = 11.sp, fontFamily = editTheme.font, letterSpacing = 1.sp)
-                    }
+                    )
                 }
             }
 
@@ -504,16 +491,10 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 )
             }
 
-            // Legacy flat settings — the pre-1.5.2 panel, reached from the shell's temporary
-            // LEGACY SETTINGS button so nothing built in 1.1.x–1.4.x is unreachable while it waits
-            // to be rehomed into the shell. Removed at 1.5.12.
-            if (showLegacySettings) {
-                SettingsPanel(
-                    activity = mainActivity,
-                    prefs = prefs,
-                    onDismiss = { showLegacySettings = false }
-                )
-            }
+            // The legacy flat settings panel is gone (roadmap 1.5.15). It existed from 1.5.2 as a
+            // temporary bridge so nothing built in 1.1.x–1.4.x was unreachable while the settings
+            // shell was filled in one tab at a time. Every control it held has a real home now —
+            // the last one, ROTATION, went to Layout › Rotation in this same version.
 
             // Module Management is now a settings tab (Modules › Module Management, 1.5.8) rendered
             // inside the shell — no standalone route. It reaches the controller's managers through
@@ -523,8 +504,10 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // Monitor / Signal Monitor), rendered inside the shell — no standalone routes any more.
             // They reach the transport layer and the sourceless core through the two desks above.
 
-            // Splash overlay — sits above everything, including the settings panel
-            if (showSplash) {
+            // Splash overlay — sits above everything, including the settings panel. "None" is a real
+            // choice (roadmap 1.5.15, Roger): DASH has no opinion on whether you want a splash, so
+            // that mode skips it entirely rather than showing an empty one for zero milliseconds.
+            if (showSplash && splashMode != "NONE") {
                 SplashScreen(
                     mode = splashMode,
                     backgroundColour = splashColour,

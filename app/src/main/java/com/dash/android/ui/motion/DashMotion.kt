@@ -28,23 +28,26 @@ enum class TransitionSpeed(val label: String, val millis: Int) {
  * The registry of DASH transitions. Every transition that exists in the code gets an entry here, and
  * the Transitions page renders one control per entry automatically — so a new surface's transition
  * gains a control the moment it registers, with no settings rework (the same self-growing pattern the
- * transport list uses). [key] is the stable DataStore key; [hint] is the plain-language help shown
- * under the control. Order is chronological-as-added for now; it gets tidied into a sensible order
- * once every transition in DASH exists.
+ * transport list uses). [key] is the stable DataStore key; [label] is what the user sees.
+ *
+ * There was a `hint` here too — a sentence of plain-language help under each control — dropped at
+ * 1.5.15 when the settings pages stopped carrying explanatory text beneath their settings.
+ *
+ * Order is chronological-as-added for now; it gets tidied into a sensible order once every transition
+ * in DASH exists.
  */
 enum class TransitionId(
     val key: String,
     val label: String,
-    val hint: String,
     val default: TransitionSpeed = TransitionSpeed.NORMAL,
 ) {
-    SETTINGS_PANEL_OPEN("settings_panel_open", "Settings panel — open", "The blind rolling out from the bar as settings open."),
-    SETTINGS_PANEL_CLOSE("settings_panel_close", "Settings panel — close", "The blind rolling back up as settings close."),
-    SETTINGS_NAV_DRILL_IN("settings_nav_drill_in", "Settings nav — drill in", "Sliding forward into a category or subcategory."),
-    SETTINGS_NAV_BACK_OUT("settings_nav_back_out", "Settings nav — back out", "Sliding back out to the level above."),
-    SETTINGS_CONTENT_SWAP("settings_content_swap", "Settings content — swap", "The crossfade between the landing and a chosen tab's content."),
-    SPLASH_FADE_IN("splash_fade_in", "Splash — fade in", "The splash screen fading up on boot or wake."),
-    SPLASH_FADE_OUT("splash_fade_out", "Splash — fade out", "The splash screen fading away to reveal DASH."),
+    SETTINGS_PANEL_OPEN("settings_panel_open", "Settings panel — open"),
+    SETTINGS_PANEL_CLOSE("settings_panel_close", "Settings panel — close"),
+    SETTINGS_NAV_DRILL_IN("settings_nav_drill_in", "Settings nav — drill in"),
+    SETTINGS_NAV_BACK_OUT("settings_nav_back_out", "Settings nav — back out"),
+    SETTINGS_CONTENT_SWAP("settings_content_swap", "Settings content — swap"),
+    SPLASH_FADE_IN("splash_fade_in", "Splash — fade in"),
+    SPLASH_FADE_OUT("splash_fade_out", "Splash — fade out"),
 }
 
 /**

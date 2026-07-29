@@ -22,6 +22,11 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.dash.android.ui.theme.LocalDashTheme
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.MAINBODY_LINE
+import com.dash.android.ui.common.BODY_LINE
+import com.dash.android.ui.common.DashButton
 
 /**
  * System › Android Settings Links (roadmap 1.5.14).
@@ -54,19 +59,15 @@ fun SystemLinksContent() {
         modifier = Modifier.fillMaxWidth(),
         verticalArrangement = Arrangement.spacedBy(40.dp),
     ) {
-        SettingsContentHeader(
-            "Android Settings Links",
-            "DASH replaces the home screen, so these are the way back to Android's own settings. " +
-                "Each one opens the exact page, not the top of the menu.",
-        )
+        SettingsContentHeader("Android Settings Links")
 
         if (sections.isEmpty()) {
             Text(
                 "This device exposes none of Android's settings screens to other apps. Nothing here " +
                     "would work, so nothing is listed.",
                 color = theme.textColourSecondary.copy(alpha = 0.7f),
-                fontSize = 13.sp,
-                lineHeight = 20.sp,
+                fontSize = MAINBODY,
+                lineHeight = MAINBODY_LINE,
                 fontFamily = theme.font,
             )
             return@Column
@@ -74,12 +75,15 @@ fun SystemLinksContent() {
 
         sections.forEach { (title, links) ->
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
-                SettingsContentHeader(title)
-                Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                SettingsSectionHeader(title)
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     links.forEach { (link, intent) ->
-                        LinkTile(link.label, link.help) {
-                            runCatching { context.startActivity(intent) }
-                        }
+                        DashButton(
+                            label = link.label,
+                            modifier = Modifier.fillMaxWidth(),
+                            alignStart = true,
+                            onClick = { runCatching { context.startActivity(intent) } },
+                        )
                     }
                 }
             }
@@ -87,51 +91,11 @@ fun SystemLinksContent() {
     }
 }
 
-/**
- * A whole row that opens something — the item *is* the control.
- *
- * There is no OPEN button on the right because there is nothing else this row could do: every row
- * here has exactly one action, so a separate button would only be a smaller target for the same tap.
- * It also suits the car — a row spanning the box is hit reliably on a moving screen where a short
- * word at the far edge is not.
- *
- * The chevron is the only affordance, deliberately quiet: it says the row leads somewhere without
- * dressing itself up as a button.
- */
-@Composable
-private fun LinkTile(label: String, help: String, onClick: () -> Unit) {
-    val theme = LocalDashTheme.current
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .clickable { onClick() }
-            .padding(horizontal = 10.dp, vertical = 12.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(14.dp),
-    ) {
-        Column(
-            modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(5.dp),
-        ) {
-            Text(label, color = theme.textColourSecondary, fontSize = 14.sp, fontFamily = theme.font)
-            Text(
-                help,
-                color = theme.textColourSecondary.copy(alpha = 0.68f),
-                fontSize = 12.sp,
-                lineHeight = 17.sp,
-                fontFamily = theme.font,
-            )
-        }
-        Chevron()
-    }
-}
 
 /** A link out: what it is, why you would want it, and the intents that might open it — the first that
  *  this device can actually handle wins. */
 private class SystemLink(
     val label: String,
-    val help: String,
     val intents: (Context) -> List<Intent>,
 )
 
@@ -158,82 +122,64 @@ private val SECTIONS: List<Pair<String, List<SystemLink>>> = listOf(
     "Connections" to listOf(
         SystemLink(
             "WiFi",
-            "Join a network, or fix one that has dropped. DASH uses WiFi for weather, for its own " +
-                "WiFi transport, and for anything running in the viewport.",
             action(Settings.ACTION_WIFI_SETTINGS),
         ),
         SystemLink(
             "Bluetooth",
-            "Pair and manage devices — including any DASH module on the Bluetooth transport. " +
-                "Pairing is Android's job, so DASH sends you here rather than rebuilding it.",
             action(Settings.ACTION_BLUETOOTH_SETTINGS),
         ),
         SystemLink(
             "Mobile network",
-            "Data, roaming and carrier settings, for an installation with a SIM or a mobile dongle.",
             { listOf(Intent(Settings.ACTION_DATA_ROAMING_SETTINGS), Intent(Settings.ACTION_WIRELESS_SETTINGS)) },
         ),
     ),
     "Display and sound" to listOf(
         SystemLink(
             "Display",
-            "Brightness, timeout and Android's own display options. DASH's own scale controls are " +
-                "under Appearance › Size & Scale.",
             action(Settings.ACTION_DISPLAY_SETTINGS),
         ),
         SystemLink(
             "Sound",
-            "Volumes and output behaviour. DASH's audio routing arrives in version 2.",
             action(Settings.ACTION_SOUND_SETTINGS),
         ),
     ),
     "Device" to listOf(
         SystemLink(
             "Apps",
-            "Every app installed on this device, and their permissions.",
             { listOf(Intent(Settings.ACTION_APPLICATION_SETTINGS), Intent(Settings.ACTION_MANAGE_APPLICATIONS_SETTINGS)) },
         ),
         SystemLink(
             "Storage",
-            "What is using the space on this device.",
             action(Settings.ACTION_INTERNAL_STORAGE_SETTINGS),
         ),
         SystemLink(
             "Date and time",
-            "The clock DASH reads. Worth checking on a board with no SIM and no network time.",
             action(Settings.ACTION_DATE_SETTINGS),
         ),
         SystemLink(
             "Location",
-            "Android's master location switch. DASH's own location sources are under System › Location.",
             action(Settings.ACTION_LOCATION_SOURCE_SETTINGS),
         ),
         SystemLink(
             "Accessibility",
-            "Android's accessibility services and display adjustments.",
             action(Settings.ACTION_ACCESSIBILITY_SETTINGS),
         ),
         SystemLink(
             "Keyboards",
-            "The input methods available when DASH asks you to type.",
             action(Settings.ACTION_INPUT_METHOD_SETTINGS),
         ),
         SystemLink(
             "Developer options",
-            "Android's developer settings, where they are enabled on this device.",
             action(Settings.ACTION_APPLICATION_DEVELOPMENT_SETTINGS),
         ),
     ),
     "DASH on this device" to listOf(
         SystemLink(
             "Default home app",
-            "Choose which app is the home screen. This is how you make DASH the launcher — and how " +
-                "you hand it back.",
             { listOf(Intent(Settings.ACTION_HOME_SETTINGS), Intent(Settings.ACTION_MANAGE_DEFAULT_APPS_SETTINGS)) },
         ),
         SystemLink(
             "DASH app info",
-            "Android's own page for DASH — permissions, storage and notifications.",
             { context ->
                 listOf(
                     Intent(
@@ -245,7 +191,6 @@ private val SECTIONS: List<Pair<String, List<SystemLink>>> = listOf(
         ),
         SystemLink(
             "All Android settings",
-            "The top of Android's own settings, for anything not listed here.",
             action(Settings.ACTION_SETTINGS),
         ),
     ),

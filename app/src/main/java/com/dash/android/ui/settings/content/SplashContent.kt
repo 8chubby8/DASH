@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
@@ -36,6 +37,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import androidx.compose.material3.Text
 import com.dash.android.prefs.DashPreferences
 import com.dash.android.ui.splash.CroppedImage
 import com.dash.android.ui.splash.LocalSplashPreview
@@ -50,6 +53,12 @@ import kotlin.math.min
 import com.dash.android.ui.theme.SPLASH_BACKGROUND_COLOUR_DEFAULT
 import com.dash.android.ui.theme.splashColourPresets
 import kotlinx.coroutines.launch
+import com.dash.android.ui.common.TINY
+import com.dash.android.ui.common.SETTING_SPACING
+import com.dash.android.ui.common.CONTROL_WIDTH
+import androidx.compose.ui.platform.LocalDensity
+import com.dash.android.ui.common.DashButton
+import com.dash.android.ui.common.controlWidth
 
 /**
  * Appearance › Splash Screen (roadmap 1.5.6). Exposes the 1.2.x splash feature: pick a **background
@@ -62,8 +71,6 @@ import kotlinx.coroutines.launch
  * boots, then the control for the chosen type, then — for colour and image only — the timer. Pick
  * Animation and the timer disappears: the animation's own length is its duration.
  */
-private const val WITHIN_SECTION = 28
-private const val BETWEEN_SECTIONS = 44
 
 // Dwell is dialled in half-second steps, from an instant flash to a long hold. The floor is 0 — DASH
 // has no opinion on whether you want a splash at all — and the ceiling is generous.
@@ -89,6 +96,9 @@ fun SplashContent() {
     // Colour edit state is held as HSV (the picker's stable source of truth), seeded from the stored
     // colour once it has loaded. After that the user's edits own it; preset taps re-seed it.
     var hsv by remember { mutableStateOf<Hsv?>(null) }
+    // The custom editor is collapsed by default (roadmap 1.5.15) — it used to sit ~200dp tall
+    // permanently, whether or not anyone was using it.
+    var customOpen by remember { mutableStateOf(false) }
     LaunchedEffect(storedColour) { if (hsv == null) hsv = colourToHsv(storedColour) }
     val currentColour = hsv?.toColour() ?: Color(storedColour)
 
@@ -130,69 +140,104 @@ fun SplashContent() {
         }
     }
 
+    val controlWidth = Modifier.width(controlWidth(LocalDensity.current.fontScale))
+
     Column(modifier = Modifier.fillMaxWidth()) {
 
         // ── Type ───────────────────────────────────────────────────────────────────────────────
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
-            SettingsContentHeader(
-                title = "Splash Screen",
-                description = "The screen DASH shows as it comes up. A colour of your own, a still image, " +
-                    "or an animation that plays.",
-            )
-            SettingBlock(
-                name = "Type",
-                help = "Colour and image hold for a set time; an animation plays through once.",
-                fullWidthControl = true,
-                control = {
-                    FitPresetSegment(
-                        labels = listOf("Colour", "Image", "Animation"),
-                        selected = when (mode) { "IMAGE" -> 1; "ANIMATION" -> 2; else -> 0 },
-                    ) { i ->
-                        val next = when (i) { 1 -> "IMAGE"; 2 -> "ANIMATION"; else -> "COLOUR" }
-                        scope.launch { prefs.saveSplashMode(next) }
-                    }
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_SPACING)) {
+            SettingsContentHeader("Splash Screen")
+            // Type is the section rather than a setting inside one: it has a single control, and a
+            // setting named "Type" under a heading named "Type" would say the word twice.
+            SettingsSectionHeader("Type")
+            FitPresetSegment(
+                labels = listOf("None", "Colour", "Image", "Animation"),
+                selected = when (mode) {
+                    "COLOUR" -> 1
+                    "IMAGE" -> 2
+                    "ANIMATION" -> 3
+                    else -> 0
                 },
-            )
+            ) { i ->
+                val next = when (i) { 1 -> "COLOUR"; 2 -> "IMAGE"; 3 -> "ANIMATION"; else -> "NONE" }
+                scope.launch { prefs.saveSplashMode(next) }
+            }
         }
 
-        Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
+
+        if (mode == "NONE") return@Column
 
         // ── Background — the splash's own colour, kept for all three types. For Colour it is the
         //    whole screen; for Image / Animation it is the backdrop and the matte behind letterboxing.
-        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
-            SettingsContentHeader(
-                title = "Background",
-                description = when (mode) {
-                    "COLOUR" -> null
-                    else -> "Sits behind your ${if (mode == "ANIMATION") "animation" else "image"}, and " +
-                        "fills any gaps when it doesn't cover the screen."
-                },
-            )
+        Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_SPACING)) {
+            SettingsSectionHeader("Background")
             ColourSwatches(
                 presets = splashColourPresets(theme),
                 selected = currentColour,
-            ) { picked ->
-                hsv = colourToHsv(picked.toArgbLong())
-                scope.launch { prefs.saveSplashBackgroundColour(picked.toArgbLong()) }
-            }
-            hsv?.let { current ->
-                ColourPicker(
-                    hsv = current,
-                    onChange = { hsv = it },
-                    onCommit = { scope.launch { prefs.saveSplashBackgroundColour(current.toColour().toArgbLong()) } },
-                )
+                customOpen = customOpen,
+                onPick = { picked ->
+                    hsv = colourToHsv(picked.toArgbLong())
+                    customOpen = false
+                    scope.launch { prefs.saveSplashBackgroundColour(picked.toArgbLong()) }
+                },
+                onToggleCustom = { customOpen = !customOpen },
+            )
+
+            // The editor is inline and pushes what follows down, rather than floating over it — it
+            // holds text fields, and a popup would fight the keyboard and have to guess its own size.
+            // Same behaviour as the Serial Monitor's COMMANDS drawer (1.5.13).
+            if (customOpen) {
+                hsv?.let { current ->
+                    Box(
+                        Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(12.dp))
+                            .background(theme.textColourSecondary.copy(alpha = 0.06f))
+                            .border(1.dp, theme.textColourSecondary.copy(alpha = 0.16f), RoundedCornerShape(12.dp))
+                            .padding(14.dp)
+                    ) {
+                        ColourEditor(
+                            hsv = current,
+                            onChange = { hsv = it },
+                            onCommit = {
+                                scope.launch {
+                                    prefs.saveSplashBackgroundColour(current.toColour().toArgbLong())
+                                }
+                            },
+                        )
+                    }
+                }
             }
         }
 
-        Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
+        // The preview is a different kind of thing from the controls above it — it is the result, not
+        // a setting — so it gets more air than the gap between two settings would give it. It was
+        // sitting hard up against the colour swatches (roadmap 1.5.15, Roger).
+        Spacer(Modifier.height(40.dp))
 
-        // ── Preview — actual screen shape, its orientation chosen by the toggle. A still image can be
-        //    cropped in place (tap it); each orientation keeps its own crop.
         LivePreviewCard(label = "Preview") {
             PresetSegment(
                 labels = listOf("Landscape", "Portrait"),
                 selected = if (showLandscape) 0 else 1,
+                modifier = controlWidth,
             ) { i -> showLandscape = (i == 0); liveCrop = null }
+
+            // The chooser lives in the preview, under the orientation selector — you pick the image
+            // where you are looking at it, rather than in a block somewhere above (roadmap 1.5.15,
+            // Roger). Colour needs nothing here: its background *is* the splash.
+            if (mode == "IMAGE") {
+                DashButton(
+                    label = if (imageUri.isNotEmpty()) "Change image" else "Choose image",
+                    modifier = controlWidth,
+                    onClick = { imagePicker.launch("image/*") },
+                )
+            } else if (mode == "ANIMATION") {
+                DashButton(
+                    label = if (animationUri.isNotEmpty()) "Change animation" else "Choose animation",
+                    modifier = controlWidth,
+                    onClick = { animationPicker.launch("image/*") },
+                )
+            }
 
             val canCrop = mode == "IMAGE" && imageBitmap != null
             val enterEdit: () -> Unit = { editingCrop = true }
@@ -208,11 +253,15 @@ fun SplashContent() {
                     onCommit = { c -> scope.launch { prefs.saveSplashCrop(showLandscape, c) } },
                 )
                 Row(horizontalArrangement = Arrangement.spacedBy(20.dp)) {
-                    LinkButton("Reset to standard") {
-                        liveCrop = SPLASH_CROP_DEFAULT
-                        scope.launch { prefs.saveSplashCrop(showLandscape, SPLASH_CROP_DEFAULT) }
-                    }
-                    LinkButton("Done") { editingCrop = false; liveCrop = null }
+                    DashButton(
+                        label = "Reset to standard",
+                        modifier = controlWidth,
+                        onClick = {
+                            liveCrop = SPLASH_CROP_DEFAULT
+                            scope.launch { prefs.saveSplashCrop(showLandscape, SPLASH_CROP_DEFAULT) }
+                        },
+                    )
+                    DashButton("Done", { editingCrop = false; liveCrop = null }, modifier = controlWidth)
                 }
             } else {
                 SplashAspectPreview(
@@ -224,54 +273,23 @@ fun SplashContent() {
                     crop = displayCrop,
                     onTap = if (canCrop) enterEdit else null,
                 )
-                if (canCrop) LinkButton("Adjust crop →") { enterEdit() }
-                LinkButton("Preview full screen →") { previewFullScreen() }
+                if (canCrop) DashButton("Adjust crop", { enterEdit() }, modifier = controlWidth)
+                DashButton("Preview full screen", { previewFullScreen() }, modifier = controlWidth)
             }
         }
 
-        Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
-
-        // ── The image / animation to show. Colour needs nothing here — its background *is* the splash.
-        if (mode == "IMAGE" || mode == "ANIMATION") {
-            Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
-                if (mode == "IMAGE") {
-                    SettingBlock(
-                        name = "Image",
-                        help = if (imageUri.isNotEmpty()) "Tap to choose a different image." else "No image chosen yet.",
-                        control = {
-                            LinkButton(if (imageUri.isNotEmpty()) "Change image →" else "Choose image →") {
-                                imagePicker.launch("image/*")
-                            }
-                        },
-                    )
-                } else {
-                    SettingBlock(
-                        name = "Animation",
-                        help = if (animationUri.isNotEmpty()) "Tap to choose a different animation (GIF or animated WebP)."
-                        else "No animation chosen yet — pick a GIF or animated WebP.",
-                        control = {
-                            LinkButton(if (animationUri.isNotEmpty()) "Change animation →" else "Choose animation →") {
-                                animationPicker.launch("image/*")
-                            }
-                        },
-                    )
-                }
-            }
-        }
 
         // ── Timing (colour + image only; an animation has no dwell) ───────────────────────────────
         if (mode != "ANIMATION") {
-            Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
-            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp)) {
-                SettingsContentHeader(title = "Timing")
+            Column(Modifier.fillMaxWidth(), verticalArrangement = Arrangement.spacedBy(SETTING_SPACING)) {
+                SettingsSectionHeader("Timing")
                 SettingBlock(
                     name = "Display time",
-                    help = "How long the splash holds before it clears. The fades are set in Transitions.",
                     control = {
                         Stepper(
                             value = formatSeconds(dwell),
                             sub = "hold",
+                            modifier = controlWidth,
                             onMinus = {
                                 scope.launch { prefs.saveSplashDwellMillis((dwell - DWELL_STEP_MS).coerceAtLeast(DWELL_MIN_MS)) }
                             },
@@ -332,26 +350,65 @@ private fun SplashAspectPreview(
 private fun ColourSwatches(
     presets: List<Pair<String, Color>>,
     selected: Color,
+    customOpen: Boolean,
     onPick: (Color) -> Unit,
+    onToggleCustom: () -> Unit,
 ) {
     val theme = LocalDashTheme.current
-    Row(horizontalArrangement = Arrangement.spacedBy(12.dp)) {
+    val isPreset = presets.any { it.second.toArgbLong() == selected.toArgbLong() }
+    Row(
+        horizontalArrangement = Arrangement.spacedBy(12.dp),
+        verticalAlignment = Alignment.CenterVertically,
+    ) {
         presets.forEach { (_, colour) ->
-            val isSelected = colour.toArgbLong() == selected.toArgbLong()
-            Box(
-                Modifier
-                    .size(34.dp)
-                    .clip(CircleShape)
-                    .background(colour)
-                    .border(
-                        width = if (isSelected) 2.5.dp else 1.dp,
-                        color = if (isSelected) theme.textColourSecondary else theme.textColourSecondary.copy(alpha = 0.3f),
-                        shape = CircleShape,
-                    )
-                    .clickable { onPick(colour) },
+            Swatch(
+                colour = colour,
+                selected = colour.toArgbLong() == selected.toArgbLong(),
+                onClick = { onPick(colour) },
             )
         }
+
+        // The Custom swatch (roadmap 1.5.15). It is filled with the colour actually in force, so a
+        // colour that is not one of the presets can be seen without opening anything — and it reads
+        // as the selected swatch in that case, which is what makes the row honest. Tapping it opens
+        // the editor below; tapping again closes it, as does choosing a preset.
+        Swatch(
+            colour = selected,
+            selected = !isPreset,
+            ring = customOpen,
+            onClick = onToggleCustom,
+        )
+        Text(
+            "CUSTOM",
+            color = theme.textColourSecondary.copy(alpha = if (customOpen || !isPreset) 0.95f else 0.6f),
+            fontSize = TINY,
+            letterSpacing = 1.sp,
+            fontFamily = theme.font,
+            modifier = Modifier
+                .clip(RoundedCornerShape(6.dp))
+                .clickable { onToggleCustom() }
+                .padding(horizontal = 4.dp, vertical = 4.dp),
+        )
     }
+}
+
+/** One colour circle. [ring] draws the extra outer ring that marks the custom editor as open. */
+@Composable
+private fun Swatch(colour: Color, selected: Boolean, ring: Boolean = false, onClick: () -> Unit) {
+    val theme = LocalDashTheme.current
+    Box(
+        Modifier
+            .size(34.dp)
+            .clip(CircleShape)
+            .background(colour)
+            .border(
+                width = if (selected || ring) 2.5.dp else 1.dp,
+                color = if (selected || ring) theme.textColourSecondary
+                else theme.textColourSecondary.copy(alpha = 0.3f),
+                shape = CircleShape,
+            )
+            .clickable { onClick() },
+    )
 }
 
 /** "0.0s", "2.5s" — dwell shown in seconds to one decimal, from a millisecond store. */

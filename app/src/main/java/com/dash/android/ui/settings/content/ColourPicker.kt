@@ -27,6 +27,26 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
+import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material3.Text
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.focus.onFocusChanged
+import androidx.compose.ui.graphics.SolidColor
+import androidx.compose.ui.text.TextStyle
+import androidx.compose.ui.text.input.ImeAction
+import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.unit.sp
+import com.dash.android.ui.theme.LocalDashTheme
+import kotlin.math.roundToInt
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.TINY
 
 /**
  * A colour as hue (0–360), saturation and value (0–1). Held as HSV, not ARGB, so the picker is its own
@@ -130,5 +150,173 @@ fun ColourPicker(hsv: Hsv, onChange: (Hsv) -> Unit, onCommit: () -> Unit) {
                 drawCircle(Color.White, radius = r - 1.5f, center = Offset(x, r), style = Stroke(width = 2f))
             }
         }
+    }
+}
+
+// ── Numeric entry (roadmap 1.5.15) ───────────────────────────────────────────────────────────────
+
+/** The colour as three 0–255 channels. */
+fun Hsv.toRgb(): Triple<Int, Int, Int> {
+    val c = toColour().toArgb()
+    return Triple((c shr 16) and 0xFF, (c shr 8) and 0xFF, c and 0xFF)
+}
+
+fun rgbToHsv(r: Int, g: Int, b: Int): Hsv {
+    val out = FloatArray(3)
+    android.graphics.Color.RGBToHSV(r.coerceIn(0, 255), g.coerceIn(0, 255), b.coerceIn(0, 255), out)
+    return Hsv(out[0], out[1], out[2])
+}
+
+fun Hsv.toHex(): String {
+    val (r, g, b) = toRgb()
+    return "%02X%02X%02X".format(r, g, b)
+}
+
+/** Parses `#RRGGBB` or `RRGGBB`, returning null for anything else — a half-typed value simply does
+ *  not apply yet rather than fighting the user mid-entry. */
+fun parseHex(text: String): Hsv? {
+    val hex = text.trim().removePrefix("#")
+    if (hex.length != 6 || hex.any { it.digitToIntOrNull(16) == null }) return null
+    return rgbToHsv(
+        hex.substring(0, 2).toInt(16),
+        hex.substring(2, 4).toInt(16),
+        hex.substring(4, 6).toInt(16),
+    )
+}
+
+/**
+ * The full colour editor (roadmap 1.5.15) — the [ColourPicker] square and hue bar, with typed entry
+ * beneath it: hex, R/G/B and H/S/V, every set live-synced to the same colour.
+ *
+ * **Why all three sets and not just saturation.** The original ask was RGB plus a saturation field,
+ * but saturation alone is a third of HSV: it lets you nudge a colour and never type one. With numeric
+ * entry present at all, the whole triple earns its place — and hex is what anyone actually pastes
+ * when they are matching a colour from somewhere else.
+ *
+ * Typing parses on every keystroke and ignores whatever does not parse, so a half-finished `#3D` is
+ * simply not applied rather than snapping the picker somewhere absurd. Values persist on focus loss,
+ * matching the picker's own drag/commit split — one write per edit, not one per character.
+ *
+ * Built here rather than in the splash tab because version 2's theming work (colour customisation,
+ * presets, export/import) wants exactly this, and splash is only its first caller.
+ */
+@Composable
+fun ColourEditor(hsv: Hsv, onChange: (Hsv) -> Unit, onCommit: () -> Unit) {
+    val theme = LocalDashTheme.current
+    val (r, g, b) = hsv.toRgb()
+
+    Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
+        ColourPicker(hsv = hsv, onChange = onChange, onCommit = onCommit)
+
+        // Hex, with a live chip of the colour beside it — the one field you can paste into.
+        Row(
+            horizontalArrangement = Arrangement.spacedBy(10.dp),
+            verticalAlignment = Alignment.CenterVertically,
+        ) {
+            Box(
+                Modifier
+                    .size(34.dp)
+                    .clip(RoundedCornerShape(8.dp))
+                    .background(hsv.toColour())
+                    .border(1.dp, theme.textColourSecondary.copy(alpha = 0.3f), RoundedCornerShape(8.dp))
+            )
+            ColourField(
+                label = "HEX",
+                value = hsv.toHex(),
+                modifier = Modifier.weight(1f),
+                numeric = false,
+                onText = { parseHex(it)?.let(onChange) },
+                onDone = onCommit,
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ColourField("R", "$r", Modifier.weight(1f), true, { t ->
+                t.toIntOrNull()?.let { onChange(rgbToHsv(it, g, b)) }
+            }, onCommit)
+            ColourField("G", "$g", Modifier.weight(1f), true, { t ->
+                t.toIntOrNull()?.let { onChange(rgbToHsv(r, it, b)) }
+            }, onCommit)
+            ColourField("B", "$b", Modifier.weight(1f), true, { t ->
+                t.toIntOrNull()?.let { onChange(rgbToHsv(r, g, it)) }
+            }, onCommit)
+        }
+
+        // H in degrees, S and V as percentages — the units people say out loud, rather than the 0–1
+        // the picker holds internally.
+        Row(horizontalArrangement = Arrangement.spacedBy(10.dp)) {
+            ColourField("H°", "${hsv.h.roundToInt()}", Modifier.weight(1f), true, { t ->
+                t.toIntOrNull()?.let { onChange(hsv.copy(h = it.coerceIn(0, 360).toFloat())) }
+            }, onCommit)
+            ColourField("S%", "${(hsv.s * 100).roundToInt()}", Modifier.weight(1f), true, { t ->
+                t.toIntOrNull()?.let { onChange(hsv.copy(s = it.coerceIn(0, 100) / 100f)) }
+            }, onCommit)
+            ColourField("V%", "${(hsv.v * 100).roundToInt()}", Modifier.weight(1f), true, { t ->
+                t.toIntOrNull()?.let { onChange(hsv.copy(v = it.coerceIn(0, 100) / 100f)) }
+            }, onCommit)
+        }
+    }
+}
+
+/**
+ * One typed field. It shows [value] whenever it is not being edited, so dragging the square updates
+ * every field live — but while focused it holds exactly what was typed, so a partially entered value
+ * is never rewritten under the user's fingers.
+ */
+@Composable
+private fun ColourField(
+    label: String,
+    value: String,
+    modifier: Modifier = Modifier,
+    numeric: Boolean,
+    onText: (String) -> Unit,
+    onDone: () -> Unit,
+) {
+    val theme = LocalDashTheme.current
+    var text by remember { mutableStateOf(value) }
+    var focused by remember { mutableStateOf(false) }
+    if (!focused && text != value) text = value
+
+    Row(
+        modifier = modifier
+            .clip(RoundedCornerShape(9.dp))
+            .background(theme.textColourSecondary.copy(alpha = 0.08f))
+            .border(1.dp, theme.textColourSecondary.copy(alpha = 0.18f), RoundedCornerShape(9.dp))
+            .padding(horizontal = 10.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+    ) {
+        Text(
+            label,
+            color = theme.textColourSecondary.copy(alpha = 0.55f),
+            fontSize = TINY,
+            letterSpacing = 0.8.sp,
+            fontFamily = theme.font,
+        )
+        BasicTextField(
+            value = text,
+            onValueChange = { text = it; onText(it) },
+            singleLine = true,
+            textStyle = TextStyle(
+                color = theme.textColourSecondary,
+                fontSize = MAINBODY,
+                fontFamily = theme.font,
+            ),
+            cursorBrush = SolidColor(theme.textColourSecondary),
+            keyboardOptions = KeyboardOptions(
+                keyboardType = if (numeric) KeyboardType.Number else KeyboardType.Ascii,
+                imeAction = ImeAction.Done,
+            ),
+            keyboardActions = KeyboardActions(onDone = { onDone() }),
+            modifier = Modifier
+                .weight(1f)
+                .onFocusChanged {
+                    val wasFocused = focused
+                    focused = it.isFocused
+                    // Persist and re-sync when the field is left — one write per edit, and anything
+                    // that never parsed is discarded rather than left sitting there looking accepted.
+                    if (wasFocused && !it.isFocused) { onDone(); text = value }
+                },
+        )
     }
 }

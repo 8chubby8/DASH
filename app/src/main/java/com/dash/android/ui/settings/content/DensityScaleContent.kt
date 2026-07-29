@@ -39,6 +39,13 @@ import com.dash.android.ui.systembar.SystemBarConfig
 import com.dash.android.ui.theme.LocalDashTheme
 import kotlinx.coroutines.launch
 import kotlin.math.roundToInt
+import com.dash.android.ui.common.TINY
+import com.dash.android.ui.common.SETTING_SPACING
+import com.dash.android.ui.common.CONTROL_WIDTH
+import com.dash.android.ui.common.DashButton
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.width
+import com.dash.android.ui.common.controlWidth
 
 /**
  * Appearance › Size & Scale (roadmap 1.5.3). Two clearly separated sections, each under its own
@@ -52,8 +59,6 @@ import kotlin.math.roundToInt
  *
  * Each stepper persists on the tap, so the bar and the panel's own text resize immediately.
  */
-private const val WITHIN_SECTION = 34
-private const val BETWEEN_SECTIONS = 56
 
 // Android's own font-size buckets, mirrored by the privileged "mimic Android" control.
 private val ANDROID_FONT_LABELS = listOf("Small", "Default", "Large", "Larger")
@@ -85,21 +90,30 @@ fun SizeScaleContent() {
     // analogue of DensityManager), so it changes nothing yet.
     var androidFontIndex by remember { mutableIntStateOf(1) }
 
+    // Every control in the nook shares one width — steppers, segments and buttons alike — so the
+    // right-hand column reads as a column (roadmap 1.5.15, Roger).
+    val controlWidth = Modifier.width(controlWidth(LocalDensity.current.fontScale))
+
     Column(modifier = Modifier.fillMaxWidth()) {
+
+        // The page is titled once, and its two sections sit a rank below it — DASH's own sizing, then
+        // Android's. Before 1.5.15 both sections wore the page-title heading, so nothing said which
+        // of them the page was actually about (Roger).
+        SettingsContentHeader("Size & Scale")
 
         // ── DASH Scale ───────────────────────────────────────────────────────────────────────
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp),
+            verticalArrangement = Arrangement.spacedBy(SETTING_SPACING),
         ) {
-            SettingsContentHeader(title = "DASH Scale")
+            SettingsSectionHeader("DASH Scale")
 
             SettingBlock(
                 name = "System bar size",
-                help = "The height of the DASH system bar.",
                 control = {
                     Stepper(
                         value = "${barConfig.heightDp} dp",
+                        modifier = controlWidth,
                         onMinus = {
                             val h = (barConfig.heightDp - SystemBarConfig.HEIGHT_STEP_DP)
                                 .coerceAtLeast(SystemBarConfig.MIN_HEIGHT_DP)
@@ -118,12 +132,12 @@ fun SizeScaleContent() {
 
             SettingBlock(
                 name = "Element size",
-                help = "How large the elements inside the bar render. Capped so they always fit the bar.",
                 control = {
                     val elementMax = (barConfig.heightDp - SystemBarConfig.HEIGHT_STEP_DP)
                         .coerceAtLeast(SystemBarConfig.MIN_ELEMENT_HEIGHT_DP)
                     Stepper(
                         value = "${barConfig.elementHeightDp} dp",
+                        modifier = controlWidth,
                         onMinus = {
                             val e = (barConfig.elementHeightDp - SystemBarConfig.ELEMENT_HEIGHT_STEP_DP)
                                 .coerceAtLeast(SystemBarConfig.MIN_ELEMENT_HEIGHT_DP)
@@ -140,17 +154,16 @@ fun SizeScaleContent() {
 
             SettingBlock(
                 name = "App favourites bar size",
-                help = "The height of the app favourites bar.",
                 tag = "Arrives with the App Launcher · 1.8.x",
-                control = { Stepper(value = "—", enabled = false, onMinus = {}, onPlus = {}) },
+                control = { Stepper(value = "—", enabled = false, modifier = controlWidth, onMinus = {}, onPlus = {}) },
             )
 
             SettingBlock(
                 name = "DASH text size",
-                help = "DASH's own text no longer follows Android's font setting — this is the only control.",
                 control = {
                     Stepper(
                         value = "%.1f×".format(dashTextScale),
+                        modifier = controlWidth,
                         onMinus = {
                             val v = snapTenth(dashTextScale - DASH_TEXT_SCALE_STEP)
                                 .coerceIn(DASH_TEXT_SCALE_MIN, DASH_TEXT_SCALE_MAX)
@@ -166,45 +179,51 @@ fun SizeScaleContent() {
             )
         }
 
-        Spacer(Modifier.height(BETWEEN_SECTIONS.dp))
 
         // ── Android Density ──────────────────────────────────────────────────────────────────
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(WITHIN_SECTION.dp),
+            verticalArrangement = Arrangement.spacedBy(SETTING_SPACING),
         ) {
-            SettingsContentHeader(title = "Android")
+            SettingsSectionHeader("Android")
 
             SettingBlock(
-                name = "App density",
-                help = "Android's system density — it sizes the apps in your viewport, never DASH.",
-                tag = "Viewport apps",
+                name = "Viewport App Density",
+                // The four-preset segment is too wide for the nook and stacks; the Bronze button is
+                // not, so it sits on the right with every other control.
+                fullWidthControl = capable,
                 control = {
                     if (capable) {
                         // System privilege present: change density natively, the way Android's own
                         // display-size page does — DASH mirrors it so the user needn't leave.
-                        PresetSegment(presets.map { it.label }, selectedIndex) { i ->
+                        PresetSegment(presets.map { it.label }, selectedIndex, Modifier.fillMaxWidth()) { i ->
                             val preset = presets[i]
                             scope.launch { prefs.saveDensityPreset(preset) }
                             densityManager.setDensity(preset)
                         }
                     } else {
-                        // No privilege (Bronze): DASH can't set density, so there's no control to
-                        // show — just the link out to Android's own page, beside the text.
-                        LinkButton("Android text & display size →") {
-                            val direct = runCatching {
-                                context.startActivity(
-                                    Intent("android.settings.TEXT_READING_SETTINGS")
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            }
-                            if (direct.isFailure) {
-                                context.startActivity(
-                                    Intent(Settings.ACTION_DISPLAY_SETTINGS)
-                                        .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
-                                )
-                            }
-                        }
+                        // No privilege (Bronze): DASH can't set density, so there is no control to
+                        // show — only the way out to Android's own page, sitting directly under the
+                        // setting's name rather than off in the control nook. Boxed like every other
+                        // action, at the shared control width (roadmap 1.5.15).
+                        DashButton(
+                            label = "Android text & display size",
+                            modifier = controlWidth,
+                            onClick = {
+                                val direct = runCatching {
+                                    context.startActivity(
+                                        Intent("android.settings.TEXT_READING_SETTINGS")
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }
+                                if (direct.isFailure) {
+                                    context.startActivity(
+                                        Intent(Settings.ACTION_DISPLAY_SETTINGS)
+                                            .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    )
+                                }
+                            },
+                        )
                     }
                 },
                 // The apps preview only means anything when DASH can actually change density.
@@ -232,9 +251,8 @@ fun SizeScaleContent() {
             if (capable) {
                 SettingBlock(
                     name = "Font size",
-                    help = "Android's font size for your apps' text — DASH's own text is set above.",
                     control = {
-                        PresetSegment(ANDROID_FONT_LABELS, androidFontIndex) { androidFontIndex = it }
+                        PresetSegment(ANDROID_FONT_LABELS, androidFontIndex, Modifier.fillMaxWidth()) { androidFontIndex = it }
                     },
                     preview = {
                         LivePreviewCard("Your apps' text") {
@@ -269,6 +287,6 @@ private fun AppTile(label: String, scale: Float) {
                 .clip(RoundedCornerShape(10.dp))
                 .background(theme.textColourSecondary.copy(alpha = 0.5f))
         )
-        Text(label, color = theme.textColourSecondary.copy(alpha = 0.7f), fontSize = 10.sp, fontFamily = theme.font)
+        Text(label, color = theme.textColourSecondary.copy(alpha = 0.7f), fontSize = TINY, fontFamily = theme.font)
     }
 }

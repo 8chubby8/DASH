@@ -29,6 +29,11 @@ import com.dash.android.core.SystemCommands
 import com.dash.android.ui.modules.LocalModuleDesk
 import com.dash.android.ui.theme.LocalDashTheme
 import kotlinx.coroutines.delay
+import com.dash.android.ui.common.BOX_PAD
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.TINY
+
 
 /** A signal carrying a live value, in the same green the other two instruments use for "good". */
 private val LIVE = Color(0xFF3DA35D)
@@ -53,11 +58,11 @@ fun SignalMonitorContent() {
     val theme = LocalDashTheme.current
     val desk = LocalModuleDesk.current
     if (desk == null) {
-        Box(Modifier.fillMaxSize().padding(24.dp)) {
+        Box(Modifier.fillMaxSize().padding(BOX_PAD)) {
             Text(
                 "Module desk unavailable.",
                 color = theme.textColourSecondary.copy(alpha = 0.7f),
-                fontSize = 13.sp,
+                fontSize = MAINBODY,
                 fontFamily = theme.font,
             )
         }
@@ -84,7 +89,7 @@ fun SignalMonitorContent() {
     val idle = ink.copy(alpha = 0.32f)
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(BOX_PAD),
         verticalArrangement = Arrangement.spacedBy(12.dp)
     ) {
         // Pinned: how much of the vocabulary is actually live — and the control for the toggle, because
@@ -94,7 +99,7 @@ fun SignalMonitorContent() {
         Text(
             "${values.size} of ${functions.size} signals live" + if (liveOnly) "  ·  live only" else "",
             color = inkFaint,
-            fontSize = 12.sp,
+            fontSize = BODY,
             fontFamily = theme.font,
             modifier = Modifier
                 .clip(RoundedCornerShape(5.dp))
@@ -115,7 +120,7 @@ fun SignalMonitorContent() {
             Text(
                 "Nothing has been heard yet — no module has broadcast a signal this session.",
                 color = inkFaint,
-                fontSize = 13.sp,
+                fontSize = MAINBODY,
                 fontFamily = theme.font,
                 modifier = Modifier.weight(1f),
             )
@@ -146,7 +151,7 @@ private fun androidx.compose.foundation.layout.RowScope.ColumnHead(
     Text(
         text,
         color = colour,
-        fontSize = 10.sp,
+        fontSize = TINY,
         letterSpacing = 2.sp,
         fontFamily = font,
         modifier = Modifier.weight(weight),
@@ -163,7 +168,7 @@ private fun androidx.compose.foundation.layout.RowScope.Cell(
     Text(
         text,
         color = colour,
-        fontSize = 12.sp,
+        fontSize = BODY,
         fontFamily = font,
         modifier = Modifier.weight(weight),
     )

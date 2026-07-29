@@ -47,6 +47,77 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.5.15
+
+**Status:** Complete — the legacy panel gone, and a design language established and applied to every settings page. Hardware-verified by Roger throughout on the Galaxy Tab S9 Ultra and the Pixel 8 Pro. 2026-07-27 → 2026-07-29.
+
+**Scope:** The roadmap asked for "cleanup & polish: remove the old flat settings scaffold, confirm every 1.1.x–1.4.x feature has a home, confirm every WIP placeholder is honestly labelled." That took an afternoon. What it turned into is the version where **DASH stopped being a collection of settings pages and became one system** — because with the legacy panel gone, Roger went through every page in order and the same problems kept surfacing: no two pages agreed on spacing, on type size, on where a control lived or what it looked like. Each was individually defensible and collectively incoherent.
+
+### Part one — the cleanup the roadmap asked for
+
+- **Layout › Rotation** — a new tab, first in Layout, rehoming the legacy panel's last live control. **Its glyph is a miniature of the user's real layout**: the screen at its true aspect ratio with *their* system bar on the edge it will actually occupy, read live from `SystemBarConfig`. A plain rectangle cannot show a 180° rotation — portrait and portrait-reversed are the same shape — so the reversed options put that bar on the opposite edge, which is exactly what will happen. Move the bar to the top in Layout › System Bar and every tile follows. All four fixed orientations are offered, up from two.
+- **Auto became `FULL_SENSOR`.** Plain `SENSOR` refuses to rotate into reverse portrait on most devices, so with four fixed orientations on offer Auto could not reach one of them — a tab that will *hold* an orientation but never rotate into it contradicts itself.
+- **The legacy settings panel is deleted.** `SettingsPanel.kt`, both `LEGACY SETTINGS →` nav rows, the `onOpenLegacy` parameter threaded through three levels, and `MainScreen`'s `showLegacySettings` state. That bridge had been open since 1.5.2 — thirteen versions of rehoming, ending here.
+- **The audit came back clean.** Every persisted preference was checked against the tree; all have a home.
+- **The `DiagnosticOverlay` is gone** — four lines of grey 10sp pinned over the top-left of the user's home screen since 1.1.x, when reading those numbers *was* the job. It never got a gate. About DASH's device report supersedes it.
+- **Dead code swept:** the whole `dashScale` token (pref, key, writer, `LocalDashScale`, `DASH_SCALE_*` bounds) — superseded at 1.5.3 and kept alive only by the overlay printing its value; `TransportManager.sendTo`, built for the SEND TO selector 1.5.13 dropped; `DensityManager.formatDpi`; `TransitionId.hint` and its seven strings; `SettingToggle`. **A comment was left where each went**, so the next person to wonder "was there a way to send to one board?" finds the answer rather than silence.
+
+### Part two — the design language
+
+Seven shared pieces in `ui/common/`, each replacing numbers or components that had been copied around:
+
+- **`Typography.kt`** — five tiers with matching line heights: **HEADING 28 · SUBHEADING 22 · MAINBODY 18 · BODY 14 · TINY 11**. There had been **seventeen distinct font sizes across ninety-eight call sites**, including 12, 12.5, 13 and 13.5 all at once. Nobody can see half a point; those were the residue of iterating one screen at a time. The tiers are `sp` and never `dp`, because DASH overrides `fontScale` at the composition root — a size in `dp` would silently opt out of the user's text-size control.
+- **`Spacing.kt`** — `PANEL_GAP` (all four panel margins, formerly 24 top / 28 bottom / 16 at the edges), `BOX_PAD`, `TREE_GUTTER`, `NAV_ROW_INSET`, `SETTING_SPACING` (formerly 34 / 28 / 28 / ad-hoc 24 depending on the page), `SECTION_HEADER_GAP` and `CONTROL_WIDTH`.
+- **`DashButton`** promoted out of `ModulesContent`, and **rebuilt on the same container as the segments and steppers** — an 8% wash inside a hairline border on an 11dp radius. It had carried its own shape, a 0.5-alpha border and a 10dp radius, which is why it read as a different family sitting beside them.
+- **`DashStatus`** — one status palette, ok / wait / fail / alert / idle / info. Three hex values had been defined twice in two files.
+- **`HeadingRule`** — the art-deco rule, shared so the tree's heading and the box's headings draw the same one.
+
+**The rules, now recorded in the code rather than in anyone's head:**
+
+1. **A page is titled once**, with the rule. Sections sit a rank below as `SettingsSectionHeader` — **no rule**, because the rule marks the top of a page and spending it on every section makes the hierarchy invisible.
+2. **No help text under settings.** `SettingsContentHeader` lost its `description` **parameter**, not just its arguments — emptying the call sites would have left it one careless tab away from returning.
+3. **Every clickable control sits on the right, at one shared width, and grows downwards.** Labels wrap; nothing truncates, because an action you cannot read is worse than a tall box.
+4. **The one exception** is a control unusable at that width — Transitions' six speeds would get 31dp a cell. Those stack via `fullWidthControl`, which is now documented as an escape hatch and nothing else.
+
+### Part three — the page-by-page pass
+
+- **Size & Scale** — titled once (it had two page-rank headings and nothing said what the page was about); DASH Scale and Android became sections; "App density" became **Viewport App Density**; the stepper readout scales with the text (a fixed 66dp box wrapped "72 dp" onto two lines at 1.4×).
+- **Transitions** — the master control renamed to *Every transition at once*, since "Master pace" under a heading reading "Master pace" says the word twice with nothing explaining it.
+- **Splash Screen** — the custom colour picker collapsed behind a **Custom swatch** filled with the colour in force (it had sat ~200dp tall permanently); a full **`ColourEditor`** with hex, R/G/B and H/S/V, all live-synced, built in `ColourPicker.kt` because v2's theming wants exactly this; the chooser moved **into the preview** under the orientation selector; and a **None** type that genuinely skips the splash rather than showing an empty one for zero milliseconds.
+- **System Bar** — three separate Columns merged into one flow, which is why its gaps had been uneven.
+- **Location** — the permission **toggle replaced by a DASH selector reading Off | On, or Settings | On when granted**. A toggle promises it can be flipped both ways and this one cannot: DASH can *ask* for the permission, only Android can revoke it. The left cell now says what the tap will actually do. `SettingToggle` died with it.
+- **Android Settings Links** — fifteen links became full-width left-aligned boxes, using `DashButton`'s new `alignStart` rather than a lookalike. **Deliberately exempt from the controls-on-the-right rule**: 1.5.14 settled that the row *is* the control, and fifteen boxes reading "Open" would undo that.
+- **Power** — "Exit DASH" became **Return to homescreen**; the launcher warning moved from help text into the **tag**, because deleting it would leave a control that appears to do nothing.
+- **Modules** — audited rather than restyled. About DASH and Licence left alone at Roger's request.
+
+### Part four — the text scale
+
+**0.8–1.4 became 0.4–2.0.** DASH runs on everything from a phone to a head unit read across a cabin, and it is not DASH's place to decide someone wants a narrower range than that.
+
+**Regressions:**
+
+- **The type sweep mis-ranked things, three times, and each was found by Roger looking at a page.** The automated mapping put anything 15–23sp into `SUBHEADING`, which quietly promoted **the page title** (so titles and section headings rendered the same size, undercutting the hierarchy that had just been asked for), **module and pipe card names** (every card shouting at section volume), and **the Serial Monitor's column headers** (labels a tier *above* the data they describe). The lesson: a value-based mapping cannot see a thing's *rank*, and rank is the whole point of a type scale.
+- **Controls vanished their own content below 0.5× text scale.** `CONTROL_WIDTH` scaled linearly in both directions, but a stepper's − and + are fixed 38dp touch targets: at 0.5× a 95dp control held 76dp of buttons and squeezed the readout out. Now `controlWidth(fontScale)` clamps the scale at 1.0 — **controls grow with the text but never shrink below their base width**, because smaller text does not need a narrower control and a touch target does not shrink at all.
+- **`fillsBox` tabs had no margins.** About and Licence claimed the box for themselves and were handed it bare. About went back to an ordinary tab; Licence keeps `fillsBox` (its full-text `LazyColumn` needs a finite height) and applies `BOX_PAD` itself.
+- **Heading rules did not line up** because the tree's heading is 13sp and a box's is 28sp, so the taller one pushed its rule further down. Both now share `HEADING_LINE`.
+- Roger asked to right-align the tree, then reverted it the same session. `HeadingRule`'s `mirrored` flag went with it.
+
+**Outstanding:**
+
+- **`LinkButton` survives in six files** but is being displaced by `DashButton`. About and Licence keep it, and those two pages were deliberately left as they are.
+- **`DashButton`'s filled variant loses its border**, so Module Manager's coloured actions differ slightly in construction from the neutral ones.
+- **The 0.1 step across a 0.4–2.0 range is sixteen taps end to end.**
+- Some removed help carried facts that now appear nowhere: that Bluetooth pairing is Android's job, that a link opens the exact page rather than the top of the menu, and what "use device location" being *off* actually falls back to.
+- `TINY` at 11sp is DASH's floor; below it the guidance is to cut words rather than shrink further.
+
+**Notes:**
+
+- **The idiom completed itself.** 1.5.13 gave *the readout is the control*; 1.5.14 gave *the item is the control*; 1.5.15 gives **the page is one system** — a control's size, position, container and type all come from one place, and a page that wants to differ has to say why.
+- **Deleting the parameter, not just the argument.** Twice — `SettingsContentHeader`'s description and `TransitionId.hint` — the durable fix was removing the *ability* rather than the current usage. A rule that lives in a type cannot be forgotten by whoever writes the next tab.
+- The wireless-debugging pairing to the tablet broke when it changed networks; a full 65535-port scan found the one open port, and re-pairing restored mDNS discovery too. The hotspot does not isolate its clients.
+
+---
+
 ## Version 1.5.14
 
 **Status:** Complete — System › Android Settings Links, About DASH and Licence built; a new **Power** category opened; two more controls rehomed out of the legacy panel. Hardware-verified by Roger on the Galaxy Tab S9 Ultra and installed on the Pixel 8 Pro. 2026-07-27.

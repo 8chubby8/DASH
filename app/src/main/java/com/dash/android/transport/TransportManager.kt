@@ -164,16 +164,11 @@ class TransportManager(context: Context) {
         }
     }
 
-    /**
-     * Send a line to one specific device (roadmap 1.4.10 — the Serial Monitor's per-device target),
-     * routed to the transport that owns it and recorded on the wire tap like any outbound line. The
-     * broadcast [send] stays the controller's path; this is only the monitor's "talk to one" gesture.
-     */
-    fun sendTo(device: TransportDevice, line: String) {
-        val transport = transports.firstOrNull { it.tag == device.transportTag } ?: return
-        _wire.tryEmit(WireEvent(System.currentTimeMillis(), WireDirection.OUT, transport.tag, line, device.key))
-        transport.send(line, device.key)
-    }
+    // sendTo(device, line) — a per-device send — was removed at 1.5.15. It was built for the Serial
+    // Monitor's SEND TO selector, which 1.5.13 dropped on the grounds that a DASH message already
+    // carries its own addressing in field 1 of the grammar: a line finds the right module down
+    // whichever pipe it travels, so targeting at the transport layer duplicated that a layer down.
+    // Nothing has called it since. The broadcast send() below remains the controller's path.
 
     fun stop() {
         if (!started) return

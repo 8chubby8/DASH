@@ -29,6 +29,9 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.luminance
+import com.dash.android.ui.common.DashButton
+import com.dash.android.ui.common.DashStatus
 import com.dash.android.ui.theme.LocalDashTheme
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
@@ -39,19 +42,32 @@ import com.dash.android.transport.InstallState
 import com.dash.android.transport.InstalledModule
 import com.dash.android.transport.ModuleActivity
 import com.dash.android.ui.settings.content.LinkButton
+import com.dash.android.ui.common.BOX_PAD
+import com.dash.android.ui.common.MAINBODY
+import com.dash.android.ui.common.BODY
+import com.dash.android.ui.common.TINY
+import com.dash.android.ui.common.SUBHEADING
+
 
 // The unconfirmed-deactivation warning stays a distinct dark modal surface (CARD_BG); the in-list
 // cards moved onto the settings-surface token in 1.5.8. INACTIVE stays as the neutral-action sentinel
 // and the progress track; MUTED is the DORMANT chip colour and the warning-dialog body text.
 private val CARD_BG = Color(0xFF14141F)
-private val INSTALLED_BORDER = Color(0xFF3DA35D)
+// Inks — read off the shared status palette (roadmap 1.5.15) so these and Transport Manager's lights
+// can never disagree. They are foregrounds on the settings surface: chip labels, borders, text.
+private val INSTALLED_BORDER = DashStatus.ok
+private val MUTED = DashStatus.idle
+private val UPDATE_INK = DashStatus.wait        // amber — a firmware version mismatch (1.4.13)
+private val NO_REPLY_ACCENT = DashStatus.alert  // orange — an installed module that has gone silent (1.4.14)
+private val FAIL_ACCENT = DashStatus.fail       // red — a failed install (1.4.14)
+
+// Fills — the opposite job, and deliberately not from the palette above. These sit *behind* a
+// button's label, so they must stay dark enough for their ink; brightening them would be exactly
+// backwards. ActionButton picks the ink from the fill's luminance rather than assuming white.
 private val INACTIVE = Color(0xFF2A2A2A)
-private val MUTED = Color(0xFF888888)
 private val INSTALL_ACCENT = Color(0xFF00695C)
 private val UNINSTALL_ACCENT = Color(0xFF7A2222)
-private val UPDATE_ACCENT = Color(0xFFC98A2B)   // amber — a firmware version mismatch (1.4.13)
-private val NO_REPLY_ACCENT = Color(0xFFE67E22) // orange — an installed module that has gone silent (1.4.14)
-private val FAIL_ACCENT = Color(0xFFD9534F)     // red — a failed install (1.4.14)
+private val UPDATE_FILL = Color(0xFFC98A2B)
 
 /**
  * Module Management — the Modules › Module Management settings tab (roadmap 1.5.8). The full 1.4.x
@@ -81,11 +97,11 @@ fun ModulesContent() {
     val desk = LocalModuleDesk.current
     if (desk == null) {
         // Inert empty state — the desk isn't wired (a preview, or a read outside the provider).
-        Box(Modifier.fillMaxSize().padding(24.dp)) {
+        Box(Modifier.fillMaxSize().padding(BOX_PAD)) {
             Text(
                 "Module desk unavailable.",
                 color = LocalDashTheme.current.textColourSecondary.copy(alpha = 0.7f),
-                fontSize = 13.sp,
+                fontSize = MAINBODY,
                 fontFamily = LocalDashTheme.current.font,
             )
         }
@@ -116,7 +132,7 @@ fun ModulesContent() {
     }
 
     Column(
-        modifier = Modifier.fillMaxSize().padding(24.dp),
+        modifier = Modifier.fillMaxSize().padding(BOX_PAD),
         verticalArrangement = Arrangement.spacedBy(14.dp)
     ) {
         val theme = LocalDashTheme.current
@@ -166,7 +182,7 @@ fun ModulesContent() {
                 Text(
                     text = "No modules yet.\n\nPlug a module in and it appears here within moments.\nREFRESH checks the bus right now instead of waiting.",
                     color = theme.textColourSecondary.copy(alpha = 0.7f),
-                    fontSize = 13.sp,
+                    fontSize = MAINBODY,
                     fontFamily = theme.font,
                     textAlign = TextAlign.Center,
                     modifier = Modifier.align(Alignment.Center).padding(32.dp)
@@ -228,7 +244,7 @@ private fun SelectedActions(
             }
             is InstallState.Failed -> FailedContent(state.reason, Modifier, onRetry, onDismiss)
             null -> if (row.installedRecord != null) {
-                if (reportedVersion != null) ActionButton("UPDATE", UPDATE_ACCENT, onUpdate)
+                if (reportedVersion != null) ActionButton("UPDATE", UPDATE_FILL, onUpdate)
                 ActionButton("UNINSTALL", UNINSTALL_ACCENT, onUninstall)
             } else {
                 ActionButton("INSTALL", INSTALL_ACCENT, onInstall)
@@ -299,7 +315,7 @@ private fun ModuleCard(
                 Text(
                     text = row.name.ifBlank { "(unnamed)" },
                     color = ink,
-                    fontSize = 15.sp,
+                    fontSize = MAINBODY,
                     fontFamily = theme.font,
                     maxLines = 1,
                     softWrap = false,
@@ -316,7 +332,7 @@ private fun ModuleCard(
             Text(
                 row.description,
                 color = inkMuted,
-                fontSize = 12.sp,
+                fontSize = BODY,
                 fontFamily = theme.font,
                 maxLines = 1,
                 softWrap = false,
@@ -327,9 +343,9 @@ private fun ModuleCard(
             modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
             horizontalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            Text(row.id, color = inkFaint, fontSize = 11.sp, fontFamily = theme.font, maxLines = 1, softWrap = false)
+            Text(row.id, color = inkFaint, fontSize = TINY, fontFamily = theme.font, maxLines = 1, softWrap = false)
             if (row.version.isNotBlank()) {
-                Text(row.version, color = inkFaint, fontSize = 11.sp, fontFamily = theme.font, maxLines = 1, softWrap = false)
+                Text(row.version, color = inkFaint, fontSize = TINY, fontFamily = theme.font, maxLines = 1, softWrap = false)
             }
         }
     }
@@ -344,7 +360,7 @@ private fun FailedContent(reason: FailReason, modifier: Modifier, onRetry: () ->
         FailReason.DISCONNECTED -> "Module disconnected during install"
         FailReason.CORRUPT -> "Corrupt asset — install aborted"
     }
-    Text(message, color = FAIL_ACCENT, fontSize = 12.sp, fontFamily = LocalDashTheme.current.font, modifier = modifier)
+    Text(message, color = FAIL_ACCENT, fontSize = BODY, fontFamily = LocalDashTheme.current.font, modifier = modifier)
     ActionButton("DISMISS", INACTIVE, onDismiss)
     ActionButton("RETRY", INSTALL_ACCENT, onRetry)
 }
@@ -370,7 +386,7 @@ private fun InstallingBar(progress: Float?, modifier: Modifier = Modifier) {
         Text(
             text = if (progress == null) "INSTALLING…" else "${(progress * 100).toInt()}%",
             color = LocalDashTheme.current.textColourSecondary.copy(alpha = 0.72f),
-            fontSize = 11.sp,
+            fontSize = BODY,
             fontFamily = LocalDashTheme.current.font
         )
     }
@@ -382,35 +398,20 @@ private fun InstallingBar(progress: Float?, modifier: Modifier = Modifier) {
  * colour gives a filled accent — the semantic install / uninstall / update colours. [ink] defaults to
  * white on a filled accent and the secondary-text token on the outline.
  */
-@Composable
-private fun DashButton(
-    label: String,
-    onClick: () -> Unit,
-    fill: Color? = null,
-    ink: Color? = null,
-) {
-    val theme = LocalDashTheme.current
-    val shape = RoundedCornerShape(10.dp)
-    val textColour = ink ?: if (fill != null) Color.White else theme.textColourSecondary
-    val shell = Modifier
-        .clip(shape)
-        .then(
-            if (fill != null) Modifier.background(fill)
-            else Modifier.border(1.dp, theme.textColourSecondary.copy(alpha = 0.5f), shape)
-        )
-        .clickable { onClick() }
-        .padding(horizontal = 18.dp, vertical = 9.dp)
-    Box(shell, contentAlignment = Alignment.Center) {
-        Text(label, color = textColour, fontSize = 12.sp, fontFamily = theme.font, letterSpacing = 1.sp)
-    }
-}
 
 /** A card/dialog action in the modern idiom — a filled accent by its semantic colour, or the quiet
  *  outline style for the neutral [INACTIVE] sentinel (CANCEL / DISMISS / DETAILS). */
 @Composable
 private fun ActionButton(label: String, colour: Color, onClick: () -> Unit) {
-    if (colour == INACTIVE) DashButton(label, onClick)
-    else DashButton(label, onClick, fill = colour, ink = Color.White)
+    if (colour == INACTIVE) {
+        DashButton(label, onClick)
+        return
+    }
+    // The ink is chosen from the fill, not assumed to be white. UPDATE's amber is light enough that
+    // white on it measured 2.94:1 — unreadable, and a bug that predates 1.5.15 rather than one the
+    // brightening introduced. Deriving it means the next accent colour anyone adds cannot repeat it.
+    val ink = if (colour.luminance() > 0.4f) Color(0xFF1A1A1A) else Color.White
+    DashButton(label, onClick, fill = colour, ink = ink)
 }
 
 /** The transport a module last spoke over (roadmap 1.5.8) — usb / wifi / bt — as a small neutral tag
@@ -418,13 +419,13 @@ private fun ActionButton(label: String, colour: Color, onClick: () -> Unit) {
  *  metadata rather than status. */
 @Composable
 private fun TransportChip(tag: String) {
-    val colour = Color(0xFF90A4AE)
+    val colour = DashStatus.info
     Box(
         modifier = Modifier
             .background(colour.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(tag.uppercase(), color = colour, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
+        Text(tag.uppercase(), color = colour, fontSize = TINY, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
     }
 }
 
@@ -443,7 +444,7 @@ private fun ActivityChip(activity: ModuleActivity) {
             .background(colour.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(label, color = colour, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
+        Text(label, color = colour, fontSize = TINY, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
     }
 }
 
@@ -454,10 +455,10 @@ private fun ActivityChip(activity: ModuleActivity) {
 private fun MismatchChip() {
     Box(
         modifier = Modifier
-            .background(UPDATE_ACCENT.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
+            .background(UPDATE_INK.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text("UPDATE", color = UPDATE_ACCENT, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
+        Text("UPDATE", color = UPDATE_INK, fontSize = TINY, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
     }
 }
 
@@ -474,12 +475,12 @@ private fun UnconfirmedDeactivationDialog(name: String, onDismiss: () -> Unit) {
                 .padding(20.dp),
             verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
-            Text("UNINSTALLED — NOT CONFIRMED", color = Color.White, fontSize = 14.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
+            Text("UNINSTALLED — NOT CONFIRMED", color = Color.White, fontSize = SUBHEADING, fontFamily = LocalDashTheme.current.font, letterSpacing = 2.sp)
             Text(
                 text = "$name has been uninstalled, but it never confirmed deactivation. It could still " +
                     "send misleading data, so either disconnect the module or power-cycle the module.",
                 color = MUTED,
-                fontSize = 13.sp,
+                fontSize = MAINBODY,
                 fontFamily = LocalDashTheme.current.font
             )
             Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.End) {
@@ -503,6 +504,6 @@ private fun TypeChip(type: String) {
             .background(colour.copy(alpha = 0.18f), RoundedCornerShape(4.dp))
             .padding(horizontal = 8.dp, vertical = 3.dp)
     ) {
-        Text(type.ifBlank { "?" }.uppercase(), color = colour, fontSize = 10.sp, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
+        Text(type.ifBlank { "?" }.uppercase(), color = colour, fontSize = TINY, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
     }
 }

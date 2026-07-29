@@ -15,6 +15,12 @@ import androidx.compose.ui.unit.dp
 import com.dash.android.MainActivity
 import com.dash.android.system.DevicePower
 import kotlinx.coroutines.delay
+import com.dash.android.ui.common.SETTING_SPACING
+import com.dash.android.ui.common.CONTROL_WIDTH
+import com.dash.android.ui.common.DashButton
+import androidx.compose.ui.platform.LocalDensity
+import androidx.compose.foundation.layout.width
+import com.dash.android.ui.common.controlWidth
 
 /**
  * System › Power (roadmap 1.5.14) — the rehome of the legacy panel's EXIT DASH, plus the device
@@ -44,31 +50,30 @@ fun PowerContent() {
     val isLauncher = remember(activity) { activity?.isDefaultLauncher() == true }
     val power = remember(context) { DevicePower(context) }
 
+    val controlWidth = Modifier.width(controlWidth(LocalDensity.current.fontScale))
+
     var confirming by remember { mutableStateOf(false) }
     LaunchedEffect(confirming) { if (confirming) { delay(3500); confirming = false } }
 
     Column(
         modifier = Modifier.fillMaxWidth(),
-        verticalArrangement = Arrangement.spacedBy(24.dp),
+        verticalArrangement = Arrangement.spacedBy(SETTING_SPACING),
     ) {
         SettingsContentHeader("Power")
 
         SettingBlock(
-            name = "Exit DASH",
-            help = if (isLauncher) {
-                "DASH is currently the home app, so Android will start it again straight away — " +
-                    "there is nowhere else for the screen to go. To leave DASH properly, change the " +
-                    "home app first under System › Android Settings Links."
-            } else {
-                "Ends DASH and returns you to your home screen, putting back any display density " +
-                    "DASH has set. Everything DASH has saved stays saved; opening it again picks " +
-                    "up where you left off."
+            name = "Return to homescreen",
+            tag = when {
+                confirming -> "Tap again to confirm"
+                isLauncher -> "DASH is the home app — Android will restart it"
+                else -> null
             },
-            tag = if (confirming) "Tap again to confirm" else null,
             control = {
-                LinkButton(if (confirming) "Confirm exit" else "Exit DASH") {
-                    if (confirming) activity?.exitDash() else confirming = true
-                }
+                DashButton(
+                    label = if (confirming) "Confirm exit" else "Exit",
+                    modifier = controlWidth,
+                    onClick = { if (confirming) activity?.exitDash() else confirming = true },
+                )
             },
         )
 
@@ -77,16 +82,11 @@ fun PowerContent() {
         // this whole section is absent rather than disabled: a control that cannot work should not
         // be on the screen explaining that it cannot work.
         if (power.canRestart || power.canShutDown) {
-            Column(verticalArrangement = Arrangement.spacedBy(24.dp)) {
-                SettingsContentHeader(
-                    "Device power",
-                    "These act on the whole device, not just DASH.",
-                )
+            Column(verticalArrangement = Arrangement.spacedBy(SETTING_SPACING)) {
+                SettingsSectionHeader("Device power")
                 if (power.canRestart) {
                     ConfirmAction(
                         name = "Restart device",
-                        help = "Restarts the device. DASH comes back up on its own when the device " +
-                            "boots.",
                         idle = "Restart",
                         confirm = "Confirm restart",
                     ) { power.restart() }
@@ -94,7 +94,6 @@ fun PowerContent() {
                 if (power.canShutDown) {
                     ConfirmAction(
                         name = "Shut down device",
-                        help = "Powers the device off. It will need turning back on by hand.",
                         idle = "Shut down",
                         confirm = "Confirm shut down",
                     ) { power.shutDown() }
@@ -109,7 +108,6 @@ fun PowerContent() {
 @Composable
 private fun ConfirmAction(
     name: String,
-    help: String,
     idle: String,
     confirm: String,
     onConfirmed: () -> Unit,
@@ -118,12 +116,13 @@ private fun ConfirmAction(
     LaunchedEffect(armed) { if (armed) { delay(3500); armed = false } }
     SettingBlock(
         name = name,
-        help = help,
         tag = if (armed) "Tap again to confirm" else null,
         control = {
-            LinkButton(if (armed) confirm else idle) {
-                if (armed) { armed = false; onConfirmed() } else armed = true
-            }
+            DashButton(
+                label = if (armed) confirm else idle,
+                modifier = Modifier.width(controlWidth(LocalDensity.current.fontScale)),
+                onClick = { if (armed) { armed = false; onConfirmed() } else armed = true },
+            )
         },
     )
 }
