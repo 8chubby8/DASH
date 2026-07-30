@@ -48,6 +48,7 @@ enum class TransitionId(
     SETTINGS_CONTENT_SWAP("settings_content_swap", "Settings content — swap"),
     SPLASH_FADE_IN("splash_fade_in", "Splash — fade in"),
     SPLASH_FADE_OUT("splash_fade_out", "Splash — fade out"),
+    MODULE_PANEL_MOVE("module_panel_move", "Module panel — move edge"),
 }
 
 /**

@@ -47,6 +47,40 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.3
+
+**Status:** Complete — the panel docks to all four edges and has its own settings tab. Hardware-verified by Roger, 2026-07-30.
+
+**Scope:** Give the panel somewhere to go and the user a way to send it there. All four edges, a persisted config, the Layout › Module Panel tab, and the collision rule from 1.6.2 given real teeth now that the user can actually express a preference.
+
+**Implemented:**
+
+- **`ModulePanelModel.kt`** — `PanelEdge` (TOP / BOTTOM / LEFT / RIGHT) and `ModulePanelConfig`, persisted through `DashPreferences.modulePanelConfig`. Shaped deliberately to grow: panel size arrives at 1.6.4 and persistent/floating mode at 1.6.9, and both belong in this record rather than as loose preference keys.
+- **The long edge is the docked edge minus what the bar has taken from it** (Roger). Docked top or bottom the bar sits opposite and takes nothing, so the panel runs full screen width. Docked left or right the bar spans the full width and eats the vertical run, so the panel runs **screen height less bar height** and butts against the far end, clearing the bar rather than running under it. Changing the bar height therefore resizes a vertical panel — correct, and now explicit.
+- **The vertical slot is the horizontal one stood on its end — 1.5 × 4.** One constant serves both once the ratio is expressed against the *long* edge rather than against width, which is why `largeHeightFor` became `largeThicknessFor(longEdge)`. Vertical is the shape that suits a landscape screen, where the horizontal slot is deepest; the two together give a usable option in either orientation for the first time.
+- **Preference and effective edge separated.** `effectiveEdge(preferred, bar)` resolves where the panel actually draws. A collision displaces it to the opposite edge for as long as the collision lasts, and **the stored preference is never rewritten** — move the bar away and the panel returns to the user's choice on its own. Storing the displacement would let DASH quietly overwrite a setting and never give it back.
+- **Layout › Module Panel is live**, ending the WIP placeholder open since 1.5.2. Four tiles built on the Rotation tab's glyph precedent: the device at its true proportions, the user's own bar on the edge it actually occupies, and the panel drawn at roughly its real share of the screen on the edge that would result.
+- **The bar's edge cannot be newly chosen** (Roger). Its tile is greyed to a third opacity, unclickable, and labelled with the reason rather than left silently dead; its glyph drops the panel and shows the bar alone. All four tiles stay in place so the row does not reshuffle when the bar moves.
+- **`MODULE_PANEL_MOVE` transition.** An edge change moves the panel in two dimensions *and* resizes it, so placement moved from `Alignment` to four animated values offset from the top-left — an Alignment switch cannot express that motion at all. The self-growing transition registry picked it up with no settings rework, giving it a user-controllable speed like every other DASH motion.
+
+**Regressions:**
+
+- None found.
+
+**Notes:**
+
+- **A deliberate exception to the no-dead-controls principle** recorded at Layout › Rotation in 1.5.15 ("picking a fixed orientation turns Auto off by implication rather than greying the others out, so there is never a dead control on screen"). The distinction: Rotation's options were all genuinely valid, so greying would have obstructed a real choice. Here the edge is genuinely occupied by the bar, and a disabled control is the honest state.
+- **Greying prevents only *new* selection.** The displacement logic is still needed and still reachable — choose an edge, then move the bar onto it. The tile then reads as both selected and unavailable, which says the user's choice is being held rather than lost. Both mechanisms are live and they are not alternatives to each other.
+- **Settings insets went from two edges to four.** The blind previously padded top and bottom only; a left- or right-docked panel needs start/end insets too, or settings covers it. Vertical insets stay clamped to the window for the reason recorded in 1.6.2.
+
+**Outstanding:**
+
+- **Both ratios are provisional** until the slot set locks into `module-sdk.md` at 1.6.10.
+- **Carried from 1.6.1:** the ACCESSORY panel/layout format (arduino.md §11) is still undrafted, and transport.md still carries pre-1.4.x text — the retired HYBRID module type in three places, and the `SYSTEM_SIGNALS:` / `ICON:` colon syntax that `MANIFEST` and `BLOCK` replaced. Best sited just ahead of 1.6.5, where a real module gives the draft something to be written against.
+- **Carried from 1.6.2:** `MainActivity.openSetDefaultLauncher()` is unused since the banner went — a candidate for the 1.6.11 cleanup.
+
+---
+
 ## Version 1.6.2
 
 **Status:** Complete — the module panel is on screen. Hardware-verified by Roger on the Galaxy Tab S9 Ultra, 2026-07-30.

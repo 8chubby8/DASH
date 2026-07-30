@@ -31,6 +31,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.width
@@ -53,6 +54,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -76,7 +78,10 @@ import com.dash.android.ui.transports.LocalTransportDesk
 import com.dash.android.ui.transports.TransportDesk
 import com.dash.android.ui.rotation.DashOrientation
 import com.dash.android.ui.modulepanel.ModulePanel
+import com.dash.android.ui.modulepanel.ModulePanelConfig
 import com.dash.android.ui.modulepanel.ModulePanelSpec
+import com.dash.android.ui.modulepanel.PanelEdge
+import com.dash.android.ui.modulepanel.effectiveEdge
 import com.dash.android.ui.settings.SettingsShell
 import com.dash.android.ui.theme.DashTheme
 import com.dash.android.ui.theme.LocalDashTheme
@@ -195,6 +200,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val splashCropLandscape by prefs.splashCropLandscape.collectAsState(initial = SPLASH_CROP_DEFAULT)
     val splashDwell by prefs.splashDwellMillis.collectAsState(initial = SPLASH_DWELL_DEFAULT_MS)
     val barConfig by prefs.systemBarConfig.collectAsState(initial = SystemBarConfig.default())
+    val modulePanelConfig by prefs.modulePanelConfig.collectAsState(initial = ModulePanelConfig.default())
 
     LaunchedEffect(autoRotate, lockedOrientation) {
         activity.requestedOrientation = if (autoRotate) {
@@ -272,7 +278,19 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // where a "make me the launcher" action belongs anyway.
 
             // The module panel is permanent, so every other DASH surface measures around it.
-            val modulePanelHeight = ModulePanelSpec.largeHeightFor(screenWidth)
+            //
+            // **The long edge is the docked edge minus what the bar has already taken from it**
+            // (Roger, 1.6.3). Docked top or bottom the bar is on the opposite horizontal edge and
+            // takes nothing, so the panel runs the full screen width. Docked left or right the bar
+            // spans the full width at top or bottom and eats into the vertical run, so the panel
+            // runs the screen height *less the bar* — which also means changing the bar height
+            // resizes a vertical panel.
+            val barThickness = barConfig.heightDp.dp
+            val panelEdge = effectiveEdge(modulePanelConfig.edge, barConfig.position)
+            val panelLongEdge = if (panelEdge.horizontal) screenWidth else (maxHeight - barThickness)
+            val panelThickness = ModulePanelSpec.largeThicknessFor(panelLongEdge)
+            val panelWidth = if (panelEdge.horizontal) screenWidth else panelThickness
+            val panelHeight = if (panelEdge.horizontal) panelThickness else panelLongEdge
 
             // The diagnostic overlay is gone (roadmap 1.5.15). Four lines of grey 10sp — pixel size,
             // native dpi, the applied density preset and the old dashScale — pinned permanently over
@@ -290,20 +308,30 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // never cover it (Roger, 1.6.2): DASH's own chrome does not sit on top of the king's
             // castle. That leaves the blind rolling out into the band between the two.
             val barIsTop = barConfig.position == BarPosition.TOP
-            // A fixed-ratio panel derives its height from the screen *width*, so on a wide landscape
-            // screen it can ask for more height than the screen has. Clamp what the settings blind
-            // insets by, so the two insets can never exceed the window and leave it negative space to
-            // lay out in. This guards the arithmetic only — the panel itself still draws at its true
-            // ratio, so an overflowing shape stays visible rather than being silently trimmed.
-            val chromeInset = (modulePanelHeight + barConfig.heightDp.dp).coerceAtMost(maxHeight)
-            val settingsPanelInset = (chromeInset - barConfig.heightDp.dp).coerceAtLeast(0.dp)
-            val settingsTopInset = if (barIsTop) barConfig.heightDp.dp else settingsPanelInset
-            val settingsBottomInset = if (barIsTop) settingsPanelInset else barConfig.heightDp.dp
+            // Settings conforms to both surfaces on whichever edges they hold — the bar on its one,
+            // the panel on its own, and they can never be the same edge. A fixed-ratio panel derives
+            // its thickness from the length of its edge, so on a wide screen it can ask for more
+            // than the screen has; the vertical insets are clamped so the blind is never handed
+            // negative space to lay out in. That guards the arithmetic only — the panel still draws
+            // at its true ratio, so an overflowing shape stays visibly wrong rather than trimmed.
+            val panelVerticalInset =
+                if (panelEdge.horizontal) (panelThickness).coerceAtMost(maxHeight - barThickness) else 0.dp
+            val settingsTopInset =
+                (if (barIsTop) barThickness else 0.dp) + (if (panelEdge == PanelEdge.TOP) panelVerticalInset else 0.dp)
+            val settingsBottomInset =
+                (if (!barIsTop) barThickness else 0.dp) + (if (panelEdge == PanelEdge.BOTTOM) panelVerticalInset else 0.dp)
+            val settingsStartInset = if (panelEdge == PanelEdge.LEFT) panelThickness else 0.dp
+            val settingsEndInset = if (panelEdge == PanelEdge.RIGHT) panelThickness else 0.dp
             BoxWithConstraints(
                 modifier = Modifier
                     .align(Alignment.TopStart)
                     .fillMaxSize()
-                    .padding(top = settingsTopInset, bottom = settingsBottomInset)
+                    .padding(
+                        top = settingsTopInset,
+                        bottom = settingsBottomInset,
+                        start = settingsStartInset,
+                        end = settingsEndInset,
+                    )
             ) {
                 val fullHeight = maxHeight
                 // Open and close are two separate transitions with their own durations — the blind
@@ -473,19 +501,41 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // The module panel (roadmap 1.6.2) — DASH's defining surface, on screen for the first
             // time. Large slot, persistent, one panel; docking is 1.6.3, the other sizes 1.6.4.
             //
-            // **It takes the edge opposite the bar.** The panel and the system bar never share an
-            // edge and never stack (Roger, 1.6.2) — where interface.md previously had the panel
-            // beginning where the bar ends, the rule is now that they cannot meet at all. Move the
-            // bar and DASH moves the panel out of the user's way. With docking still a version away
-            // and two live bar positions, opposite-the-bar covers every case there is.
+            // **It never shares an edge with the bar** (Roger, 1.6.2) — where interface.md previously
+            // had the panel beginning where the bar ends, the two now cannot meet at all. The user's
+            // chosen edge is honoured unless the bar is already there, in which case the panel is
+            // displaced to the opposite edge for as long as the collision lasts; see [effectiveEdge]
+            // for why the stored preference is never rewritten.
+            //
+            // Positioned from the top-left rather than by Alignment so the move between edges can be
+            // animated: an edge change moves the panel in two dimensions and resizes it (the long
+            // edge changes from screen width to screen height less the bar), which four animated
+            // values express directly and an Alignment switch cannot express at all. Registered as
+            // MODULE_PANEL_MOVE, so its speed is the user's like every other transition.
             //
             // Hidden in edit mode, carrying forward the placeholder's rule: edit mode is a focused
             // workspace holding nothing but the bar, its ruler and Save/Cancel, and a panel this
             // size would crowd the ruler being dragged. Permanent means permanent on the home
             // screen, not inside a temporary task.
             if (!editMode) {
+                // A vertical panel starts below a top bar and ends above a bottom one, so it always
+                // clears the bar rather than running under it.
+                val panelTargetX = if (panelEdge == PanelEdge.RIGHT) screenWidth - panelWidth else 0.dp
+                val panelTargetY = when {
+                    panelEdge == PanelEdge.TOP -> 0.dp
+                    panelEdge == PanelEdge.BOTTOM -> maxHeight - panelHeight
+                    else -> if (barIsTop) barThickness else 0.dp
+                }
+                val moveSpec = tween<Dp>(transitions.millis(TransitionId.MODULE_PANEL_MOVE))
+                val panelX by animateDpAsState(panelTargetX, moveSpec, label = "modulePanelX")
+                val panelY by animateDpAsState(panelTargetY, moveSpec, label = "modulePanelY")
+                val panelW by animateDpAsState(panelWidth, moveSpec, label = "modulePanelW")
+                val panelH by animateDpAsState(panelHeight, moveSpec, label = "modulePanelH")
+
                 ModulePanel(
-                    modifier = Modifier.align(if (barIsTop) Alignment.BottomCenter else Alignment.TopCenter)
+                    width = panelW,
+                    height = panelH,
+                    modifier = Modifier.align(Alignment.TopStart).offset(x = panelX, y = panelY),
                 )
             }
 

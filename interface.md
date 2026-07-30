@@ -380,6 +380,20 @@ Installed modules are cycled by swiping within the panel:
 >
 > **3. The container is a plain fill, not a frame.** `backgroundColourPrimary`, no border, no corner radius, no content — a default to be drawn over, never a designed surround. When a module owns the box the fill is simply not seen. With no module installed there is no king in the castle, so DASH occupying the empty box is its one permitted tenancy, and it ends the moment a module claims the space. **Settings can never cover the panel** — the blind insets around it on both edges and rolls out into the band between bar and panel. The panel is hidden during bar edit mode, which is a focused task rather than the home screen.
 
+> **Docking — 2026-07-30 (roadmap 1.6.3).** The panel gained all four edges and its settings tab. `Layout › Module Panel` is **live**, ending the WIP placeholder the 2026-07-20 tree reconciliation gave it.
+>
+> **1. The long edge is the docked edge, less whatever the bar has already taken from it.** Docked top or bottom, the bar is on the opposite horizontal edge and takes nothing, so the panel runs the full screen width. Docked left or right, the bar spans the full width at top or bottom and eats into the vertical run, so the panel runs **the screen height less the bar height** and butts against the end away from it. A consequence worth stating: **changing the bar height resizes a vertical panel.** This refines the Docking section above, which described the edges but never said what the panel measures itself against.
+>
+> **2. The vertical slot is the horizontal one stood on its end — 1.5 × 4.** One ratio serves both orientations once it is expressed against the *long* edge rather than against width. Vertical is the shape that suits a landscape screen, where the horizontal slot is deepest — the two together give a sensible option in either orientation for the first time. Both remain provisional until the set locks at 1.6.10.
+>
+> **3. Preference and effective edge are different things.** The stored setting is the edge the user *chose*. Where the panel actually draws is that edge unless the bar holds it, in which case the panel is displaced to the opposite one **for as long as the collision lasts**. Move the bar away and the panel returns on its own. *Why:* storing the displacement would let DASH quietly rewrite a user's setting and never give it back, which is the opposite of getting out of the way. Only horizontal preferences can collide — the bar occupies top or bottom, so a left- or right-docked panel is always safe.
+>
+> **4. The edge the bar holds cannot be newly chosen** (Roger). Its tile is greyed, unclickable, and labelled with the reason rather than left silently dead; its glyph drops the panel and shows the bar alone, because a tile that says *this edge belongs to the bar* should not illustrate a fallback. All four tiles stay in place rather than one being removed, so the row does not reshuffle whenever the bar moves.
+>
+> *This is a deliberate exception to the no-dead-controls principle recorded at Layout › Rotation (1.5.15).* There, every option was genuinely valid and greying would have obstructed a real choice. Here the edge is genuinely occupied, so a disabled control is the honest state rather than an obstruction. **Greying prevents only new selection** — a preference that becomes occupied later still displaces, and its tile then reads as both selected and unavailable, which says the choice is being held rather than lost.
+>
+> **5. Moving between edges is a transition.** An edge change moves the panel in two dimensions and resizes it, so it registers as `MODULE_PANEL_MOVE` and takes its speed from Appearance › Transitions like every other DASH motion — the self-growing registry absorbed it with no settings rework, exactly as that pattern intends.
+
 ---
 
 ## The App Launcher

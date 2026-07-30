@@ -59,7 +59,7 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
             // screen faces is the most structural of them, so it comes before the rest.
             SettingsSub("layout.rotation", "Rotation", SettingsStatus.LIVE),
             SettingsSub("layout.systembar", "System Bar", SettingsStatus.LIVE),
-            wip("layout.modulepanel", "Module Panel", "1.6.x"),
+            SettingsSub("layout.modulepanel", "Module Panel", SettingsStatus.LIVE),
             wip("layout.launcher", "App Launcher", "1.8.x"),
             wip("layout.elements", "Elements", "1.9.x"),
             wip("layout.overlays", "Overlays", "v2"),

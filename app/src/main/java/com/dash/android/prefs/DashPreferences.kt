@@ -17,6 +17,7 @@ import com.dash.android.ui.scale.DASH_TEXT_SCALE_DEFAULT
 import com.dash.android.ui.splash.SPLASH_DWELL_DEFAULT_MS
 import com.dash.android.ui.splash.SplashCrop
 import com.dash.android.ui.splash.decodeSplashCrop
+import com.dash.android.ui.modulepanel.ModulePanelConfig
 import com.dash.android.ui.systembar.SystemBarConfig
 import com.dash.android.ui.theme.SPLASH_BACKGROUND_COLOUR_DEFAULT
 import com.dash.android.weather.ManualLocation
@@ -58,6 +59,7 @@ class DashPreferences(private val context: Context) {
     private val splashCropPortraitKey = stringPreferencesKey("splash_crop_portrait")
     private val splashCropLandscapeKey = stringPreferencesKey("splash_crop_landscape")
     private val systemBarKey = stringPreferencesKey("system_bar_config")
+    private val modulePanelKey = stringPreferencesKey("module_panel_config")
     private val manualLocationKey = stringPreferencesKey("manual_location")
 
     private fun transitionKey(id: TransitionId) = stringPreferencesKey("transition_" + id.key)
@@ -121,6 +123,17 @@ class DashPreferences(private val context: Context) {
         prefs[systemBarKey]
             ?.let { runCatching { json.decodeFromString<SystemBarConfig>(it) }.getOrNull() }
             ?: SystemBarConfig.default()
+    }
+
+    /**
+     * The module panel's configuration (roadmap 1.6.3). Holds the user's docking *preference* — a
+     * collision with the system bar displaces the panel at render time without ever rewriting what
+     * is stored here, so their choice comes back when the bar moves away.
+     */
+    val modulePanelConfig: Flow<ModulePanelConfig> = context.dataStore.data.map { prefs ->
+        prefs[modulePanelKey]
+            ?.let { runCatching { json.decodeFromString<ModulePanelConfig>(it) }.getOrNull() }
+            ?: ModulePanelConfig.default()
     }
 
     /**
@@ -191,6 +204,10 @@ class DashPreferences(private val context: Context) {
 
     suspend fun saveSystemBarConfig(config: SystemBarConfig) {
         context.dataStore.edit { it[systemBarKey] = json.encodeToString(config) }
+    }
+
+    suspend fun saveModulePanelConfig(config: ModulePanelConfig) {
+        context.dataStore.edit { it[modulePanelKey] = json.encodeToString(config) }
     }
 
     /** Sets one transition's speed — the per-transition breakout. Diverging from the rest makes the
