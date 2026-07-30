@@ -23,7 +23,6 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -54,7 +53,6 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.Lifecycle
@@ -77,9 +75,8 @@ import com.dash.android.ui.modules.ModuleDesk
 import com.dash.android.ui.transports.LocalTransportDesk
 import com.dash.android.ui.transports.TransportDesk
 import com.dash.android.ui.rotation.DashOrientation
-import com.dash.android.ui.modulepanel.MODULE_PANEL_EXPANDED_HEIGHT
-import com.dash.android.ui.modulepanel.MODULE_PANEL_MINIMISED_HEIGHT
-import com.dash.android.ui.modulepanel.ModulePanelPlaceholder
+import com.dash.android.ui.modulepanel.ModulePanel
+import com.dash.android.ui.modulepanel.ModulePanelSpec
 import com.dash.android.ui.settings.SettingsShell
 import com.dash.android.ui.theme.DashTheme
 import com.dash.android.ui.theme.LocalDashTheme
@@ -140,13 +137,11 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     var weather by remember { mutableStateOf<WeatherSnapshot?>(null) }
     LaunchedEffect(Unit) { weather = weatherProvider.current() }
 
-    var isDefaultLauncher by remember { mutableStateOf(mainActivity.isDefaultLauncher()) }
     var showSplash by remember { mutableStateOf(isColdBoot) }
     var showSettings by remember { mutableStateOf(false) }
     // Where to reopen settings after a focused task (bar edit mode) takes over the screen — so Save/
     // Cancel returns to the tab the user left, not the home screen.
     var settingsReturnTarget by remember { mutableStateOf<String?>(null) }
-    var modulePanelExpanded by remember { mutableStateOf(false) }
     var editMode by remember { mutableStateOf(false) }
     var editConfig by remember { mutableStateOf<SystemBarConfig?>(null) }
     var elementWidths by remember { mutableStateOf(mapOf<String, Int>()) }
@@ -165,7 +160,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     DisposableEffect(activity.lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
-                isDefaultLauncher = mainActivity.isDefaultLauncher()
                 if (mainActivity.pendingWakeSplash) {
                     mainActivity.pendingWakeSplash = false
                     showSplash = true
@@ -265,30 +259,20 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             },
         ),
     ) {
-        Box(modifier = Modifier.fillMaxSize().background(Color.Black)) {
+        BoxWithConstraints(modifier = Modifier.fillMaxSize().background(Color.Black)) {
 
-            // Not-default-launcher banner — anchored opposite the bar so the two never collide.
-            // Hidden in edit mode: the workspace is a focused task and nothing else should compete.
-            if (!isDefaultLauncher && !editMode) {
-                Box(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .align(if (barConfig.position == BarPosition.TOP) Alignment.BottomCenter else Alignment.TopCenter)
-                        .background(Color(0xFF7B1FA2))
-                        .clickable { mainActivity.openSetDefaultLauncher() }
-                        .padding(horizontal = 16.dp, vertical = 10.dp)
-                ) {
-                    Text(
-                        text = "DASH IS NOT YOUR DEFAULT LAUNCHER  —  TAP TO SET AS DEFAULT",
-                        color = Color.White,
-                        fontSize = 11.sp,
-                        fontFamily = LocalDashTheme.current.font,
-                        letterSpacing = 1.sp,
-                        textAlign = TextAlign.Center,
-                        modifier = Modifier.fillMaxWidth()
-                    )
-                }
-            }
+            // Captured here so the whole screen can measure against the window, not against whatever
+            // nested BoxWithConstraints happens to be in scope further down.
+            val screenWidth = maxWidth
+
+            // The not-default-launcher banner is gone (roadmap 1.6.2). A purple full-width strip
+            // anchored opposite the bar, it wanted exactly the edge the module panel now takes, and
+            // Roger's call was that he would not miss it. Nobody is stranded: System › Android
+            // Settings Links offers Android's own home-settings and default-apps screens, which is
+            // where a "make me the launcher" action belongs anyway.
+
+            // The module panel is permanent, so every other DASH surface measures around it.
+            val modulePanelHeight = ModulePanelSpec.largeHeightFor(screenWidth)
 
             // The diagnostic overlay is gone (roadmap 1.5.15). Four lines of grey 10sp — pixel size,
             // native dpi, the applied density preset and the old dashScale — pinned permanently over
@@ -301,12 +285,20 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // content is revealed rather than stretched. This is duration-accurate on purpose —
             // AnimatedVisibility's expandVertically does not animate when the container is forced to
             // fillMaxSize, which is why the transition-speed setting had no visible effect.
-            // The bounds conform to the surrounding chrome — below the bar, above the module panel —
-            // so it covers a minimised module panel but yields to an expanded one.
-            val moduleHeight = if (modulePanelExpanded) MODULE_PANEL_EXPANDED_HEIGHT else MODULE_PANEL_MINIMISED_HEIGHT
+            // The bounds conform to the surrounding chrome on both edges — the bar on one, the module
+            // panel on the other. The panel is persistent, so settings always yields to it and can
+            // never cover it (Roger, 1.6.2): DASH's own chrome does not sit on top of the king's
+            // castle. That leaves the blind rolling out into the band between the two.
             val barIsTop = barConfig.position == BarPosition.TOP
-            val settingsTopInset = if (barIsTop) barConfig.heightDp.dp else 0.dp
-            val settingsBottomInset = (if (!barIsTop) barConfig.heightDp.dp else 0.dp) + moduleHeight
+            // A fixed-ratio panel derives its height from the screen *width*, so on a wide landscape
+            // screen it can ask for more height than the screen has. Clamp what the settings blind
+            // insets by, so the two insets can never exceed the window and leave it negative space to
+            // lay out in. This guards the arithmetic only — the panel itself still draws at its true
+            // ratio, so an overflowing shape stays visible rather than being silently trimmed.
+            val chromeInset = (modulePanelHeight + barConfig.heightDp.dp).coerceAtMost(maxHeight)
+            val settingsPanelInset = (chromeInset - barConfig.heightDp.dp).coerceAtLeast(0.dp)
+            val settingsTopInset = if (barIsTop) barConfig.heightDp.dp else settingsPanelInset
+            val settingsBottomInset = if (barIsTop) settingsPanelInset else barConfig.heightDp.dp
             BoxWithConstraints(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -478,16 +470,22 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 }
             }
 
-            // Module panel placeholder (throwaway scaffold, roadmap 1.5.2 → deleted at 1.6.x).
-            // Present so the settings shell has a real surface to conform to — but hidden in edit
-            // mode, which is a focused workspace with nothing but the bar, its ruler and Save/Cancel.
+            // The module panel (roadmap 1.6.2) — DASH's defining surface, on screen for the first
+            // time. Large slot, persistent, one panel; docking is 1.6.3, the other sizes 1.6.4.
+            //
+            // **It takes the edge opposite the bar.** The panel and the system bar never share an
+            // edge and never stack (Roger, 1.6.2) — where interface.md previously had the panel
+            // beginning where the bar ends, the rule is now that they cannot meet at all. Move the
+            // bar and DASH moves the panel out of the user's way. With docking still a version away
+            // and two live bar positions, opposite-the-bar covers every case there is.
+            //
+            // Hidden in edit mode, carrying forward the placeholder's rule: edit mode is a focused
+            // workspace holding nothing but the bar, its ruler and Save/Cancel, and a panel this
+            // size would crowd the ruler being dragged. Permanent means permanent on the home
+            // screen, not inside a temporary task.
             if (!editMode) {
-                ModulePanelPlaceholder(
-                    expanded = modulePanelExpanded,
-                    onToggle = { modulePanelExpanded = !modulePanelExpanded },
-                    modifier = Modifier
-                        .align(Alignment.BottomCenter)
-                        .padding(bottom = if (barIsTop) 0.dp else barConfig.heightDp.dp)
+                ModulePanel(
+                    modifier = Modifier.align(if (barIsTop) Alignment.BottomCenter else Alignment.TopCenter)
                 )
             }
 

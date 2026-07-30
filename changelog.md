@@ -47,6 +47,44 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.2
+
+**Status:** Complete — the module panel is on screen. Hardware-verified by Roger on the Galaxy Tab S9 Ultra, 2026-07-30.
+
+**Scope:** The first version of the Module Panel era to put anything on screen. DASH's defining surface — the box an ACCESSORY module will own — drawn for the first time, at the large slot only, one panel, persistent, with nothing inside it. Docking is 1.6.3, the other sizes 1.6.4, a real module 1.6.5.
+
+**Implemented:**
+
+- **`ModulePanel.kt`** — the container. A plain box filled with `backgroundColourPrimary`: no border, no corner radius, no content. **DASH draws the container and stops at its boundary.** The fill is a default to be drawn over, not a designed frame — when a module owns the box it is never seen. With nothing installed there is no king in the castle, so DASH occupying the empty box is its one permitted tenancy, and it ends the moment a module claims the space.
+- **Shape, not size.** The panel is a fixed aspect ratio rather than a measurement — the property that lets a module drawn once render correctly on a phone, a tablet and a head unit alike. The long edge is the screen edge it docks to; thickness follows from the ratio. The large slot is **4 × 1.5** (`ModulePanelSpec.LARGE_ASPECT`), the first of the twelve layout slots to be given a real number.
+- **The panel and the system bar never share an edge** (Roger). Where interface.md previously had the panel beginning where the bar ends, the two now cannot meet at all. Move the bar onto the panel's edge and **DASH moves the panel out of the user's way** rather than leaving them to resolve it. At 1.6.2, with docking a version away and two live bar positions, this resolves to *the panel takes the edge opposite the bar*.
+- **Settings can never cover the panel.** The blind insets around it on both edges — bar on one, panel on the other — and rolls out into the band between them. The conform rule that the 1.5.2 placeholder existed to demonstrate is now enforced against a real surface.
+- **Hidden during bar edit mode**, carrying forward the placeholder's rule: edit mode is a focused workspace holding nothing but the bar, its ruler and Save/Cancel.
+
+**Removed:**
+
+- **`ModulePanelPlaceholder.kt`** (104 lines) — the throwaway dark strip with its EXPAND/MINIMISE toggle, open since 1.5.2 for one purpose: giving the settings shell a real foreign surface to conform to while the real panel was still versions away. Deleted exactly as planned, along with its two height constants, three imports and the `modulePanelExpanded` state in `MainScreen`.
+- **The not-default-launcher banner** (Roger's call — "if it is deleted, I shall not miss it"). A purple full-width strip anchored opposite the bar, it wanted precisely the edge the module panel now takes. Verified before deleting that nobody is stranded: **System › Android Settings Links** already offers Android's own home-settings and default-apps screens, which is where a "make me the launcher" action belongs. Its orphaned `isDefaultLauncher` state, the `ON_RESUME` refresh of it, and two now-unused imports went with it.
+
+**Regressions:**
+
+- None found. The only behaviour change is intentional: with the placeholder gone the settings blind briefly ran full height to the bar, restored the moment the real panel landed.
+
+**Notes:**
+
+- **How the ratio was chosen.** Four attempts on real hardware, not reasoning: 3:1 (Roger's first sketch, "height should be ⅓ the width"), then 4×3 — "much bigger than I was expecting" — then 4×2, then **4×1.5**. Held as one constant precisely so it stayed cheap to iterate. The `4f / 1.5f` form is kept unreduced in the code rather than collapsed to `2.667f`, because the two numbers are how the shape is pictured and how a module author will read it.
+- **A panel's height share of the screen is screen aspect ÷ panel aspect.** So a full-width panel is shallow on a portrait screen and deep on a landscape one — 4×1.5 is 23% of the Tab S9 Ultra portrait and 60% of it landscape. **This is not a defect.** A head unit does not rotate: a user picks the slot that suits the one orientation their screen is mounted in, which is what having twelve is *for*. It only reads as a problem on a dev tablet that spins.
+- **The twelve slots are a menu for the user, not a workload for the author.** Recorded because it was initially read backwards during 1.6.1 discussion. An author supports the shapes they choose; the user picks what fits their car. Ratios are designed from real cases starting with Roger's own, which is why 4×1.5 exists before the other eleven.
+- **Defensive clamp.** A fixed-ratio panel derives its height from screen *width*, so on a wide landscape screen it can ask for more height than the screen has. The settings inset arithmetic is clamped to the window so the blind is never handed negative space. This guards the maths only — the panel still draws at its true ratio, so an overflowing shape stays visibly wrong rather than being silently trimmed.
+
+**Outstanding:**
+
+- **The ratio is provisional.** The remaining eleven slots are designed at 1.6.4; the set locks into `module-sdk.md` at 1.6.10, once two real modules have proven the format.
+- **`MainActivity.openSetDefaultLauncher()` is now unused** — the banner was its only caller. Left in place rather than swept mid-version; a candidate for the 1.6.11 cleanup, or for reuse if a launcher prompt finds a better home.
+- **Carried from 1.6.1:** the ACCESSORY panel/layout format (arduino.md §11) is still undrafted, and transport.md still carries pre-1.4.x text — the retired HYBRID module type in three places, and the `SYSTEM_SIGNALS:` / `ICON:` colon declaration syntax that `MANIFEST` and `BLOCK` replaced. Neither blocks the container work: 1.6.2–1.6.4 build the walls, and §11 governs what fills them. The draft is best sited just ahead of 1.6.5, where a real module gives it something to be drafted against.
+
+---
+
 ## Version 1.5.15
 
 **Status:** Complete — the legacy panel gone, and a design language established and applied to every settings page. Hardware-verified by Roger throughout on the Galaxy Tab S9 Ultra and the Pixel 8 Pro. 2026-07-27 → 2026-07-29.

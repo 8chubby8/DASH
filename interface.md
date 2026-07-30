@@ -211,6 +211,8 @@ DASH ships with the following built-in elements:
 | Module Panel Reveal | Interactive | Reveals the floating module panel |
 | Spacer | Layout | Invisible width element for spacing control |
 
+> **Amendment — 2026-07-30 (roadmap 1.6.1).** **Module Panel Reveal is dropped from the built-in element library.** The row above is kept for the record. Hide-and-reveal is *panel behaviour* — the peek strip and the swipe that pulls the panel out — and it is built as part of the module panel at **1.6.9**, not as a system bar element. The row predates that decision. See the Module Panel section for the full note.
+
 ### User-Defined Elements — The Element SDK
 
 DASH provides an Element SDK allowing developers and users to build their own elements. A custom element is a self-contained component that follows the DASH element specification. When placed in the elements folder it appears in the element library automatically alongside built-in elements.
@@ -355,6 +357,28 @@ The Module Panel Reveal element on the system bar provides an alternative reveal
 Installed modules are cycled by swiping within the panel:
 - Horizontal panel → swipe left and right
 - Vertical panel → swipe up and down
+
+> **Reconciliation — 2026-07-30 (roadmap 1.6.1).** Ahead of building the module panel, this section was walked against the 1.6.x plan and three things settled differently. The text above is kept for the record; the notes below are what 1.6.x implements.
+>
+> **1. Orientation is manual, not automatic.** The "orientation is automatic based on docking edge" rule above is **superseded**. There is no automatic flip, and therefore nothing to override — **the user sets the panel's orientation directly**, as its own setting, independently of which edge it is docked to. *Why:* deriving orientation from the docked edge is DASH deciding on the user's behalf what shape their panel should be, which is the one thing DASH does not do. A vertical panel on a bottom edge is a legitimate thing to want, and the automatic rule made it a fight with the system rather than a choice. The h_ / v_ layout slots are unaffected — a module still ships both variants; **which one DASH draws follows the panel's orientation setting**, not its docked edge.
+>
+> **Settings consequence:** `Layout › Module Panel` gains an **Orientation** control (horizontal / vertical) alongside docking edge, mode, peek strip size and default size.
+>
+> **2. The Module Panel Reveal element is dropped.** The paragraph above describing it as an alternative reveal mechanism is **superseded**, along with its row in the built-in element table. Reveal is panel behaviour, built with the panel at **1.6.9** — the peek strip and the real-time swipe. Cycling between installed modules is already the in-panel swipe described above. *Why:* it is not an element's job to operate another surface; it duplicated behaviour the panel already owns. If a bar-mounted reveal is ever wanted it can be added in the Elements era (1.9.x) as a genuine element, built on the panel behaviour rather than instead of it.
+>
+> **3. Stacking rule enforcement moves to 1.8.x.** The Stacking and Floating Rules above still stand as written and are unchanged — but they govern the floating module panel **against the floating app launcher**, and the launcher does not exist until **1.8.x**. The rule cannot be enforced against something that isn't built, so enforcement ships with the launcher. Until then the module panel is the only floating surface and the conflict cannot arise.
+
+> **Build note — 2026-07-30 (roadmap 1.6.2).** The panel was built for the first time. Three things settled in the doing, recorded here per the additive-docs rule.
+>
+> **1. The panel and the system bar never share an edge.** This **supersedes the System Bar Relationship section above**, which had them meeting — the panel's edge beginning where the bar's ends. They now cannot meet at all: the two never occupy the same edge and never stack. If the user moves the bar onto the edge the panel holds, **DASH moves the panel out of their way** rather than making them resolve it. *Why (Roger):* the bar can move, so a rule that merely says "don't overrun the bar" leaves the user to discover the collision and fix it themselves. Getting out of the way means DASH absorbs it. The bar remains senior — it is the panel that yields.
+>
+> At 1.6.2 this resolves to **the panel taking the edge opposite the bar**, which covers every case while docking is still a version away and only two bar positions exist. What happens once the user has *chosen* an edge and the bar then lands on it — whether their choice is remembered and restored when the bar moves away — is settled at **1.6.3** with docking.
+>
+> **2. The large slot has a real ratio: 4 × 1.5** (width × height, so height is 0.375 of width). The Panel Sizes section above gives the sizes as multiples of system bar height — that was an *impression* of size, and this is the first slot to be given a number against it. Arrived at by eye on the Tab S9 Ultra across four attempts (3:1 → 4×3 → 4×2 → 4×1.5), which is the only honest way to pick a shape. **Provisional**: the remaining eleven slots are designed at 1.6.4 as real cases arrive, and the full set locks into `module-sdk.md` at **1.6.10**. Held as one constant (`ModulePanelSpec.LARGE_ASPECT`) so it stays cheap to change until then.
+>
+> *Noted for the slot set:* a panel's height share of the screen is simply **screen aspect ÷ panel aspect**, so a full-width panel is shallow on a portrait screen and deep on a landscape one — 4×1.5 is 23% of a portrait tablet and 60% of the same tablet landscape. This is not a defect. A head unit does not rotate; a user picks the slot suiting the one orientation their screen is mounted in, which is what the twelve are *for*. It only looks like a problem on a dev tablet that spins.
+>
+> **3. The container is a plain fill, not a frame.** `backgroundColourPrimary`, no border, no corner radius, no content — a default to be drawn over, never a designed surround. When a module owns the box the fill is simply not seen. With no module installed there is no king in the castle, so DASH occupying the empty box is its one permitted tenancy, and it ends the moment a module claims the space. **Settings can never cover the panel** — the blind insets around it on both edges and rolls out into the band between bar and panel. The panel is hidden during bar edit mode, which is a focused task rather than the home screen.
 
 ---
 
