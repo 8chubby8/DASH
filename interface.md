@@ -394,6 +394,22 @@ Installed modules are cycled by swiping within the panel:
 >
 > **5. Moving between edges is a transition.** An edge change moves the panel in two dimensions and resizes it, so it registers as `MODULE_PANEL_MOVE` and takes its speed from Appearance › Transitions like every other DASH motion — the self-growing registry absorbed it with no settings rework, exactly as that pattern intends.
 
+> **The six slot ratios — 2026-08-01 (roadmap 1.6.4).** All three sizes are built, and the Panel Sizes section above — which gave them as multiples of system bar height — is **superseded**. That was an impression of size; these are the shapes.
+>
+> | | Horizontal | Vertical |
+> |---|---|---|
+> | **Large** | **8 × 3** | **3 × 8** |
+> | **Medium** | **16 × 3** | **3 × 16** |
+> | **Small** | **16 × 1** | **1 × 16** |
+>
+> Long edge first, thickness second. **Every vertical slot is its horizontal twin stood on its end**, so there are three shapes to learn rather than six, and DASH stores one pair of numbers per size. Recorded in whole numbers rather than the fractional forms they were sketched in (4×1.5, 4×0.75, 4×0.25 — Roger's call): a module author should not have to picture a shape described in quarters. Held as integers with the aspect derived from them, so the published ratio and the arithmetic cannot drift apart.
+>
+> **What they come to.** A panel's share of the screen is *screen aspect ÷ panel aspect* — on a 16:10 screen in landscape the horizontal slots take 60% / 30% / 10% of the height, and the vertical ones about 22% / 11% / 4% of the width. **Small lands at roughly system-bar height on a wide screen**, which is exactly where the superseded "1× the system bar" wording always pointed — the impression was right, it just could not survive a user-adjustable bar.
+>
+> **Provisional until 1.6.10**, when the set locks into `module-sdk.md`. Drafted in full at arduino.md §11, which is where a module author reads them.
+>
+> **Settings: size first, position second** (Roger). Size is the larger decision, and the position tiles draw the panel at whatever size is chosen above them, so `Layout › Module Panel` reads top to bottom as one continuous answer. Both rows are glyphs of the real screen, with panel thickness taken from the same ratio the real panel uses — so the three sizes are honestly to scale against each other rather than three arbitrary bands.
+
 ---
 
 ## The App Launcher

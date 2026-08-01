@@ -23,19 +23,7 @@ import com.dash.android.ui.theme.LocalDashTheme
  */
 object ModulePanelSpec {
     /**
-     * Large slot, expressed as long edge ÷ thickness — **4 × 1.5** (Roger, 1.6.2). Written as the
-     * two numbers rather than reduced, because the audience is a module author picturing a shape,
-     * not a developer reading a coefficient. Arrived at by eye on real hardware: 3:1 was the first
-     * sketch, 4×3 proved far bigger than expected, 4×2 closer, 4×1.5 right.
-     *
-     * One ratio serves both orientations. A vertical panel is the same shape stood on its end —
-     * 1.5×4 — so the arithmetic is identical once expressed against the *long* edge rather than
-     * against width. That is why [largeThicknessFor] takes a long edge and not a screen dimension.
-     */
-    const val LARGE_ASPECT = 4f / 1.5f
-
-    /**
-     * Panel thickness for a given long-edge length, at the large slot.
+     * Panel thickness for a given long-edge length, at the requested size.
      *
      * **The long edge is the docked edge minus whatever the system bar has already taken from it**
      * (Roger, 1.6.3). Docked top or bottom, the bar is on the opposite horizontal edge and takes
@@ -43,8 +31,11 @@ object ModulePanelSpec {
      * full width at top or bottom and eats into the vertical run, so the long edge is the screen
      * height *less the bar*. A consequence worth knowing: changing the bar height resizes a
      * vertical panel.
+     *
+     * One number per size serves both orientations, because [PanelSize.aspect] is expressed against
+     * the long edge rather than against width — a vertical panel is the same shape stood on its end.
      */
-    fun largeThicknessFor(longEdge: Dp): Dp = longEdge / LARGE_ASPECT
+    fun thicknessFor(size: PanelSize, longEdge: Dp): Dp = longEdge / size.aspect
 }
 
 /**

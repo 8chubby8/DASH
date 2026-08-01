@@ -24,15 +24,53 @@ enum class PanelEdge(val label: String) {
 }
 
 /**
+ * The three panel sizes (roadmap 1.6.4), each a **fixed aspect ratio** rather than a measurement.
+ *
+ * **The six layout slots, in whole numbers** (Roger, 1.6.4 — whole numbers read better than the
+ * fractional forms they were first sketched in, and a module author should never have to picture
+ * a shape described in quarters):
+ *
+ * |        | Horizontal | Vertical |
+ * |--------|------------|----------|
+ * | Large  | **8 × 3**  | 3 × 8    |
+ * | Medium | **16 × 3** | 3 × 16   |
+ * | Small  | **16 × 1** | 1 × 16   |
+ *
+ * Every vertical slot is its horizontal twin stood on its end, so **one pair of numbers serves
+ * both** — which is why the ratio is expressed against the *long edge* rather than against width.
+ * Held as [longUnits] and [thickUnits] rather than a float so the published ratio and the
+ * arithmetic are the same fact and cannot drift apart; [aspect] is derived, never stored.
+ *
+ * Chosen from what Roger wants in his own car rather than derived for a general case. Small lands
+ * at roughly system-bar height on a wide screen, which is where interface.md's original "1× the
+ * system bar" impression always pointed. **Provisional** until the slot set locks into
+ * `module-sdk.md` at 1.6.10.
+ */
+@Serializable
+enum class PanelSize(val label: String, val longUnits: Int, val thickUnits: Int) {
+    SMALL("Small", 16, 1),
+    MEDIUM("Medium", 16, 3),
+    LARGE("Large", 8, 3);
+
+    /** Long edge ÷ thickness. Derived, so it can never disagree with the published ratio. */
+    val aspect: Float get() = longUnits.toFloat() / thickUnits.toFloat()
+
+    /** The slot as a module author writes it: long edge first, thickness second. */
+    val horizontalRatio: String get() = "$longUnits × $thickUnits"
+    val verticalRatio: String get() = "$thickUnits × $longUnits"
+}
+
+/**
  * The module panel's configuration (roadmap 1.6.3).
  *
  * [edge] is the user's **preference**, not necessarily where the panel is drawn — see
- * [effectiveEdge]. Deliberately shaped to grow: the panel size arrives at 1.6.4 and persistent /
- * floating mode at 1.6.9, both of which belong here rather than as loose keys.
+ * [effectiveEdge]. Deliberately shaped to grow: [size] arrived at 1.6.4, and persistent / floating
+ * mode lands at 1.6.9, which belongs here rather than as a loose key.
  */
 @Serializable
 data class ModulePanelConfig(
     val edge: PanelEdge = PanelEdge.BOTTOM,
+    val size: PanelSize = PanelSize.LARGE,
 ) {
     companion object {
         fun default() = ModulePanelConfig()

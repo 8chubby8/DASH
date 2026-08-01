@@ -907,6 +907,52 @@ a known shape; DASH enforces that shape. Both sides honour the same contract.
 defined** — this will be decided once real panels are being designed and the
 proportions can be evaluated against real content.
 
+> **Drafted — 2026-08-01 (roadmap 1.6.4). The six ratios now have numbers.**
+> The paragraph above stands as written — this is that decision being taken,
+> the proportions having been evaluated on real hardware.
+>
+> | | Horizontal (`h_`) | Vertical (`v_`) |
+> |---|---|---|
+> | **Large** | **8 × 3** | **3 × 8** |
+> | **Medium** | **16 × 3** | **3 × 16** |
+> | **Small** | **16 × 1** | **1 × 16** |
+>
+> Long edge first, thickness second. **Every vertical slot is its horizontal
+> twin stood on its end**, so a builder learns three shapes rather than six, and
+> DASH holds one pair of numbers per size rather than two.
+>
+> **How they were arrived at.** By eye on a Galaxy Tab S9 Ultra, not by
+> reasoning — the large slot went 3:1 → 4×3 → 4×2 → 4×1.5 across four builds
+> before it looked right, and medium and small were then set against it. Roger's
+> call throughout, chosen for what he wants in his own car rather than derived
+> for a general case. The fractional forms (4×1.5, 4×0.75, 4×0.25) were the
+> working notation and were converted to whole numbers for publication: a module
+> author should not have to picture a shape described in quarters.
+>
+> **What the numbers mean in practice.** A panel's share of the screen is
+> *screen aspect ÷ panel aspect*. On a 16:10 screen in landscape the horizontal
+> slots take 60% / 30% / 10% of the height, and the vertical ones roughly
+> 22% / 11% / 4% of the width — vertical gives up the system bar's height from
+> its long edge before the ratio is applied (see below). Small lands at about
+> system-bar height on a wide screen, which is where the DASH-side documentation
+> always informally placed it.
+>
+> **The long edge is the docked edge less whatever the system bar has taken from
+> it.** Docked top or bottom the bar sits on the opposite horizontal edge and
+> takes nothing, so the long edge is the full screen width. Docked left or right
+> the bar spans the full width and eats into the vertical run, so the long edge
+> is the screen height *less the bar*. A module author does not need to care —
+> they draw to the ratio and DASH scales it — but it is why the two orientations
+> are not simply mirror images on any given screen.
+>
+> **Still a draft, deliberately.** These are provisional exactly as this section
+> has always been: a spec is not locked before it has been built against, and
+> what has been built so far is DASH's own container, not a module drawn to
+> these shapes. They lock into `module-sdk.md` at **1.6.10**, once two real
+> modules have been rendered through them. Held DASH-side as
+> `PanelSize.longUnits` / `thickUnits` — integers, with the aspect derived — so
+> the published ratio and the arithmetic are one fact and cannot drift apart.
+
 ### ACCESSORY subscriptions
 
 An ACCESSORY module may include `SUBSCRIBE` declarations in its install

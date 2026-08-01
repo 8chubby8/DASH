@@ -32,6 +32,8 @@ import com.dash.android.ui.common.SETTING_SPACING
 import com.dash.android.ui.common.TINY
 import com.dash.android.ui.common.TINY_LINE
 import com.dash.android.ui.modulepanel.ModulePanelConfig
+import com.dash.android.ui.modulepanel.ModulePanelSpec
+import com.dash.android.ui.modulepanel.PanelSize
 import com.dash.android.ui.modulepanel.PanelEdge
 import com.dash.android.ui.modulepanel.effectiveEdge
 import com.dash.android.ui.systembar.BarPosition
@@ -40,18 +42,22 @@ import com.dash.android.ui.theme.LocalDashTheme
 import kotlinx.coroutines.launch
 
 /**
- * Layout › Module Panel (roadmap 1.6.3) — where the panel docks.
+ * Layout › Module Panel — how big the panel is (roadmap 1.6.4) and where it docks (1.6.3).
  *
- * **Why Layout.** The panel is a *wall* DASH owns, so where it sits is a structural decision and
- * belongs beside the System Bar and Rotation. What happens *inside* the panel belongs to the module
- * and is never configured here — that is the Module Mantra as a settings tree.
+ * **Why Layout.** The panel is a *wall* DASH owns, so its size and placement are structural
+ * decisions and belong beside the System Bar and Rotation. What happens *inside* the panel belongs
+ * to the module and is never configured here — that is the Module Mantra as a settings tree.
  *
- * **The glyph is a miniature of the real screen**, following the Rotation tab's precedent: the
- * device at its true proportions, the user's own bar on the edge it actually occupies, and the
- * panel drawn at roughly its real proportion on the edge being chosen. That matters more here than
- * anywhere, because two of the four tiles show something the user did not literally ask for — the
- * panel and the bar can never share an edge, so choosing the bar's edge displaces the panel to the
- * opposite one, and the glyph shows exactly that rather than pretending otherwise.
+ * **Size first, position second** (Roger, 1.6.4). Size is the larger decision, and the position
+ * tiles draw the panel at whatever size is chosen above them, so the page reads top to bottom as one
+ * continuous answer rather than two unrelated controls.
+ *
+ * **Every tile is a miniature of the real screen**, following the Rotation tab's precedent: the
+ * device at its true proportions, the user's own bar on the edge it actually occupies, and the panel
+ * drawn from the same ratio the real one uses — so a Small tile really is a sixteenth of its edge
+ * and the three sizes are honestly to scale against each other. That matters most on the position
+ * row, where two tiles show something the user did not literally ask for: the panel and the bar can
+ * never share an edge, so the bar's edge is greyed and shows the bar alone.
  *
  * The stored preference is still the edge they picked. Move the bar away and the panel returns
  * there on its own; nothing the user chose is ever quietly rewritten.
@@ -78,18 +84,48 @@ fun ModulePanelContent() {
     ) {
         SettingsContentHeader("Module Panel")
 
+        val barAtTop = barConfig.position == BarPosition.TOP
+        val barEdge = if (barAtTop) PanelEdge.TOP else PanelEdge.BOTTOM
+        val drawnNow = effectiveEdge(config.edge, barConfig.position)
+
+        // Size before position (Roger, 1.6.4). Size is the larger decision, and the position tiles
+        // below draw the panel at whatever size is chosen here — so the page reads top to bottom as
+        // one continuous answer rather than two unrelated controls.
+        SettingsSectionHeader("Size")
+
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
         ) {
-            val barAtTop = barConfig.position == BarPosition.TOP
-            val barEdge = if (barAtTop) PanelEdge.TOP else PanelEdge.BOTTOM
+            PanelSize.entries.forEach { size ->
+                PanelTile(
+                    label = size.label,
+                    selected = config.size == size,
+                    unavailable = false,
+                    ratio = ratio,
+                    barAtTop = barAtTop,
+                    // Drawn on the edge the panel is actually on, at this tile's own size, so each
+                    // tile previews the real result rather than a generic diagram.
+                    drawnEdge = drawnNow,
+                    panelSize = size,
+                    modifier = Modifier.weight(1f),
+                ) {
+                    scope.launch { prefs.saveModulePanelConfig(config.copy(size = size)) }
+                }
+            }
+        }
 
+        SettingsSectionHeader("Position")
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
+        ) {
             PanelEdge.entries.forEach { edge ->
                 // The edge the bar holds cannot be chosen (Roger, 1.6.3) — the two never share an
                 // edge, so offering it would be offering something DASH would immediately undo.
                 val unavailable = edge == barEdge
-                EdgeTile(
+                PanelTile(
                     label = edge.label,
                     // Selection tracks the stored *preference*, even when that edge is currently
                     // unavailable — a tile that is both selected and greyed says "this is still your
@@ -101,6 +137,7 @@ fun ModulePanelContent() {
                     ratio = ratio,
                     barAtTop = barAtTop,
                     drawnEdge = effectiveEdge(edge, barConfig.position),
+                    panelSize = config.size,
                     modifier = Modifier.weight(1f),
                 ) {
                     scope.launch { prefs.saveModulePanelConfig(config.copy(edge = edge)) }
@@ -111,13 +148,14 @@ fun ModulePanelContent() {
 }
 
 @Composable
-private fun EdgeTile(
+private fun PanelTile(
     label: String,
     selected: Boolean,
     unavailable: Boolean,
     ratio: Float,
     barAtTop: Boolean,
     drawnEdge: PanelEdge,
+    panelSize: PanelSize,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
@@ -144,7 +182,7 @@ private fun EdgeTile(
         verticalArrangement = Arrangement.spacedBy(9.dp),
     ) {
         Box(Modifier.height(GLYPH_BOX).fillMaxWidth(), contentAlignment = Alignment.Center) {
-            ScreenGlyph(ratio, barAtTop, drawnEdge, selected, unavailable)
+            ScreenGlyph(ratio, barAtTop, drawnEdge, panelSize, selected, unavailable)
         }
         Text(
             if (unavailable) "$label — bar" else label,
@@ -167,6 +205,7 @@ private fun ScreenGlyph(
     ratio: Float,
     barAtTop: Boolean,
     drawnEdge: PanelEdge,
+    panelSize: PanelSize,
     selected: Boolean,
     unavailable: Boolean,
 ) {
@@ -200,12 +239,15 @@ private fun ScreenGlyph(
         // The panel. On a vertical edge it runs the screen height *less the bar* and butts against
         // the end away from the bar — the same geometry as the real layout, where the bar's edge is
         // the one the panel has to clear.
+        // Thickness is derived from the same ratio the real panel uses, against the same long edge,
+        // so a Small tile really is a sixteenth of its edge and the three sizes are honestly to
+        // scale against each other rather than three arbitrary bands.
         when (drawnEdge) {
             PanelEdge.TOP, PanelEdge.BOTTOM -> Box(
                 Modifier
                     .align(if (drawnEdge == PanelEdge.TOP) Alignment.TopCenter else Alignment.BottomCenter)
                     .fillMaxWidth()
-                    .height(PANEL_THICK_H)
+                    .height(ModulePanelSpec.thicknessFor(panelSize, w).coerceAtLeast(GLYPH_MIN_THICK))
                     .background(panelInk)
             )
             PanelEdge.LEFT, PanelEdge.RIGHT -> Box(
@@ -218,7 +260,10 @@ private fun ScreenGlyph(
                             else -> Alignment.TopEnd
                         }
                     )
-                    .width(PANEL_THICK_V)
+                    .width(
+                        ModulePanelSpec.thicknessFor(panelSize, h - BAR_THICKNESS)
+                            .coerceAtLeast(GLYPH_MIN_THICK)
+                    )
                     .height(h - BAR_THICKNESS)
                     .background(panelInk)
             )
@@ -231,6 +276,5 @@ private val GLYPH_BOX = 58.dp
 private val GLYPH_LONG = 52.dp
 private val BAR_THICKNESS = 5.dp
 
-/** The panel block in the glyph, at roughly its real share of each edge. */
-private val PANEL_THICK_H: Dp = 11.dp
-private val PANEL_THICK_V: Dp = 13.dp
+/** A floor so Small stays visible in a 52dp glyph, where a true sixteenth would be barely a hair. */
+private val GLYPH_MIN_THICK: Dp = 3.dp

@@ -47,6 +47,53 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.4
+
+**Status:** Complete — all three panel sizes, and the six slot ratios given real numbers. Hardware-verified by Roger, 2026-08-01.
+
+**Scope:** The panel had one size. Now it has three, chosen and looked at on hardware, and the six layout slots that have been referred to since transport.md was written finally have values.
+
+**Implemented:**
+
+- **`PanelSize`** — SMALL / MEDIUM / LARGE, persisted in `ModulePanelConfig` (which was shaped at 1.6.3 to take it, so the field simply arrived). `largeThicknessFor(longEdge)` became `thicknessFor(size, longEdge)`; nothing else in the layout maths changed.
+- **The six slot ratios**, Roger's call, recorded in whole numbers:
+
+  | | Horizontal | Vertical |
+  |---|---|---|
+  | **Large** | **8 × 3** | **3 × 8** |
+  | **Medium** | **16 × 3** | **3 × 16** |
+  | **Small** | **16 × 1** | **1 × 16** |
+
+  Long edge first, thickness second. **Every vertical slot is its horizontal twin stood on its end**, so there are three shapes to learn rather than six and DASH holds one pair of numbers per size.
+- **Stored as integers, with the aspect derived.** `PanelSize.longUnits` / `thickUnits` are the published ratio; `aspect` is computed from them and never stored. The ratio a module author reads and the number the layout arithmetic uses are one fact and cannot drift apart. `horizontalRatio` / `verticalRatio` render the pair for display.
+- **Layout › Module Panel became two sections — Size first, Position second** (Roger). Size is the larger decision, and the position tiles draw the panel at whatever size is chosen above them, so the page reads top to bottom as one continuous answer rather than two unrelated controls. Both rows use `SettingsSectionHeader` on the 1.5.15 design language.
+- **Every tile is a picture of the real result.** Size tiles draw the panel on the edge it is *actually* on, so changing position updates them; position tiles draw it at the *selected size*. Glyph thickness comes from the same ratio the real panel uses, so the three sizes are honestly to scale against each other rather than three arbitrary bands.
+- **`EdgeTile` became `PanelTile`**, since it now serves both rows.
+
+**Regressions:**
+
+- None found. Converting 4×1.5 / 4×0.75 / 4×0.25 to 8×3 / 16×3 / 16×1 is arithmetically identical, so nothing moved on screen.
+
+**Documentation:**
+
+- **arduino.md §11 — an open item closed.** That section has said since it was written that *"the actual ratio values for each of the six layout slots are not yet defined — this will be decided once real panels are being designed."* This is that decision, drafted in full: the table, how the numbers were arrived at, what they come to as screen shares, and the long-edge rule. **Still explicitly a draft** — nothing has yet been drawn *to* these shapes, and a spec is not locked before it has been built against. They lock at 1.6.10.
+- **interface.md** — the same table, and the Panel Sizes section's "1× / 2× / 4× system bar height" marked superseded. Worth recording that the impression was right: small does land at roughly bar height on a wide screen. It simply could not survive being tied to a measurement the user can move.
+
+**Notes:**
+
+- **Whole numbers over fractions** (Roger). The sizes were sketched as 4×1.5, 4×0.75 and 4×0.25 — fine as working notation while picking them by eye, wrong for publication. A module author should not have to picture a shape described in quarters.
+- **How the numbers were actually chosen.** By eye on the Tab S9 Ultra, not by reasoning. Large alone took four builds — 3:1, then 4×3 ("much bigger than I was expecting"), then 4×2, then 4×1.5 — with medium and small set against it once it looked right. This is the only honest way to choose a shape, and it is why the ratios could not have been drafted at 1.6.1 as originally planned.
+- **A cheat in the glyphs, documented as one.** A true sixteenth of a 52dp glyph is thinner than a hairline, so Small is floored at 3dp in the tiles. The real panel is not floored.
+- **Deliberately not shown on the tiles:** the ratio itself under each label. Real information a module author will need — a module is drawn for a specific slot — but 1.5.15's no-help-text-under-settings rule holds, and there are no modules to match against yet. `horizontalRatio` / `verticalRatio` exist for when it starts to matter.
+
+**Outstanding:**
+
+- **The ratios are provisional** until they lock into `module-sdk.md` at 1.6.10, once two real modules have been rendered through them.
+- **Carried from 1.6.1:** transport.md still carries pre-1.4.x text — the retired HYBRID module type in three places, and the `SYSTEM_SIGNALS:` / `ICON:` colon syntax that `MANIFEST` and `BLOCK` replaced. The §11 layout-format draft is now partly discharged (the ratios), but the **wire grammar** — how a module actually declares a layout — is still undrafted and still best sited just ahead of 1.6.5.
+- **Carried from 1.6.2:** `MainActivity.openSetDefaultLauncher()` is unused since the banner went — a candidate for the 1.6.11 cleanup.
+
+---
+
 ## Version 1.6.3
 
 **Status:** Complete — the panel docks to all four edges and has its own settings tab. Hardware-verified by Roger, 2026-07-30.

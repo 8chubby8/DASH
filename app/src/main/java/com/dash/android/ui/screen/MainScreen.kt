@@ -288,7 +288,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             val barThickness = barConfig.heightDp.dp
             val panelEdge = effectiveEdge(modulePanelConfig.edge, barConfig.position)
             val panelLongEdge = if (panelEdge.horizontal) screenWidth else (maxHeight - barThickness)
-            val panelThickness = ModulePanelSpec.largeThicknessFor(panelLongEdge)
+            val panelThickness = ModulePanelSpec.thicknessFor(modulePanelConfig.size, panelLongEdge)
             val panelWidth = if (panelEdge.horizontal) screenWidth else panelThickness
             val panelHeight = if (panelEdge.horizontal) panelThickness else panelLongEdge
 
