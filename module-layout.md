@@ -308,6 +308,10 @@ Turns a target about a pivot, mapped from a value.
 Needs a pivot point, an input range and an output angle range — a gauge marked 0–11 BAR
 sweeping across roughly 280° rather than a full circle.
 
+**The pivot is a fraction of the target's own box** *(amended 2026-08-12)*, so a needle turns about
+the same point whether it was shipped as its own raster layer or drawn as a named path inside a
+vector one. See §9 for the field and the reasoning.
+
 ### 4.6 `translate`
 
 Moves a target along an axis, mapped from a value. Sliders, level indicators, a vehicle
@@ -688,7 +692,7 @@ Two lists, and nothing else:
 | Convention | Meaning |
 |---|---|
 | **Positions and sizes** | Fractions of the panel. `0,0` is top-left, `1,1` is bottom-right. Never pixels — the panel is a different physical size on every screen. |
-| **`pivot`** | A fraction of the **layer's own box**, not the panel. `[0.5, 1.0]` is the middle of its bottom edge. |
+| **`pivot`** | A fraction of the **target's own box**, not the panel. `[0.5, 1.0]` is the middle of its bottom edge. *(Amended 2026-08-12 — was "the layer's own box"; see `rotate` in §9.)* |
 | **Colours** | A literal (`"#FF6600"`) or a DASH theme token (`"@accentColourPrimary"`, §7). |
 | **Angles** | Degrees, clockwise, zero pointing up. |
 | **Durations** | Milliseconds. |
@@ -710,7 +714,7 @@ Drawn in list order, first at the bottom. Common to every layer:
 |---|---|---|
 | `asset` | yes | The block name of the PNG or SVG. |
 | `size` | no | `[width, height]` as fractions of the panel. Omitted means fill. |
-| `pivot` | no | Rotation centre, within the layer's own box. Default `[0.5, 0.5]`. |
+| `pivot` | no | Rotation centre, within the layer's own box. Default `[0.5, 0.5]`. A `rotate` binding may carry its own `pivot`, which overrides this — see §9's `rotate`. |
 
 **`text` additionally takes:**
 
@@ -790,8 +794,31 @@ element. One word, because the author's intent is the same either way.*
 | `value` | yes | The variable driving the angle. |
 | `from` | yes | `[min, max]` input range. |
 | `to` | yes | `[angle, angle]` output range in degrees. |
+| `pivot` | no | Rotation centre, as a fraction of the **target's own box**. Overrides the layer's `pivot` when present. Default `[0.5, 0.5]`. |
 
-*Rotation happens about the layer's `pivot`.*
+**Rotation happens about the target's `pivot`** — the layer's own box where the target is a layer,
+and the element's bounding box where the target is `layer#element`.
+
+> **One rule, both routes.** *(Amended 2026-08-12, after the parser spike. This previously read
+> "rotation happens about the layer's `pivot`", with `pivot` available only as a layer field.)*
+>
+> A pivot on the *layer* is right for a needle shipped as its own small raster layer: `[0.5, 1.0]` is
+> the middle of its bottom edge, which is where a needle turns. **Nothing about that case changes.**
+>
+> It does not work for `layer#element`. A vector overlay normally fills the panel, so the layer's box
+> *is* the panel, and the needle is one element among twenty — leaving the author to measure their
+> dial's hub as a fraction of the whole panel (`[0.1875, 0.5]` in the spike's gauge) and to measure
+> it again every time they nudge the artwork. And because it was a single field on the layer, **two
+> elements in one layer could not rotate about different centres**, so a twin-needle gauge could not
+> be expressed at all.
+>
+> Reading the pivot against *the target* fixes both without adding a concept: a needle is
+> `[0.5, 1.0]` whether it was shipped as a raster layer or drawn as a named path inside a vector one.
+>
+> ```json
+> { "bind": "rotate", "target": "dial#needle", "value": "tank_pressure",
+>   "pivot": [0.5, 1.0], "from": [0, 11], "to": [-140, 140] }
+> ```
 
 **`translate`**
 
@@ -860,28 +887,77 @@ every variable it binds to and every control it can send, so DASH learns both by
 DASH renders a defined subset of SVG, not the whole specification. *(Drafted 2026-08-12.
 Provisional; the spike is expected to move it.)*
 
-**What shapes the subset.** It is not an arbitrary choice. Compose's `ImageVector` — DASH's
-rendering target — mirrors Android's VectorDrawable model: **paths, groups, transforms,
-fills, strokes, gradients and opacity.** Everything in the subset has to land on that.
+**What shapes the subset.** It is not an arbitrary choice. Compose's vector model — the one
+Android's VectorDrawable expresses, and `ImageVector` with it — is **paths, groups, transforms,
+fills, strokes, gradients and opacity**, and everything in the subset has to land on that.
 Conveniently, SVG's other shapes all convert to paths with simple arithmetic, which is
 exactly what Android's own build tooling does when it turns an SVG into a VectorDrawable —
 DASH does the same thing at parse time rather than build time.
 
+> **The model, not the vehicle.** *(Amended 2026-08-12, after the parser spike. This paragraph
+> previously described `ImageVector` as "DASH's rendering target".)* That model is what the subset
+> must satisfy, and it is why the list below looks as it does. It is **not** what DASH builds at
+> runtime. An `ImageVector` is assembled once and drawn whole, so nothing inside it can be reached —
+> and a `rotate` binding on `dial#needle` (§4.5) could then only be honoured by rebuilding the entire
+> vector tree on every frame the needle moves, discarding the painter's cache each time, on a surface
+> that is persistent, always on screen and driven by live vehicle data.
+>
+> DASH parses into **its own flat representation instead: named nodes, each holding a path built once
+> at parse time and its own accumulated transform.** Bound elements are addressable by construction,
+> and a frame costs a matrix and a paint. Verified on the Tab S9 Ultra with a needle sweeping
+> continuously — the full 120 Hz panel rate, zero dropped frames, zero missed vsyncs.
+>
+> The path data itself is handed to Compose's own `PathParser`, the same code Android uses for
+> VectorDrawables, so the most intricate part of SVG is inherited rather than reimplemented.
+
 **Elements in:**
 
 `svg` (requires `viewBox`) · `g` · `path` · `rect` · `circle` · `ellipse` · `line` ·
-`polygon` · `polyline` · `defs` · `linearGradient` · `radialGradient`
+`polygon` · `polyline` · `defs` · `linearGradient` · `radialGradient` · `stop`
 
 **Attributes in:**
 
 `id` · `d` · shape geometry (`x`, `y`, `width`, `height`, `rx`, `ry`, `cx`, `cy`, `r`,
 `x1`, `y1`, `x2`, `y2`, `points`) · `fill` · `stroke` · `stroke-width` ·
 `stroke-linecap` · `stroke-linejoin` · `fill-rule` · `opacity` · `fill-opacity` ·
-`stroke-opacity` · `transform` · `viewBox`
+`stroke-opacity` · `transform` · `viewBox` · gradient attributes (`offset`, `stop-color`,
+`stop-opacity`, `gradientUnits`, `gradientTransform`, `fx`, `fy`, `spreadMethod`)
+
+> **Gradients gained their contents.** *(Amended 2026-08-12, after the parser spike. The lists
+> previously permitted `linearGradient` and `radialGradient` while naming nothing a gradient is made
+> of — no `stop`, no `offset`, no `stop-color`, no `stop-opacity`, no `gradientUnits`.)* A gradient
+> without stops is not a weak gradient, it is nothing, so the omission made the entries meaningless.
+> Found by building a parser against the list rather than by reading it.
+>
+> **`gradientTransform` is in the subset deliberately, and DASH must implement it** (Roger,
+> 2026-08-12). Coordinates default to fractions of the shape's own bounding box, but **Inkscape
+> almost always writes the other mode** — `userSpaceOnUse`, with a `gradientTransform` beside it
+> carrying the rotation and scale. Ignore it and an ordinary rotated gradient renders along the wrong
+> axis.
+>
+> It is the one exclusion that could not have been softened by the *bake it in at export* advice
+> everywhere else in this section relies on: a gradient cannot be flattened to paths without
+> rasterising it, at which point it has stopped being vector artwork. "Gradients work, but only if
+> you never rotate one" is exactly the quiet trap that makes a published subset feel arbitrary, in
+> the most likely tool doing the most ordinary thing.
 
 > **`id` is the load-bearing one.** It is what a binding targets (§9). An element without an
 > `id` can be drawn but never bound to, and the previewer should say so when a layout
 > references something that is not there.
+>
+> > **The id problem in practice is the opposite one.** *(Amended 2026-08-12, after the parser
+> > spike.)* Real tool output rarely contains an element without an id, because **Inkscape names
+> > everything whether the author did or not** — an unnamed rectangle comes back as `rect4`, eleven
+> > tick marks as `line4`…`line14`. The hazard is not a missing id but one that **exists, means
+> > nothing, and changes on the next export**, silently breaking a binding that used to work.
+> >
+> > So the advice worth giving is *name anything you intend to bind to, in your tool's object
+> > properties* — and it must be given **once per document, not once per element**. A file carrying a
+> > dozen tool-generated ids would otherwise bury every warning that matters under a list of tick
+> > marks.
+> >
+> > A layout that targets something genuinely absent is still an error, and still reported per
+> > occurrence. That case is unchanged.
 
 **Colours:** hex (`#RGB`, `#RRGGBB`), `rgb()`, the standard named colours, and `none`.
 
@@ -927,6 +1003,14 @@ of DASH-specific knowledge in the one file the author is already writing.
 
 The lists above are the human-readable form. **The authoritative form is machine-readable
 data, read by both DASH's parser and the previewer** — never two hand-maintained lists.
+
+**That file is `svg-subset.json`, in the repository root beside this document** *(written 2026-08-12;
+this section previously described a file that did not yet exist)*. It carries the permitted elements
+and attributes, the transform functions, the 147 CSS colour names — Android's own colour parser knows
+about fifteen of them — and, for everything excluded, **the reason and the advice as text**. The
+messages live in the data too, not just the lists, so that both implementations tell an author the
+same thing in the same words. The build copies it into the app's assets, on the same
+one-file-in-git discipline as the licence.
 
 This is the previewer's Prime Directive (`panel-preview/CLAUDE.md`) and it exists because a
 previewer that disagrees with the app is worse than no previewer at all: it manufactures
@@ -977,7 +1061,7 @@ Recorded so that nobody re-proposes them without knowing they were considered.
 
 | Item | Blocking? |
 |---|---|
-| **Writing the subset as machine-readable data (§9)** — the lists are drafted in prose; the authoritative file both implementations read does not exist yet | **Yes** — before the parser |
+| **Implementing `gradientTransform` (§9)** — admitted to the subset 2026-08-12; the spike parses the coordinate modes but does not yet apply the transform, so a rotated Inkscape gradient draws along the wrong axis | No — but before 1.6.6 ships |
 | How many repeated action timeouts constitute a fault, and how it surfaces (§8) | No — tune against real hardware |
 | How DASH tells the user a module is hidden because it lacks the selected size (§6) | No — a Module Manager question, hardens at 1.6.8 |
 | Whether `translate` survives to the lock (§4.6) | No |
@@ -987,6 +1071,7 @@ Recorded so that nobody re-proposes them without knowing they were considered.
 
 | Item | Closed by |
 |---|---|
+| **The subset as machine-readable data (§9)** — open since this document was created, and the one item marked *blocking* | **Written 2026-08-12 — `svg-subset.json` at the repository root.** Drafted against a working parser and real Inkscape output rather than from the prose, which is what caught the missing gradient contents and the id warning being backwards. |
 | The JSON notation | Drafted 2026-08-06 (§9) |
 | Name scoping when two vector layers contain the same element id | The `layer#element` target form (§9) |
 | ACCESSORY variables/controls install-declaration framing — open since roadmap 1.4.4 | The layout *is* the declaration (§9) |
