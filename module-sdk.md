@@ -482,8 +482,26 @@ ride inside the bounded install handshake as length-prefixed, checksummed blocks
 **Capability tiering:** a rich ACCESSORY is realistic on ESP32+ (megabytes of flash). A
 classic Uno R3 (32 KB) builds SYSTEM modules (no payload).
 
-*(The panel **format** the blocks carry — layout slots, aspect ratios, overlay
-vocabulary — is not yet locked; see `arduino.md` §11. The transfer mechanism here is.)*
+> **Widened — 2026-08-12 (roadmap 1.6.x).** *(A clarification to an observation, not a change
+> to any rule in this locked document.)* The tiering above assumes assets live in the
+> microcontroller's own flash. **They need not.** A microSD card over SPI is three wires and
+> adds gigabytes, and many ESP32 boards already carry a slot.
+>
+> This matters more than it first appears because **a module never parses its own layout** —
+> it streams bytes out of storage verbatim, and the byte-count framing above is what makes
+> that possible. Understanding the payload is entirely DASH's job. So **a classic Uno R3 with
+> an SD card can ship a rich ACCESSORY panel**, despite having 32 KB of flash, because it
+> never needs to hold or comprehend a single byte of what it sends.
+>
+> Flash size therefore constrains *convenience*, not *capability*. What genuinely constrains a
+> large payload is **transfer time on a slow transport** — Bluetooth SPP at realistic
+> throughput turns a multi-megabyte install into a very long wait, where WiFi would not
+> notice it. See `module-layout.md` §2 for asset-size guidance; there are no caps.
+
+*(The panel **format** the blocks carry — layout slots, aspect ratios, the binding
+vocabulary — is not yet locked; see **`module-layout.md`**, which supersedes `arduino.md`
+§11 as the authority. The transfer mechanism here is locked and is not that document's
+business.)*
 
 ## 9. Streams — standard signals delivered to a subscriber
 
@@ -597,19 +615,34 @@ The wireless sibling of WiFi, over a Bluetooth serial link. Four builder duties:
 
 ---
 
-## Not locked — see `arduino.md`
+## Not locked — see `module-layout.md`
 
-Two areas remain live design and are **not** part of this locked reference. They lock in
-the panel era (roadmap 1.6.x), when the module panel is actually rendered:
+Two areas remain live design and are **not** part of this locked reference. They lock at
+**roadmap 1.6.10**, once real modules have been drawn through them:
 
-- **§11 — ACCESSORY panel & layout.** The canvas model (PNG background + overlays),
-  normalised coordinates, theme tokens (`@barText`), fixed layout-slot aspect ratios, and
-  the overlay vocabulary (text / touch / image / transform / animation) are **agreed in
-  direction** but the concrete numbers, the final overlay set, and the real layout format
-  are not frozen. `arduino.md` §11 holds the current design and a provisional test format.
+- **The ACCESSORY panel & layout** — how a module describes what DASH should draw. This now
+  has its own document: **`module-layout.md`**, the authoritative panel specification. Read
+  it there, not here and not in `arduino.md`.
 - **Open Items.** Asset-size caps (max icon / max layout panel), mismatch recovery detail
   (abort whole install vs re-request one block), and framing for panel VARIABLES /
-  per-trigger icons (likely the same `BLOCK` mechanism). `arduino.md` Open Items.
+  per-trigger icons (likely the same `BLOCK` mechanism). Tracked in `module-layout.md`'s
+  Open Items and `arduino.md`'s.
+
+> **Superseded — 2026-08-06.** This section previously described the panel as *"the canvas
+> model (PNG background + overlays), normalised coordinates, theme tokens (`@barText`) …
+> and the overlay vocabulary (text / touch / image / transform / animation)"*. Two parts of
+> that are now wrong rather than merely incomplete:
+>
+> - **"PNG background + overlays" is superseded by layers and bindings.** Raster, vector and
+>   text are all layer types; nothing is privileged as the background. The old framing
+>   quietly forced raster and vector to be two separate systems.
+> - **`@barText` does not exist.** The four `bar*` tokens were retired at roadmap 1.5.2 and
+>   replaced by nine — `@backgroundColourPrimary`, `@textColourPrimary`,
+>   `@accentColourPrimary` and their secondaries, plus `@iconColour*` and `@font`. A module
+>   written against the old names would have been written against a vocabulary DASH had
+>   already discarded. See `module-layout.md` §7.
+>
+> The line is kept per the additive rule. Do not implement from it.
 
 ---
 

@@ -834,6 +834,39 @@ carrying the **sender's** id.
 
 ## 11. ACCESSORY Module — Panel and Layout
 
+> **⚠️ PROMOTED — 2026-08-06 (roadmap 1.6.x). The specification now lives in
+> `module-layout.md`.**
+>
+> This section is **no longer the authority** on the panel format. Everything
+> normative has moved to **`module-layout.md`** in the repository root, which is
+> the single source of truth for layer types, targets, bindings, slots, theme
+> tokens and the SVG subset. Same treatment §1–§10 received when `module-sdk.md`
+> was promoted at 1.4.15: **the spec moves out, the reasoning stays here.**
+>
+> **Read this section for *why*. Read `module-layout.md` for *what*.**
+>
+> **Two things below are now superseded rather than merely provisional**, and are
+> kept per the additive rule — do not implement from them:
+>
+> - **The canvas model — "a PNG image as the visual foundation" with overlays
+>   placed on top.** Superseded by **layers and bindings**. Raster, vector and
+>   text are all layer types with none privileged as the background; coordinates
+>   and element names are both simply ways of naming a target. The old framing
+>   assumed one opaque raster at the bottom, which quietly forced raster and
+>   vector to be two separate systems with two separate specifications. It also
+>   had it backwards in emphasis: of the first three real panels designed against
+>   it, the PNG-foundation path was the one that needed the most hand-measuring,
+>   and vector — absent from this section entirely — turned out to be the
+>   pleasanter path to author.
+> - **The theme token examples `@barBackground`, `@barText`, `@barAccent`.**
+>   Those tokens **do not exist**. The four `bar*` tokens were retired at roadmap
+>   1.5.2 and replaced by nine. See `module-layout.md` §7 for the real set.
+>
+> **What remains sound below**, and was carried forward: normalised coordinates,
+> the `@` prefix convention for tokens, fixed aspect ratios per slot, the six
+> ratios drafted at 1.6.4, and ACCESSORY subscriptions behaving exactly as a
+> LISTENER's.
+
 > **Work in progress.** The concepts below are agreed. The concrete numbers —
 > final panel dimensions for each layout slot, and the full overlay vocabulary —
 > are **not yet locked**. Treat this section as direction, not a frozen spec.

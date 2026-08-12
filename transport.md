@@ -39,6 +39,18 @@ The old grammar is **left in place on purpose.** It is our working — it record
 
 When the SDK is finally locked, the `arduino.md` rules will be promoted into this document on Roger's express instruction, and this note removed.
 
+> **Update — 2026-08-06.** Two documents have since been promoted out of the working record, and they,
+> not `arduino.md`, are now what you should read:
+>
+> - **`module-sdk.md`** — the **locked** module SDK (roadmap 1.4.15). The message grammar, module types,
+>   lifecycle, handshake and asset transfer. This is the authority for everything the table above marks
+>   superseded.
+> - **`module-layout.md`** — the **panel specification** (roadmap 1.6.x, provisional until 1.6.10).
+>   How a module describes what DASH should draw. See the further note in the Installation Handshake
+>   section below.
+>
+> `arduino/arduino.md` continues as the working record — the reasoning and the history behind both.
+
 ---
 
 ## Core Philosophy
@@ -337,6 +349,33 @@ SYSTEM_SIGNALS:signal1,signal2,signal3
 The module declares which system signals it will send. DASH saves this list against the module ID.
 
 *For ACCESSORY modules:*
+
+> **⚠️ Panel & layout superseded — see `module-layout.md`.** *(Note added 2026-08-06, roadmap 1.6.x.)*
+>
+> Everything in this ACCESSORY subsection — the slot names, the size definitions, the display-mode
+> definitions, the fallback behaviour, and the `ICON:` / `VARIABLES:` / `TRIGGER_ICON:` declarations —
+> is **superseded by `module-layout.md`**, which is now the authoritative panel specification. It is
+> left in place per the additive rule: it records how the layout model reached its current shape.
+> **Do not implement from it.**
+>
+> **What changed:**
+>
+> | This document (superseded) | `module-layout.md` (authoritative) |
+> |---|---|
+> | `_light` / `_dark` slot suffixes | **`_day` / `_night`** — the switch is Ambient, genuinely day and night in a vehicle, not a theme's lightness |
+> | small / medium / large as **1× / 2× / 4× the system bar height** | **fixed ratios** — large 8×3, medium 16×3, small 16×1, each vertical slot its horizontal twin stood on its end. A panel cannot be tied to a measurement the user can move. |
+> | `ICON:` / `VARIABLES:` / `TRIGGER_ICON:` colon declarations | `MANIFEST` + `BLOCK` (`module-sdk.md` §8) |
+> | "PNG background plus overlays" | **layers and bindings** — raster, vector and text are all layer types; coordinates and element names are both ways of naming a target |
+>
+> **Still standing from below:** that every slot is optional; that a module must define at least one
+> slot to be a valid ACCESSORY; and that a missing night variant falls back to the day one.
+>
+> **One item is deprecated outright** *(ruled by Roger, 2026-08-06)*: the fallback sentence below says
+> DASH *"scales the nearest available size up to fill the space."* **It no longer applies.** DASH never
+> scales a layout into a shape it was not drawn for — stretching an 8×3 design into a 16×1 slot
+> misrepresents the author's work, and DASH forming an opinion about how someone's artwork should be
+> reshaped is exactly what the Module Mantra forbids. A panel is drawn as authored or not drawn at all.
+> See `module-layout.md` §6.
 
 The module provides layout data for up to twelve layout slots covering all combinations of size, orientation, and display mode. Each slot is optional — the module only needs to provide the slots it supports. DASH falls back gracefully when a requested slot is not defined.
 

@@ -317,6 +317,10 @@ The viewport extends underneath floating bars and panels which float above it as
 
 The module panel is the display area for installed accessory modules. DASH draws the container. The module fills it entirely. The module is king within its own domain — background colour, fonts, layout, controls, and all visual content within the panel boundary are defined by the module exclusively. DASH does not alter, override, or offer settings for module panel content.
 
+> **No drawable module, no panel — 2026-08-12 (roadmap 1.6.x).** The panel is drawn **only when an installed module has a layout for the currently selected size.** With none — nothing installed, or nothing providing that size — **the module panel is not drawn at all**, and the screen reclaims the space. This **supersedes the empty-box tenancy from 1.6.2** (*"DASH occupying the empty box is the one tenancy it is entitled to"*): it is not entitled to it. Reserving screen for content that does not exist is the same fault as stretching artwork to fill a shape it was not drawn for. A module lacking the selected size is simply not shown, and DASH never substitutes or scales another size in its place. See `module-layout.md` §6. *(Not yet built.)*
+
+> **The contents of the panel are specified in `module-layout.md`.** *(Pointer added 2026-08-06, roadmap 1.6.x.)* That document is the authority on everything **inside** the boundary — layer types, targets, bindings, the twelve slots, theme tokens and the SVG subset. This document owns the boundary itself: where the panel docks, what size it is, how it relates to the system bar, how it is revealed. **The wall is described here. What the king does inside it is described there.** Where the two disagree about panel contents, `module-layout.md` wins.
+
 ### Docking
 
 The module panel docks to any of the four screen edges — top, bottom, left, or right.
@@ -326,6 +330,8 @@ The module panel docks to any of the four screen edges — top, bottom, left, or
 - Left or right edge → vertical orientation → v_ layout slots used
 
 The user can override the automatic orientation if preferred.
+
+> **Superseded — 2026-08-06.** The slot suffixes are **`_day` / `_night`**, not `_light` / `_dark` — the switch is Ambient, genuinely day and night in a vehicle, rather than a theme's lightness, and a user may perfectly well run a dark DASH theme in daylight. See `module-layout.md` §6. *(The automatic-orientation rule above is also superseded — see the 2026-07-30 amendment further down, which carries the full reasoning.)*
 
 ### Panel Sizes
 

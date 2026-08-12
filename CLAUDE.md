@@ -132,6 +132,13 @@ The living definition of the DASH Module SDK — the complete, plain-language ru
 ### module-sdk.md — The Locked Module SDK
 The promoted, locked, public SDK reference — the clean present-tense contract a community builder copies. It carries the normative rules extracted from arduino.md once they were built and hardware-verified across 1.4.1–1.4.14: the message grammar and 2×2, the three module types, the lifecycle and firmware-version freshness check, the discovery/install handshake, asset transfer, the subscribe/deliver stream model, buffer sizes, and the per-transport builder duties (USB / WiFi / Bluetooth SPP). Read it for *what a module must do*; read arduino.md for *why*. **Locked at 1.4.15 — treat with Bible weight; it changes only by explicit, considered decision.** The ACCESSORY **panel/layout** spec and the Open Items are deliberately *not* locked here — they live in arduino.md §11 and lock in the panel era (1.6.x).
 
+### module-layout.md — The Panel Specification
+The authoritative definition of how an ACCESSORY module describes the panel it wants DASH to draw. The layers-and-bindings model, the three layer types (raster / vector / text), the three ways to name a target, the six bindings, transitions and effects, the twelve day/night layout slots, the theme tokens, and the SVG subset. If it concerns what appears *inside* the module panel boundary, the answer is here.
+
+Created 2026-08-06 (roadmap 1.6.x) by promoting the panel spec out of `arduino/arduino.md` §11 — the same move that produced `module-sdk.md` at 1.4.15. The spec lives here; the reasoning stays in the working record. Every other document now points here rather than keeping its own copy.
+
+**Provisional until roadmap 1.6.10.** A spec is not locked before it has been built against. It locks once real modules have been drawn through it — at which point it gains Bible weight and changes only by explicit, considered decision.
+
 ### interface.md — The Interface Bible
 Defines everything about how DASH looks and behaves. The three layer architecture, density and scale, the system bar and zone system, elements and the element SDK, the viewport and its three modes, the module panel, the app launcher, overlays and the overlay SDK, the navigation model, the settings panel and its full tree, soft limits and hard floors, and the eight design principles. If it involves anything the user sees or interacts with, the answer is in interface.md.
 
