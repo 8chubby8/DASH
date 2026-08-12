@@ -17,8 +17,8 @@ android {
         applicationId = "com.dash.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 38
-        versionName = "1.6.4"
+        versionCode = 39
+        versionName = "1.6.5"
 
         // Stamped so About DASH can say when this build was made — a sideloaded head unit has no
         // store listing to read a date from, and "which build is on the tablet" is the first

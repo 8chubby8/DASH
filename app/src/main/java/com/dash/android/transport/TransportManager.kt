@@ -140,6 +140,10 @@ class TransportManager(context: Context) {
                             _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.header, env.deviceKey))
                             _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.note, env.deviceKey))
                         }
+                        is Inbound.OversizeBlock -> {
+                            _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.header, env.deviceKey))
+                            _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.note, env.deviceKey))
+                        }
                     }
                     _inbound.tryEmit(env)   // origin (tag + device key) rides up to the controller (1.4.14)
                 }

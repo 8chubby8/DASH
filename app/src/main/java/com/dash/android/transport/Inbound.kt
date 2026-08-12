@@ -27,6 +27,20 @@ sealed interface Inbound {
         // (that would spew binary), just a readable note that this many bytes arrived.
         val note: String get() = "«${bytes.size} bytes»"
     }
+
+    /**
+     * A block whose header declared more bytes than DASH is willing to hold in memory at once
+     * (roadmap 1.6.5). The payload was **read and discarded** rather than kept — so the stream stays
+     * correctly framed and the next message parses normally — and this says so honestly.
+     *
+     * **Why it is not simply dropped.** The assembler must consume the declared bytes either way, or
+     * a payload full of newlines would be shredded into nonsense lines. Having consumed them, saying
+     * nothing would leave the install to die of the idle timeout with "stalled" against its name,
+     * which is not what happened. This carries the real reason up to the desk that can report it.
+     */
+    class OversizeBlock(val header: String, val declaredBytes: Int) : Inbound {
+        val note: String get() = "«$declaredBytes bytes — too large, discarded»"
+    }
 }
 
 /**

@@ -1,0 +1,7 @@
+{
+  "layers": [
+    { "id": "face",  "type": "raster", "asset": "dial.png" },
+    { "id": "gauge", "type": "vector", "asset": "gauge.svg" }
+  ],
+  "bindings": []
+}

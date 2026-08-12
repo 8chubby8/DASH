@@ -47,6 +47,47 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.5
+
+**Status:** Complete — an ESP32 ACCESSORY module installed over WiFi and reporting. Hardware-verified by Roger, 2026-08-12.
+
+**Scope:** The first module with a face. Every module before this one was invisible — a SYSTEM module publishes signals, a LISTENER consumes them, and neither puts anything on screen. This one ships the artwork DASH will draw, and gets it onto the tablet's disk intact.
+
+**Implemented:**
+
+- **`GaugeWifi`** (`arduino/current_sketches/GaugeWifi/`) — a **Tank Gauge** ACCESSORY on an ESP32 DevKitC, connecting to DASH as a TCP client on port 3274. Three blocks stream out of flash on `INSTALL`: `h_large_day` (the layout document), `dial.png` and `gauge.svg` (the artwork the layout refers to). Then SILENT until `ACTIVATE`, then `REPORT|id|tank_pressure|value` four times a second on a simulated sweep — no sensor, because this version is about the path rather than the plumbing.
+- **The layout is the declaration** (`module-layout.md` §9) made real: the sketch's `onInstall()` is a `MANIFEST` and three blocks and nothing else. There is no separate variable or control declaration to write, because the layout already names everything.
+- **`make_assets.py`** bakes `assets/` into a PROGMEM header with each **CRC32 computed at build time** (§8 permits it, and it saves reading every asset twice on a microcontroller). The files in `assets/` are the source of truth, so the artwork in the repository and the bytes on the board cannot drift apart.
+- **Blocks are streamed, never held whole in RAM** — 512 bytes at a time out of PROGMEM, with partial writes pushed to completion rather than assumed. **Deliberately not `flush()`**: on the ESP32 core that drains the *receive* buffer and would quietly eat inbound DASH messages mid-install.
+- **A hand-built ACCESSORY class in the sketch**, not in the library. `DashAccessory` stays deferred to 1.6.10 so that it is extracted from something proven on hardware rather than written from the specification — the same order 1.4.15 used for SYSTEM and LISTENER. This sketch is that draft.
+
+**What it proved:** 87,262 bytes crossed from an ESP32's flash to the tablet's disk **byte-for-byte identical** (MD5 matched on both assets), every CRC32 passing, the record committed with `crcOk: true` throughout. The open question of whether a real board could ship panel-sized artwork over a real transport is answered: it can, and it is not slow.
+
+**Regressions:**
+
+- **None** — but one long-standing defect was found and fixed before it could bite, see below.
+
+**Fixes:**
+
+- **The 64 KB asset block limit** (`FrameAssembler.maxBlockBytes`) — a **stale guard contradicting a same-day ruling**. Its own comment deferred to an open item — *"the real asset-size caps are an open item; this is a safe default"* — that had been closed hours earlier the other way: `module-layout.md` §2 rules there are **no** asset caps, DASH advises and degrades instead. The first real ACCESSORY payload was 78 KB and would have tripped it.
+- **And the failure mode was worse than the limit.** Over-size blocks fell through to `onInbound(Inbound.Line(line))`, so DASH never switched to counted reading and the PNG would have been shredded into nonsense lines at every `0x0A` byte in the compressed data — a baffling failure rather than an honest one. Now: the bound is an **8 MB sanity guard** against a corrupt header claiming gigabytes, and an over-size block is **read and discarded** so the stream stays framed, then reported as a new `FailReason.OVERSIZE` with a reason on the card. Whatever the number, exceeding it can no longer corrupt the stream.
+
+**Outstanding:**
+
+- **The panel still draws nothing.** The layout and artwork sit in `files/modules/0000DA58AC01/` unread — that wiring is 1.6.6, and this version deliberately stops at the disk.
+- **`h_large_day` was stored as an ordinary asset, not recognised as a layout.** §9 says a block whose name is a slot name *is* a layout, but **the twelve slot names are not enumerated anywhere machine-readable** — only `h_large_day` exists, as an example in the prose. That list is the first job of 1.6.6.
+- **`gradientTransform` is promised by the spec and not implemented** (carried from the same-day `module-layout.md` amendments). Not blocking here — nothing is drawn yet.
+- **A block is still buffered whole before its CRC can be checked**, so the 8 MB bound is also a heap bound. Streaming a large block to disk as it arrives is the eventual answer and is not needed at the sizes real panels use.
+
+**Notes:**
+
+- **A cold WiFi radio looks exactly like a broken one.** The first connections to the tablet timed out at four seconds and then succeeded at fifteen; once warm, every attempt landed in under 0.1 s. Nothing was wrong — the tablet's radio was dozing and the first SYN was dropped. Worth remembering before diagnosing anything else on a wireless bench.
+- **Opening a serial port resets an ESP32.** A run of reconnects and ACTIVE→SILENT→ACTIVE cycling looked like a link fault and was entirely self-inflicted by watching the board's own debug output; DTR pulses on open. `stty -hupcl` reads without resetting. The proof it was harmless came from DASH's own log: the board connected **once** and was never closed, while every churning connect/close carried the *laptop's* address.
+- **The wire log tells you who is talking by address, not by assumption.** That one detail turned a suspected firmware bug into a five-second diagnosis.
+- **Verified live on the development machine as well as on hardware** — Waydroid was installed this session, so DASH can now be seen running on the desktop, which is what made the day's earlier parser work checkable without a flash cycle. It cannot answer performance questions; it renders on the desktop's GPU.
+
+---
+
 ## Version 1.6.4
 
 **Status:** Complete — all three panel sizes, and the six slot ratios given real numbers. Hardware-verified by Roger, 2026-08-01.

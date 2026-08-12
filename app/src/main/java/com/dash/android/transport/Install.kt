@@ -39,6 +39,10 @@ import java.util.zip.CRC32
  *    waiting out the idle timeout.
  *  - **[FailReason.CORRUPT]** — an asset block whose CRC or length does not match (was the one
  *    unavoidable abort since 1.4.4; now it wears a designed fail state like the others).
+ *  - **[FailReason.OVERSIZE]** — an asset block bigger than DASH will hold in memory at once
+ *    (roadmap 1.6.5). The transport reads and discards the payload so the stream stays framed; this
+ *    desk then says why, rather than leaving the session to die of the idle timeout wearing
+ *    "stalled", which would have been a lie about what happened.
  * A user [cancel] is deliberate, so it is *not* a failure — it reverts the card cleanly with no badge.
  *
  * **Busy means in-flight, not badged.** [isBusy] counts only live [sessions], never a lingering
@@ -182,6 +186,26 @@ class Install(
         emitProgress(session)
     }
 
+    /**
+     * A block DASH refused to hold in memory (roadmap 1.6.5). The transport already read and
+     * discarded the payload to keep the stream framed, so nothing is corrupt — this module simply
+     * sent an asset larger than DASH will buffer, and the install cannot complete without it.
+     *
+     * It fails the install for the same reason a bad CRC does: the record would be missing an asset
+     * the layout refers to, and a panel with a hole in it is worse than an honest failure.
+     */
+    @Synchronized
+    fun onOversizeBlock(block: Inbound.OversizeBlock, origin: DeviceRef?) {
+        val parts = block.header.split('|')            // BLOCK|id|name|length|crc
+        val id = parts.getOrNull(1)?.trim().orEmpty()
+        val session = sessions[id] ?: return
+        touch(session, origin)
+        val name = parts.getOrNull(2)?.trim().orEmpty()
+        Log.w(TAG, "block '$name' declared ${block.declaredBytes} bytes, beyond what DASH will " +
+            "buffer — payload discarded, install aborted for $id")
+        fail(id, session, FailReason.OVERSIZE)
+    }
+
     /** `INSTALL_END|id` — hand the accumulated session to the database and close it here. */
     @Synchronized
     fun onInstallEnd(line: String) {
@@ -259,7 +283,7 @@ class Install(
 }
 
 /** How an install ended unhappily (roadmap 1.4.14). Each renders a distinct, honest reason on the card. */
-enum class FailReason { STALLED, DISCONNECTED, CORRUPT }
+enum class FailReason { STALLED, DISCONNECTED, CORRUPT, OVERSIZE }
 
 /**
  * What the Module Management card renders for a module the install desk is currently tracking.

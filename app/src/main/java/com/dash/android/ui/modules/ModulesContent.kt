@@ -359,6 +359,7 @@ private fun FailedContent(reason: FailReason, modifier: Modifier, onRetry: () ->
         FailReason.STALLED -> "Install stalled — no response"
         FailReason.DISCONNECTED -> "Module disconnected during install"
         FailReason.CORRUPT -> "Corrupt asset — install aborted"
+        FailReason.OVERSIZE -> "Asset too large for this device — install aborted"
     }
     Text(message, color = FAIL_ACCENT, fontSize = BODY, fontFamily = LocalDashTheme.current.font, modifier = modifier)
     ActionButton("DISMISS", INACTIVE, onDismiss)

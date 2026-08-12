@@ -28,9 +28,23 @@ import java.io.ByteArrayOutputStream
  */
 class FrameAssembler(
     private val maxLineBytes: Int = 1024,
-    // Provisional upper bound on a single asset block. Guards against a corrupt header claiming a
-    // vast length. The real asset-size caps are an open item (arduino.md §10); this is a safe default.
-    private val maxBlockBytes: Int = 64 * 1024,
+    /**
+     * Upper bound on a single asset block — **a sanity guard, not an asset-size policy** (roadmap
+     * 1.6.5). It exists so a corrupt or hostile header claiming two gigabytes cannot make DASH try
+     * to allocate two gigabytes. It is deliberately far above anything a real module sends.
+     *
+     * **It used to be 64 KB**, carrying the note *"the real asset-size caps are an open item
+     * (arduino.md §10); this is a safe default"*. That open item has since been closed the other
+     * way — `module-layout.md` §2 rules that **there are no asset caps**; DASH advises on size and
+     * degrades gracefully rather than refusing. The first real ACCESSORY payload built against the
+     * specification was 78 KB and would have been rejected by a limit the specification no longer
+     * endorses, so the number is now set where a guard belongs rather than where a policy would.
+     *
+     * *Known and deliberate: a block is still buffered whole before its CRC can be checked, so this
+     * bound is also a heap bound. Streaming a large block to disk as it arrives is the eventual
+     * answer and is not needed at the sizes real panels use.*
+     */
+    private val maxBlockBytes: Int = 8 * 1024 * 1024,
     private val onInbound: (Inbound) -> Unit
 ) {
     private val buffer = ByteArrayOutputStream()
@@ -41,6 +55,9 @@ class FrameAssembler(
     private var rawRemaining = 0
     private var pendingHeader: String? = null
 
+    /** In raw mode, but counting the bytes past rather than keeping them — see [completeLine]. */
+    private var discarding = false
+
     fun feed(data: ByteArray, length: Int) {
         var i = 0
         while (i < length) {
@@ -48,7 +65,7 @@ class FrameAssembler(
                 // Raw mode: take as many payload bytes as this chunk offers, in one copy. A '\n' in
                 // here is payload, counted like any other byte — never a delimiter.
                 val take = minOf(rawRemaining, length - i)
-                rawBuffer.write(data, i, take)
+                if (!discarding) rawBuffer.write(data, i, take)   // discarding: counted, not kept
                 i += take
                 rawRemaining -= take
                 if (rawRemaining == 0) emitBlock()
@@ -76,8 +93,16 @@ class FrameAssembler(
         val blockLen = blockLengthOrNull(line)
         when {
             blockLen == null -> onInbound(Inbound.Line(line))          // ordinary message
-            blockLen > maxBlockBytes -> onInbound(Inbound.Line(line))  // implausible: don't buffer it
             blockLen == 0 -> onInbound(Inbound.Block(line, ByteArray(0)))
+            blockLen > maxBlockBytes -> {
+                // Too large to hold — but the bytes are still coming, and they are still bytes. Read
+                // and discard them so the framing stays in step; anything else shreds a payload full
+                // of newlines into nonsense lines and corrupts every message after it. This used to
+                // pass the header on as an ordinary line and do exactly that.
+                pendingHeader = line
+                rawRemaining = blockLen
+                discarding = true
+            }
             else -> {                                                  // switch to raw mode
                 pendingHeader = line
                 rawRemaining = blockLen
@@ -87,7 +112,12 @@ class FrameAssembler(
 
     private fun emitBlock() {
         val header = pendingHeader ?: return
-        onInbound(Inbound.Block(header, rawBuffer.toByteArray()))
+        if (discarding) {
+            onInbound(Inbound.OversizeBlock(header, blockLengthOrNull(header) ?: 0))
+            discarding = false
+        } else {
+            onInbound(Inbound.Block(header, rawBuffer.toByteArray()))
+        }
         rawBuffer.reset()
         pendingHeader = null
     }
@@ -113,6 +143,7 @@ class FrameAssembler(
         rawBuffer.reset()
         rawRemaining = 0
         pendingHeader = null
+        discarding = false
     }
 
     private companion object {
