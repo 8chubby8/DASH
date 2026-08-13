@@ -112,6 +112,19 @@ class ModuleDatabase(context: Context) {
         }
     }
 
+    /**
+     * The file holding one of a module's asset blocks, or null if it never shipped that block
+     * (roadmap 1.6.6 — the panel is the reader these bytes were written for since 1.4.5).
+     *
+     * Named on the **wire** name, which is what a layout references (`"dial.png"`), not the
+     * sanitised filename the commit assigned. The two are usually the same and must not be assumed
+     * to be: a module is free to name a block something the filesystem is not.
+     */
+    fun assetFile(id: String, wireName: String): File? {
+        val file = _modules.value[id]?.assetFile(wireName) ?: return null
+        return File(File(dirFor(id), ASSETS_DIR), file).takeIf { it.isFile }
+    }
+
     private fun dirFor(id: String) = File(root, sanitise(id).ifBlank { "module" })
 
     /** A filesystem-safe name for an asset: wire name sanitised, blank fallback, collisions suffixed. */

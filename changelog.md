@@ -47,6 +47,54 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.6
+
+**Status:** Complete — a module's layout drawn on the panel, verified by Roger on the Tab S9 Ultra over **all three transports**, 2026-08-13.
+
+**Scope:** What the module sends is what the panel draws. 1.6.5 got a panel's artwork onto the tablet's disk and deliberately stopped there; this version reads it back and renders it, live, from the module's own data.
+
+**Implemented:**
+
+- **The twelve slot names became a type** (`panel/LayoutSlot.kt`) — derived from `PanelSize` plus orientation and ambient, never listed. `module-layout.md` §9 rules that a block named for a slot *is* a layout, and until now the names existed nowhere machine-readable, which is why 1.6.5's `h_large_day` landed as an ordinary asset. **`InstalledModule.slots` derives that classification from the block names already recorded**, so the 1.6.5 install was understood without a reinstall.
+- **The SVG parser shipped** — `SvgParser` / `SvgArt` / `SvgSubset` promoted out of the throwaway spike branch into `com.dash.android.panel`, with the harness and `SpikeConfig` binned. Artwork parses into DASH's own flat IR (named nodes, each holding a path built once at parse time), not an `ImageVector`, so a bound element is addressable by construction and a frame costs a matrix and a paint.
+- **`gradientTransform` implemented** — the one Open Item marked *"before 1.6.6 ships"*. Control points are taken through the gradient's own transform before being resolved against the shape, which is exact for translation, rotation and uniform scale — the rotation case Inkscape actually writes. A non-uniform scale or skew is approximated (a radius is one number) and **says so in a warning** rather than being discovered later.
+- **The layout engine** (`PanelLayout`, `PanelLayoutReader`, `PanelLoader`, `PanelContent`, `PanelBindings`) — layers and bindings, and nothing else. Raster, vector and text layers; `rotate`, `reveal`, `style` and `translate` driven live off `ModuleData`; theme tokens resolved **in the frame being drawn**, never flattened at install. Raster decoding halves on `OutOfMemoryError` rather than refusing (§2's degrade-don't-cap rule).
+- **The layout reader never throws.** Every field is read from the JSON tree by hand rather than decoded into data classes, so one mistyped value costs the author that value and not the panel. Decoding into `@Serializable` classes would have been tidier code and the wrong behaviour: `"opacity": "loud"` would blank the whole panel, and an unknown layer `type` would throw where the browser rule says skip.
+- **No layout, no panel** (§6, ruled 2026-08-12, previously unbuilt) — with no installed module able to fill the selected slot the panel is **absent from the screen arithmetic**, not merely skipped at draw time, so the settings blind reclaims the band. This supersedes 1.6.2's empty-box tenancy: reserving a strip of screen to display nothing is DASH taking space it has no content for.
+- **The Tank Gauge got real bindings** — `rotate` on `gauge#needle` about a pivot given as a fraction of *the element's* box, `reveal` on the bar, `translate` on the arrow head tracking it, a static `style` delegating the logo to `@accentColourPrimary`, a ranged `style` pulsing the lamp past 9 bar, and a text layer with one decimal and a ` bar` suffix that goes red at the same threshold.
+- **Two more transports, same panel.** `GaugeBt` (Bluetooth SPP) and `GaugeUsb` (USB serial) join `GaugeWifi`, all three reading **one shared `assets/` folder** so their payloads are byte-identical — the CRCs match across all three builds, which is what makes it a fair test rather than three similar tests.
+
+**What it proved:** A layout is installed once and read from disk from then on; nothing in a layout names a transport and nothing in the render path knows one exists. The panel being indistinguishable across WiFi, Bluetooth and USB is that separation holding up under test rather than being asserted in a document. It also means the `DashAccessory` helper due at 1.6.10 has had its draft written three times against three transports, which is good evidence about what belongs in the library.
+
+**Regressions:**
+
+- **None shipped.** One was introduced and removed during the session — see the progress-bar note under Outstanding.
+
+**Fixes:**
+
+- **`svg-subset.json` was never in the APK.** The Gradle task that copies it existed only on the spike branch and was never merged, so `SvgSubset.load()` threw on every boot and **no vector layer could draw on any build of main**. The first run showed the raster and the text and nothing else.
+- **And the failure was silent, which was the worse half.** The loader collected a perfectly good explanation and dropped it. Warnings now reach logcat, and the missing-subset case is reported **in DASH's own name** — an author told *"this is not an SVG DASH could read"* would go and stare at artwork that was fine.
+- **The Bluetooth board name went stale** (a 1.4.12 defect). `DeviceConnection.label` was read once at connect and frozen for the life of the link, so a reflashed board kept its previous name — DASH reconnects within seconds of a board rebooting, which is exactly the window before Android has learned the new one. A restart cleared it, which made it look like a cache; it was a race with a permanent memory. The sweep already read the current name every pass for the `D.A.S.H` marker test and threw it away; it now writes it down.
+
+**Outstanding:**
+
+- **USB serial delivers large payloads unreliably — deferred to 1.6.10.** An 88 KB panel arrives corrupt roughly two installs in five, always `lengthOk=true crcOk=false`: the right number of bytes and the wrong content. The identical bytes cross WiFi and Bluetooth perfectly, and both have flow control and retransmission underneath where a bare UART has neither — with XON/XOFF ruled out for good, because a PNG contains `0x11` and `0x13` freely. **57600 baud was tried and put back**: one failure in four against two in five is the same coin, so the cause is neither throughput nor bit time. The remedy agreed is a **per-block retry**; see the roadmap. *The per-block CRC already exists and is what catches this every time — nothing corrupt has ever reached the renderer.*
+- **The install progress bar advanced only at block boundaries** — a three-block payload gave three samples, and since the artwork is ~90% of it the bar sat at 1%, flicked to 90%, and finished. Over USB that is eight seconds of a motionless bar, which reads as a hung install. **Fixed in this version** (`Inbound.BlockProgress`, throttled to one report per 4 KB) but **not hardware-verified**: it is only visible on USB, USB is the transport that fails for the reasons above, and the bench board is currently carrying the 57600 build. It builds clean and is recorded here honestly rather than claimed.
+- **`touch` bindings are parsed and recorded in `PanelLayout.controls` but do nothing.** That is 1.6.7 by design, along with the optimistic update and the timeout that keeps optimism honest (§8).
+- **Panel warnings only reach logcat.** Their real home is the previewer, and later the Module Manager.
+- **Night slots are unreachable.** The Ambient switch is a version 2 setting, so DASH resolves `*_day` for the whole 1.6.x era. Night artwork a module ships today is accepted, stored and never selected.
+- **Bronze tier is still unmeasured.** This panel draws 22 elements at the Tab S9's full 120 Hz; nothing here says what an Android 7 device will do.
+- **Number formatting is `Locale.ROOT`**, so a module sending `10.5` never prints `10,5`. Whether a module should be able to *ask* for a localised number is a question for the 1.6.10 lock, not a default that should be chosen by accident.
+
+**Notes:**
+
+- **A diagnosis was called too early and was wrong.** The progress-bar change was blamed for the USB corruption on two failures against one success, and reverted; with the code fully reverted the next install failed too, on a different asset. The corruption was there from the start and simply hid behind a first-attempt success. Recorded because the lesson is cheap here and expensive later: **an intermittent fault will confirm whatever you tested last.**
+- **DASH now says *how* a block is corrupt, not just that it is.** It holds no reference copy to diff against, but the assembler always takes exactly the declared byte count — so if bytes were *lost*, the shortfall is made up from whatever arrived next and the payload's tail contains the start of the following message. Finding `BLOCK|` in the tail of a PNG is proof the stream slid; not finding it means bytes were altered in place. That distinction decides the remedy, and we had been guessing at it.
+- **The order of the three transforms in the vector renderer is load-bearing**, because each belongs in a different coordinate space: a `translate` is a fraction of the layer and must act in artwork space, a `rotate` is about the element's own box and must act inside it, and the artwork's own group transform sits between them. Getting it wrong is quiet rather than loud — a needle inside a translated group turns about a point off in the artwork, which reads as a wrong pivot rather than a wrong space.
+- **Bumping a module's firmware version is not bookkeeping.** DASH compares it against every `HELLO` (1.4.13), so a module whose layout has moved on while its version stands still keeps being drawn from the copy already on disk. The quarantine and its UPDATE button are what make an edited layout reach the panel.
+
+---
+
 ## Version 1.6.5
 
 **Status:** Complete — an ESP32 ACCESSORY module installed over WiFi and reporting. Hardware-verified by Roger, 2026-08-12.

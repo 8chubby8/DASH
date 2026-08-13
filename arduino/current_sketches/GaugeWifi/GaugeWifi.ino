@@ -144,8 +144,13 @@ class DashAccessoryDraft : public DashModule {
 
 /* -------- the module ---------------------------------------------------------- */
 // A distinct id from the SYSTEM modules on the bench so all of them can coexist.
+// **The version is bumped whenever the layout changes, and that is not bookkeeping.** DASH
+// captured this string at install and compares it against every HELLO (roadmap 1.4.13), so a
+// module whose artwork or bindings have moved on while its version stands still would keep
+// being drawn from the layout already on the tablet's disk. Bumping it is what makes DASH
+// quarantine the stale record and offer the update that re-runs the handshake.
 DashAccessoryDraft dash("0000DA58AC01", "Tank Gauge",
-                        "Air-ride tank pressure panel over WiFi", "v1.0");
+                        "Air-ride tank pressure panel over WiFi", "v1.2");
 
 /* -------- this board's own pretend tank --------------------------------------- */
 // No sensor wired up (roadmap 1.6.5 is about the path, not the plumbing), so the

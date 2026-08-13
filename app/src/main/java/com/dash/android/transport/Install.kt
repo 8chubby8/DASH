@@ -176,6 +176,7 @@ class Install(
         if (!lengthOk || !crcOk) {
             // A corrupt asset ends the install — now with a designed fail state, not a silent revert.
             Log.w(TAG, "block '$name' failed validation (lengthOk=$lengthOk crcOk=$crcOk) — install aborted for $id")
+            if (crcOk.not()) Log.w(TAG, "  ${characteriseCorruption(block.bytes)}")
             fail(id, session, FailReason.CORRUPT)
             return
         }
@@ -183,7 +184,65 @@ class Install(
         session.assets += InstalledAsset(name = name, bytes = block.bytes.size, crcOk = true)
         session.payloads += block.bytes
         session.receivedBytes += block.bytes.size
+        session.inFlightBytes = 0                      // committed now; the estimate has done its job
         emitProgress(session)
+    }
+
+    /**
+     * Part of a block has arrived (roadmap 1.6.6) — move the bar without committing anything.
+     *
+     * **This exists because the bar used to lie by standing still.** Progress advanced only as whole
+     * blocks committed, so a panel whose artwork is ~90% of its payload gave three sample points:
+     * 1%, then 90%, then done. Over USB that is eight seconds of a motionless bar in the middle,
+     * which reads as a failed install rather than a working one.
+     *
+     * **Nothing here is trusted.** These bytes have not been CRC-checked and the block may still
+     * fail, so they go to [InstallSession.inFlightBytes] — counted for display, abandoned on
+     * failure, replaced by the real figure when the block commits. They must never reach
+     * [InstallSession.receivedBytes], or an install that failed halfway would leave the bar
+     * remembering progress towards something that was thrown away.
+     *
+     * A report for a module with no open session is ordinary rather than suspicious — an install can
+     * be cancelled or time out while its bytes are still arriving — so it is dropped without a word.
+     */
+    @Synchronized
+    fun onBlockProgress(progress: Inbound.BlockProgress, origin: DeviceRef?) {
+        val id = progress.header.split('|').getOrNull(1)?.trim().orEmpty()
+        val session = sessions[id] ?: return
+        touch(session, origin)                         // arriving bytes are activity: hold the watchdog off
+        session.inFlightBytes = progress.received
+        emitProgress(session)
+    }
+
+    /**
+     * Say *how* a block is wrong, not merely that it is (2026-08-13, diagnosing USB corruption).
+     *
+     * **DASH has no reference copy to diff against** — only the CRC the module declared — so the
+     * usual "first differing byte" is not available. But one signature is, and it is the one that
+     * matters, because it separates the two causes:
+     *
+     *  - **Bytes were dropped upstream.** The assembler always takes exactly the declared count, so
+     *    a short delivery is made up from whatever arrives *next* — meaning the tail of the payload
+     *    contains the beginning of the following message. Finding `BLOCK|` or `INSTALL_END` in the
+     *    last stretch of a PNG is proof the stream lost bytes and slid.
+     *  - **Bytes were altered in place.** The count was right and nothing slid; some bytes are
+     *    simply wrong. That is corruption on the wire, not loss — a different fault with a
+     *    different remedy.
+     *
+     * A retry protocol fixes both, but only the first is fixed by slowing the link down, so it is
+     * worth knowing which one we have before designing anything.
+     */
+    private fun characteriseCorruption(bytes: ByteArray): String {
+        val tail = bytes.takeLast(TAIL_SCAN).toByteArray().toString(Charsets.ISO_8859_1)
+        val slid = listOf("BLOCK|", "INSTALL_END", "MANIFEST").firstOrNull { it in tail }
+        return if (slid != null) {
+            "the payload's tail contains '$slid' — bytes were LOST upstream and the stream slid " +
+                "to fill the count. A slower link or flow control would address this."
+        } else {
+            "the tail carries no following message, so the count was met in step — bytes were " +
+                "ALTERED in transit rather than lost. Slowing the link will not fix this; only a " +
+                "retry or a cleaner connection will."
+        }
     }
 
     /**
@@ -276,6 +335,10 @@ class Install(
         const val INSTALL = "INSTALL"
         const val TAG = "DashInstall"
 
+        /** How much of a failed payload's tail to scan for a following message. A block header is
+         *  well under this, and it stays clear of the payload's own content. */
+        const val TAIL_SCAN = 128
+
         /** Silence for this long during a handshake ⇒ stalled. Generous enough to cover the gaps
          *  between blocks of a real asset transfer, short enough to catch a wedged module promptly. */
         const val IDLE_TIMEOUT_MS = 10_000L
@@ -312,6 +375,15 @@ private class InstallSession(val seed: DiscoveredModule) {
     var totalBytes: Int? = null
     var receivedBytes: Int = 0
 
+    /**
+     * Bytes of the block currently arriving — **counted for the bar, never banked** (roadmap 1.6.6).
+     *
+     * Reset to zero when the block commits (its real size joins [receivedBytes]) and simply
+     * abandoned if it fails, so a corrupt asset cannot leave the bar remembering ground that was
+     * given back.
+     */
+    var inFlightBytes: Int = 0
+
     /** Where this install's declarations arrive from (roadmap 1.4.14) — captured on the first one,
      *  used to fail the session if that device leaves the bus. Null until the first declaration lands. */
     var origin: DeviceRef? = null
@@ -325,7 +397,7 @@ private class InstallSession(val seed: DiscoveredModule) {
     fun progress(): Float? {
         val total = totalBytes ?: return null
         if (total <= 0) return null
-        return (receivedBytes.toFloat() / total).coerceIn(0f, 1f)
+        return ((receivedBytes + inFlightBytes).toFloat() / total).coerceIn(0f, 1f)
     }
 
     fun record() = InstalledModule(

@@ -2,20 +2,23 @@ package com.dash.android.ui.modulepanel
 
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import com.dash.android.panel.PanelDocument
 import com.dash.android.ui.theme.LocalDashTheme
 
 /**
  * The module panel — the display area an installed ACCESSORY module owns (roadmap 1.6.2).
  *
  * **DASH draws the container. The module fills it.** This file is the container and stops at its
- * boundary: a plain filled box, no border, no radius, no content. Everything *inside* the boundary
- * belongs to the module — background, art, fonts, controls — and DASH never reaches in. Nothing
- * fills it yet; the first real module arrives at 1.6.5 and its layout is rendered at 1.6.6.
+ * boundary: a plain filled box, no border, no radius, no content of its own. Everything *inside*
+ * the boundary belongs to the module — background, art, fonts, controls — and DASH never reaches
+ * in. Since 1.6.6 a real module fills it, drawn from the layout document it shipped at install.
  *
  * **Shape, not size.** The panel is a fixed aspect ratio, not a measurement — that is what lets a
  * module drawn once render correctly on a phone, a tablet and a head unit alike. The author draws
@@ -39,21 +42,37 @@ object ModulePanelSpec {
 }
 
 /**
- * The persistent module panel container.
+ * The module panel — the container, and the module's panel drawn inside it.
  *
- * Sized and positioned entirely by the caller, which owns the screen geometry — this draws the box
- * and nothing else. The fill is `backgroundColourPrimary`, the same token the rest of DASH's chrome
- * uses. It is a default to be drawn over rather than a designed frame: when a module owns this box
- * the fill is simply never seen. With no module installed there is no king in the castle, so DASH
- * occupying the empty box is the one tenancy it is entitled to — and it ends the moment a module
- * claims the space.
+ * Sized and positioned entirely by the caller, which owns the screen geometry. **DASH draws the
+ * container and stops at its boundary**: no border, no radius, no padding, nothing of DASH's own
+ * inside the walls. [PanelContent] fills it with what the module described and nothing else.
+ *
+ * The fill beneath is `backgroundColourPrimary` — a floor to draw on rather than a designed frame,
+ * and one a full-panel layer covers completely. It is visible only where a module's own layout
+ * leaves it visible, which is the module's decision to have made.
+ *
+ * **This composable is never reached with no module to draw.** §6's *no layout, no panel* rule is
+ * settled a level up, in [rememberActivePanel] and the screen geometry that reads it, because the
+ * absence has to change the *layout of the screen* rather than merely what this box contains.
  */
 @Composable
-fun ModulePanel(width: Dp, height: Dp, modifier: Modifier = Modifier) {
+fun ModulePanel(
+    document: PanelDocument,
+    values: Map<String, String>,
+    width: Dp,
+    height: Dp,
+    modifier: Modifier = Modifier,
+) {
     val theme = LocalDashTheme.current
     Box(
         modifier = modifier
             .size(width.coerceAtLeast(0.dp), height.coerceAtLeast(0.dp))
             .background(theme.backgroundColourPrimary)
-    )
+            // The king's walls are the edge of his domain in both directions: nothing DASH draws
+            // reaches in, and nothing the module draws spills out over DASH's own surfaces.
+            .clipToBounds()
+    ) {
+        PanelContent(document = document, values = values, modifier = Modifier.fillMaxSize())
+    }
 }

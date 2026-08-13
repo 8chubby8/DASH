@@ -81,6 +81,24 @@ val copyLicence by tasks.registering(Copy::class) {
 }
 tasks.named("preBuild") { dependsOn(copyLicence) }
 
+/**
+ * Ship the SVG subset with the app (roadmap 1.6.6).
+ *
+ * **This is the previewer's Prime Directive as a line of build script.** `svg-subset.json` at the
+ * repository root is the authoritative definition of the SVG DASH renders, read by the parser here
+ * and by `panel-preview` — never two hand-maintained lists, because a subset kept in two places
+ * diverges silently and in the direction that hurts most: a previewer showing something the app
+ * cannot draw. One file, in git, copied to both consumers.
+ *
+ * Same discipline and same reasoning as [copyLicence] above, including copying into the source
+ * assets rather than a generated directory.
+ */
+val copySvgSubset by tasks.registering(Copy::class) {
+    from(rootProject.file("svg-subset.json"))
+    into(layout.projectDirectory.dir("src/main/assets"))
+}
+tasks.named("preBuild") { dependsOn(copySvgSubset) }
+
 dependencies {
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.lifecycle.runtime.ktx)

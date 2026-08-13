@@ -41,6 +41,26 @@ sealed interface Inbound {
     class OversizeBlock(val header: String, val declaredBytes: Int) : Inbound {
         val note: String get() = "«$declaredBytes bytes — too large, discarded»"
     }
+
+    /**
+     * How far through the block currently being read the assembler has got (roadmap 1.6.6).
+     *
+     * **The one [Inbound] that is not a completed unit**, and it belongs here rather than in a side
+     * channel because it is a *framing* fact — how far into the current frame we are — which is
+     * exactly what this class knows and nothing above it does. Riding the normal stream also means
+     * it arrives stamped with its device origin for free, in order with the block it describes.
+     *
+     * **Why it had to exist.** The install progress bar advanced only when a whole block committed,
+     * so a three-block ACCESSORY payload gave it three sample points — and since the artwork is
+     * typically ~90% of the payload, the bar sat at 1%, jumped to 90%, and finished. Over USB, where
+     * 88 KB takes some eight seconds, that reads as a hung install. The assembler was counting the
+     * bytes down the whole time and saying nothing.
+     *
+     * **Advisory only.** [received] is bytes *arrived*, not bytes *accepted* — nothing here has been
+     * CRC-checked and the block may yet fail. The install desk must use it for display and never let
+     * it reach a committed total, or a failed block would leave phantom progress behind.
+     */
+    class BlockProgress(val header: String, val received: Int, val declared: Int) : Inbound
 }
 
 /**

@@ -58,6 +58,9 @@ class FrameAssembler(
     /** In raw mode, but counting the bytes past rather than keeping them — see [completeLine]. */
     private var discarding = false
 
+    /** Payload size at the last [Inbound.BlockProgress] — the throttle's watermark. */
+    private var lastProgressAt = 0
+
     fun feed(data: ByteArray, length: Int) {
         var i = 0
         while (i < length) {
@@ -68,7 +71,7 @@ class FrameAssembler(
                 if (!discarding) rawBuffer.write(data, i, take)   // discarding: counted, not kept
                 i += take
                 rawRemaining -= take
-                if (rawRemaining == 0) emitBlock()
+                if (rawRemaining == 0) emitBlock() else emitProgress()
             } else {
                 when (val b = data[i++].toInt()) {
                     NEWLINE -> completeLine()
@@ -110,6 +113,27 @@ class FrameAssembler(
         }
     }
 
+    /**
+     * Say how far through the current block we are, at most once per [PROGRESS_STEP_BYTES].
+     *
+     * **Throttled because a UART hands over tiny reads.** At 115200 baud the driver delivers a few
+     * dozen bytes at a time, so an unthrottled report would fire thousands of times per asset and
+     * spend more effort saying the install is happening than on the install. Every 4 KB gives around
+     * twenty updates across a typical panel payload, which is smooth to the eye and costs nothing.
+     *
+     * **A discarded over-size block reports nothing.** Its bytes are being counted past, not
+     * received, and there is no install to move a bar for — the desk is about to be told the block
+     * was refused, and progress towards something already lost would be a lie.
+     */
+    private fun emitProgress() {
+        if (discarding) return
+        val header = pendingHeader ?: return
+        val received = rawBuffer.size()
+        if (received - lastProgressAt < PROGRESS_STEP_BYTES) return
+        lastProgressAt = received
+        onInbound(Inbound.BlockProgress(header, received, received + rawRemaining))
+    }
+
     private fun emitBlock() {
         val header = pendingHeader ?: return
         if (discarding) {
@@ -120,6 +144,7 @@ class FrameAssembler(
         }
         rawBuffer.reset()
         pendingHeader = null
+        lastProgressAt = 0
     }
 
     /**
@@ -144,10 +169,14 @@ class FrameAssembler(
         rawRemaining = 0
         pendingHeader = null
         discarding = false
+        lastProgressAt = 0
     }
 
     private companion object {
         const val NEWLINE = '\n'.code
         const val CARRIAGE_RETURN = '\r'.code
+
+        /** How much payload must arrive between progress reports. See [emitProgress]. */
+        const val PROGRESS_STEP_BYTES = 4 * 1024
     }
 }

@@ -3,6 +3,8 @@
  * This module's install payload, baked into flash. Assets are streamed a chunk at a
  * time straight out of PROGMEM (module-sdk.md §8), never held whole in RAM — which is
  * what lets a board with kilobytes of memory ship a panel of any size.
+ *
+ * Generated from ../GaugeWifi/assets — the same artwork the WiFi module ships.
  */
 #ifndef GAUGE_ASSETS_H
 #define GAUGE_ASSETS_H

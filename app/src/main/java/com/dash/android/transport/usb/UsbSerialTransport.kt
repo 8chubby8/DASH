@@ -359,6 +359,21 @@ class UsbSerialTransport(
 
     private companion object {
         const val ACTION_USB_PERMISSION = "com.dash.android.USB_PERMISSION"
+        /**
+         * The project's serial rate, matched by every module's firmware.
+         *
+         * **Tried at 57600 and put back** (2026-08-13, roadmap 1.6.6). An 88 KB ACCESSORY panel
+         * payload arrives corrupt over USB roughly two installs in five — always a failed CRC on a
+         * full-length block, so the right *number* of bytes and the wrong *content*. The identical
+         * bytes cross WiFi and Bluetooth perfectly; both carry flow control and retransmission
+         * underneath, and a bare UART has neither (XON/XOFF is ruled out for good, because a PNG
+         * contains `0x11` and `0x13` freely).
+         *
+         * Halving the rate changed nothing measurable — one failure in four against two in five,
+         * which is the same coin. So the cause is neither throughput nor bit time, and there was no
+         * reason to keep paying double the transfer time for it. The remedy is a per-block retry,
+         * designed at 1.6.10; see the roadmap.
+         */
         const val BAUD_RATE = 115200
         const val DATA_BITS = 8
         const val WRITE_TIMEOUT_MS = 2000

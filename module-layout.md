@@ -1061,7 +1061,6 @@ Recorded so that nobody re-proposes them without knowing they were considered.
 
 | Item | Blocking? |
 |---|---|
-| **Implementing `gradientTransform` (§9)** — admitted to the subset 2026-08-12; the spike parses the coordinate modes but does not yet apply the transform, so a rotated Inkscape gradient draws along the wrong axis | No — but before 1.6.6 ships |
 | How many repeated action timeouts constitute a fault, and how it surfaces (§8) | No — tune against real hardware |
 | How DASH tells the user a module is hidden because it lacks the selected size (§6) | No — a Module Manager question, hardens at 1.6.8 |
 | Whether `translate` survives to the lock (§4.6) | No |
@@ -1071,6 +1070,7 @@ Recorded so that nobody re-proposes them without knowing they were considered.
 
 | Item | Closed by |
 |---|---|
+| **Implementing `gradientTransform` (§9)** — admitted to the subset 2026-08-12, unimplemented by the spike, so a rotated Inkscape gradient drew along the wrong axis | **Built 2026-08-13 (roadmap 1.6.6).** Control points are taken through the gradient's own transform *before* being resolved against the shape — exact for translation, rotation and uniform scale, which is the case Inkscape actually writes. A non-uniform scale or skew is approximated, because Compose's `Brush` takes control points rather than a matrix and a radius is one number; the parser **warns** when it does so rather than leaving the author to find an elliptical gradient drawn round. |
 | **The subset as machine-readable data (§9)** — open since this document was created, and the one item marked *blocking* | **Written 2026-08-12 — `svg-subset.json` at the repository root.** Drafted against a working parser and real Inkscape output rather than from the prose, which is what caught the missing gradient contents and the id warning being backwards. |
 | The JSON notation | Drafted 2026-08-06 (§9) |
 | Name scoping when two vector layers contain the same element id | The `layer#element` target form (§9) |

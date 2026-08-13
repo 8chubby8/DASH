@@ -140,6 +140,10 @@ class TransportManager(context: Context) {
                             _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.header, env.deviceKey))
                             _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.note, env.deviceKey))
                         }
+                        // Deliberately silent. The monitor is a view of what came down the wire,
+                        // and a progress report is DASH counting its own bytes, not a module saying
+                        // anything — twenty per asset would bury the messages that are real.
+                        is Inbound.BlockProgress -> Unit
                         is Inbound.OversizeBlock -> {
                             _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.header, env.deviceKey))
                             _wire.tryEmit(WireEvent(now, WireDirection.IN, t.tag, frame.note, env.deviceKey))

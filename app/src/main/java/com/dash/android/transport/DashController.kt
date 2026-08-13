@@ -174,6 +174,7 @@ class DashController(private val transport: TransportManager, context: Context) 
                     is Inbound.Line -> route(frame.text, env.transportTag, origin)
                     is Inbound.Block -> install.onBlock(frame, origin)   // asset payload → straight to the desk
                     is Inbound.OversizeBlock -> install.onOversizeBlock(frame, origin)
+                    is Inbound.BlockProgress -> install.onBlockProgress(frame, origin)
                 }
             }
         }

@@ -208,10 +208,40 @@ class BluetoothSppTransport(
             val skip = synchronized(this) {
                 connections.containsKey(address) || !connecting.add(address)
             }
-            if (skip) continue                                   // already open, or a connect in flight
+            if (skip) { refreshLabel(device); continue }         // already open, or a connect in flight
             openDevice(device)                                   // launches its own IO coroutine
         }
         publishState()
+    }
+
+    /**
+     * Keep a live connection's label in step with what the board now calls itself.
+     *
+     * **The right name was already passing through this sweep and being thrown away.** Every pass
+     * reads `device.name` for the marker test above, including for devices that are already
+     * connected — so the current name is in hand every few seconds, and before 1.6.6 the connection
+     * went on displaying whatever string happened to be true at the instant it was opened.
+     *
+     * That is only ever wrong in one situation, but it is a situation this project is in constantly:
+     * **reflash a board with a new name and DASH reconnects faster than Android updates its remote
+     * name**, so the stale value is the one captured, and it then sticks for the life of the link.
+     * A restart cleared it, which made it look like a cache rather than a race. It was a race with a
+     * permanent memory.
+     *
+     * Refreshing here rather than through `ACTION_NAME_CHANGED` is deliberate: the broadcast is the
+     * event-driven answer, and it costs a receiver and its lifecycle to improve on *correct within
+     * one sweep* — for a label. The sweep already holds the answer; it only had to write it down.
+     */
+    private fun refreshLabel(device: BluetoothDevice) {
+        val current = labelFor(device)
+        val changed = synchronized(this) {
+            val conn = connections[device.address] ?: return
+            if (conn.label == current) false else { conn.label = current; true }
+        }
+        if (changed) {
+            Log.i(TAG, "${device.address} is now called $current")
+            publishState()
+        }
     }
 
     /** A bonded device is a DASH module if its name carries the [NAME_MARKER] token (transport.md /
@@ -231,7 +261,7 @@ class BluetoothSppTransport(
      */
     private fun openDevice(device: BluetoothDevice) {
         val address = device.address
-        val label = isDashModuleLabel(device)
+        val label = labelFor(device)
         scope.launch(Dispatchers.IO) {
             val socket: BluetoothSocket = try {
                 device.createRfcommSocketToServiceRecord(SPP_UUID)
@@ -265,7 +295,7 @@ class BluetoothSppTransport(
     }
 
     /** Best-effort human label — the module's Bluetooth name, falling back to its MAC. */
-    private fun isDashModuleLabel(device: BluetoothDevice): String =
+    private fun labelFor(device: BluetoothDevice): String =
         try {
             device.name?.takeIf { it.isNotBlank() } ?: device.address
         } catch (e: SecurityException) {
@@ -308,7 +338,16 @@ class BluetoothSppTransport(
      */
     private inner class DeviceConnection(
         val address: String,
-        val label: String,
+        /**
+         * The board's Bluetooth name — **refreshed by the sweep, not frozen at connect** (1.6.6).
+         *
+         * It was a `val` until a reflashed board kept showing its previous name. A remote device's
+         * name is the one identifying fact here that can *change while the link is up*, so reading
+         * it once is reading it at the worst possible moment: DASH reconnects within seconds of a
+         * board rebooting, which is exactly the window before Android has learned the new name. See
+         * [refreshLabels] for why the fix belongs in the sweep.
+         */
+        @Volatile var label: String,
         private val socket: BluetoothSocket
     ) : java.io.Closeable {
 

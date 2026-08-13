@@ -82,6 +82,9 @@ import com.dash.android.ui.modulepanel.ModulePanelConfig
 import com.dash.android.ui.modulepanel.ModulePanelSpec
 import com.dash.android.ui.modulepanel.PanelEdge
 import com.dash.android.ui.modulepanel.effectiveEdge
+import com.dash.android.ui.modulepanel.rememberActivePanel
+import com.dash.android.ui.modulepanel.slotFor
+import com.dash.android.ui.modulepanel.valuesFor
 import com.dash.android.ui.settings.SettingsShell
 import com.dash.android.ui.theme.DashTheme
 import com.dash.android.ui.theme.LocalDashTheme
@@ -277,7 +280,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // Settings Links offers Android's own home-settings and default-apps screens, which is
             // where a "make me the launcher" action belongs anyway.
 
-            // The module panel is permanent, so every other DASH surface measures around it.
+            // The module panel measures the screen for every other DASH surface — **when there is
+            // one to measure.**
             //
             // **The long edge is the docked edge minus what the bar has already taken from it**
             // (Roger, 1.6.3). Docked top or bottom the bar is on the opposite horizontal edge and
@@ -285,10 +289,24 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // spans the full width at top or bottom and eats into the vertical run, so the panel
             // runs the screen height *less the bar* — which also means changing the bar height
             // resizes a vertical panel.
+            //
+            // **No layout, no panel** (module-layout.md §6, ruled 2026-08-12, built at 1.6.6). With
+            // no installed module able to fill the selected slot there is no panel at all, and the
+            // screen reclaims the space rather than reserving a strip to display nothing. That is
+            // why the thickness below is zero rather than the panel merely being skipped at the
+            // point it would be drawn: every inset on this screen is measured from it, so an absent
+            // panel has to be absent from the arithmetic too, or settings would still roll out into
+            // a band that had been set aside for a king who never arrived.
             val barThickness = barConfig.heightDp.dp
             val panelEdge = effectiveEdge(modulePanelConfig.edge, barConfig.position)
+            val panelDocument = rememberActivePanel(
+                database = controller.database,
+                slot = slotFor(modulePanelConfig.size, panelEdge),
+            )
+            val panelValues = controller.moduleData.valuesFor(panelDocument?.moduleId)
             val panelLongEdge = if (panelEdge.horizontal) screenWidth else (maxHeight - barThickness)
-            val panelThickness = ModulePanelSpec.thicknessFor(modulePanelConfig.size, panelLongEdge)
+            val panelThickness = if (panelDocument == null) 0.dp else
+                ModulePanelSpec.thicknessFor(modulePanelConfig.size, panelLongEdge)
             val panelWidth = if (panelEdge.horizontal) screenWidth else panelThickness
             val panelHeight = if (panelEdge.horizontal) panelThickness else panelLongEdge
 
@@ -517,7 +535,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // workspace holding nothing but the bar, its ruler and Save/Cancel, and a panel this
             // size would crowd the ruler being dragged. Permanent means permanent on the home
             // screen, not inside a temporary task.
-            if (!editMode) {
+            if (!editMode && panelDocument != null) {
                 // A vertical panel starts below a top bar and ends above a bottom one, so it always
                 // clears the bar rather than running under it.
                 val panelTargetX = if (panelEdge == PanelEdge.RIGHT) screenWidth - panelWidth else 0.dp
@@ -533,6 +551,8 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 val panelH by animateDpAsState(panelHeight, moveSpec, label = "modulePanelH")
 
                 ModulePanel(
+                    document = panelDocument,
+                    values = panelValues,
                     width = panelW,
                     height = panelH,
                     modifier = Modifier.align(Alignment.TopStart).offset(x = panelX, y = panelY),

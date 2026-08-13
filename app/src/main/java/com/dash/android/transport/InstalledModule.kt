@@ -1,5 +1,6 @@
 package com.dash.android.transport
 
+import com.dash.android.panel.LayoutSlot
 import kotlinx.serialization.Serializable
 
 /**
@@ -17,9 +18,13 @@ import kotlinx.serialization.Serializable
  *
  * Since 1.4.5 this record is **persistent**: the [ModuleDatabase] serialises it to disk on commit and
  * reloads it every boot, making DASH the single source of truth for install state (arduino.md §6).
- * (ACCESSORY variables and interactive controls — the other half of the panel contract — have no
- * locked install-declaration framing yet, arduino.md §10, so they are not part of this record until
- * that framing is agreed.)
+ *
+ * **The ACCESSORY half of the record needs no more fields than this** *(settled at 1.6.6)*. An item
+ * had been open since 1.4.4 for the framing of an ACCESSORY's variable and control declarations —
+ * *"the other half of the panel contract"*. There is no framing to lock, because there is no
+ * separate declaration: **the layout is the declaration** (`module-layout.md` §9). Every variable a
+ * module reports and every control it accepts is named inside the layout documents it shipped as
+ * blocks, so [assets] already carries both, and [slots] reads back which shapes it can be drawn in.
  */
 @Serializable
 data class InstalledModule(
@@ -31,7 +36,31 @@ data class InstalledModule(
     val signals: List<String> = emptyList(),
     val subscriptions: List<Subscription> = emptyList(),
     val assets: List<InstalledAsset> = emptyList()
-)
+) {
+    /**
+     * The layout slots this module can be drawn in (roadmap 1.6.6).
+     *
+     * **Derived from the block names, never stored.** `module-layout.md` §9 rules that a block
+     * carrying a slot name *is* a layout and any other block is an asset — so the classification is
+     * a function of what was already recorded at install, and writing it down as a second field
+     * would only create something that could disagree with the first. The same discipline
+     * `PanelSize.aspect` uses.
+     *
+     * It also means a module installed **before** DASH could recognise a layout needs no reinstall:
+     * 1.6.5's Tank Gauge shipped `h_large_day` and it landed on disk as an ordinary asset, because
+     * the twelve names existed nowhere machine-readable. They do now, and the record it wrote is
+     * read correctly without being touched.
+     *
+     * A layout whose CRC failed is not offered — a half-arrived document is not a layout DASH can
+     * honestly say it holds.
+     */
+    val slots: List<LayoutSlot>
+        get() = assets.filter { it.crcOk }.mapNotNull { LayoutSlot.forName(it.name) }
+
+    /** The stored file holding [name]'s bytes, or null if this module never shipped that block. */
+    fun assetFile(name: String): String? =
+        assets.firstOrNull { it.name == name && it.crcOk }?.file?.takeIf { it.isNotBlank() }
+}
 
 /**
  * One `SUBSCRIBE|id|function|rate|threshold|gate|gate_value` line from a LISTENER (arduino.md §9). The
