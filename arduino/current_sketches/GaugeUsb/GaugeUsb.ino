@@ -145,12 +145,16 @@ unsigned long lastReport = 0;
 const unsigned long REPORT_MS = 250;
 
 void setup() {
-  // 115200, matching DASH's UsbSerialTransport and every other sketch. **Tried at 57600 and put
-  // back** (2026-08-13): an 88 KB payload arrives corrupt over USB roughly two installs in five,
-  // and halving the rate changed nothing measurable — one in four against two in five, the same
-  // coin. So the cause is neither throughput nor bit time, and the remedy is a per-block retry
-  // (roadmap 1.6.10) rather than a slower wire. The board on the bench may still be carrying the
-  // 57600 build; reflash it from here before expecting USB to work.
+  // 115200 — the project's one serial rate, matched by DASH's UsbSerialTransport and every other
+  // sketch. Do not change it here alone; a mismatch is silent, and it presents as a board that
+  // enumerates perfectly and then never answers DISCOVER, because both ends are talking noise at
+  // each other. If USB ever goes quiet after a firmware experiment, check this line first.
+  //
+  // **57600 was tried and rejected** (2026-08-13, roadmap 1.6.6). An 88 KB panel payload arrives
+  // corrupt over USB roughly two installs in five; halving the rate changed nothing measurable —
+  // one failure in four against two in five, the same coin. So the cause is neither throughput nor
+  // bit time, and the remedy is a per-block retry (1.6.10), not a slower wire. Recorded so nobody
+  // spends the afternoon trying it again.
   Serial.begin(115200);
   dash.begin(Serial);            // Serial IS the wire — nothing else may write to it
 }
