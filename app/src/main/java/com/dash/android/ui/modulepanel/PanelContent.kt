@@ -5,10 +5,19 @@ import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.waitForUpOrCancellation
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.size
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.unit.toSize
 import androidx.compose.ui.draw.drawWithContent
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.geometry.Rect
@@ -31,6 +40,7 @@ import com.dash.android.panel.PanelDocument
 import com.dash.android.panel.RasterLayer
 import com.dash.android.panel.TextAlign
 import com.dash.android.panel.TextLayer
+import com.dash.android.panel.TouchBinding
 import com.dash.android.panel.VectorLayer
 import com.dash.android.ui.theme.LocalDashTheme
 
@@ -52,12 +62,14 @@ fun PanelContent(
     document: PanelDocument,
     values: Map<String, String>,
     modifier: Modifier = Modifier,
+    onPress: (TouchBinding) -> Unit = {},
 ) {
     val theme = LocalDashTheme.current
-    val dynamics = rememberDynamics(document.layout, values, theme)
+    var pressed by remember(document) { mutableStateOf<Int?>(null) }
+    val dynamics = rememberDynamics(document.layout, values, theme, pressed)
     val measurer = rememberTextMeasurer()
 
-    BoxWithConstraints(modifier) {
+    BoxWithConstraints(modifier.panelPresses(document, onPress) { pressed = it }) {
         val panelWidth = maxWidth
         val panelHeight = maxHeight
 
@@ -125,6 +137,41 @@ fun PanelContent(
                 }
             }
         }
+    }
+}
+
+/**
+ * Presses on the panel, routed to the binding under the finger (roadmap 1.6.7).
+ *
+ * **The action fires on the way down**, which is what §4.2 says — *"on press, DASH sends
+ * `ACTION`"* — and is also the only honest reading of press feedback: a control that lights under
+ * the finger and does nothing until it is let go has already told the user it acted.
+ *
+ * **The whole panel is one gesture handler, not a pressable box per binding.** Pressability is a
+ * property the layout attaches to targets that were drawn for other reasons — a named path inside
+ * a vector layer is not a Compose element and never can be — so the press is resolved against the
+ * layout rather than against the composition. It also keeps the drawing code free of it entirely:
+ * nothing in the layer stack knows a press exists.
+ *
+ * A press that lands on nothing is left unconsumed, so it stays available to whatever is underneath
+ * the panel rather than being swallowed by a surface that had no use for it.
+ */
+private fun Modifier.panelPresses(
+    document: PanelDocument,
+    onPress: (TouchBinding) -> Unit,
+    setPressed: (Int?) -> Unit,
+): Modifier = pointerInput(document) {
+    awaitEachGesture {
+        val down = awaitFirstDown(requireUnconsumed = false)
+        val hit = document.hitTest(size.toSize(), down.position) ?: return@awaitEachGesture
+        down.consume()
+        setPressed(hit.index)
+        onPress(hit.binding)
+        // Feedback lasts exactly as long as the finger does. Cancellation — a scroll elsewhere
+        // stealing the gesture — ends it the same way a lift does, because either way the finger
+        // is no longer on the control.
+        waitForUpOrCancellation()
+        setPressed(null)
     }
 }
 

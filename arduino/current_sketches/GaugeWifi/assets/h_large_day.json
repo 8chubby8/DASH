@@ -4,19 +4,13 @@
     { "id": "gauge", "type": "vector", "asset": "gauge.svg" },
 
     { "id": "readout", "type": "text", "value": "tank_pressure",
-      "at": [0.41, 0.60], "fontSize": 0.20, "align": "left",
+      "at": [0.425, 0.35], "fontSize": 0.20, "align": "left",
       "font": "monospace", "decimals": 1, "suffix": " bar", "colour": "#e8e8ea" }
   ],
 
   "bindings": [
     { "bind": "rotate", "target": "gauge#needle", "value": "tank_pressure",
       "pivot": [0.5, 0.831], "from": [0, 11], "to": [-140, 140], "ease": 400 },
-
-    { "bind": "reveal", "target": "gauge#bar_fill", "value": "tank_pressure",
-      "from": [0, 11], "direction": "right", "ease": 400 },
-
-    { "bind": "translate", "target": "gauge#arrow_head", "value": "tank_pressure",
-      "from": [0, 11], "to": [[-0.3675, 0], [0, 0]], "ease": 400 },
 
     { "bind": "style", "target": "gauge#logo", "colour": "@accentColourPrimary" },
 
@@ -26,6 +20,15 @@
 
     { "bind": "style", "target": "readout", "value": "tank_pressure",
       "cases":   [ { "above": 9, "colour": "#ff3b30" } ],
-      "ease": 300 }
+      "ease": 300 },
+
+    { "bind": "touch", "target": "gauge#btn_minus", "control": "pressure_down",
+      "feedback": { "colour": "#4fc3f7" }, "ease": 120 },
+
+    { "bind": "touch", "target": "gauge#btn_zero", "control": "tank_pressure", "value": "0",
+      "feedback": { "colour": "#4fc3f7" }, "ease": 120 },
+
+    { "bind": "touch", "target": "gauge#btn_plus", "control": "pressure_up",
+      "feedback": { "colour": "#4fc3f7" }, "ease": 120 }
   ]
 }

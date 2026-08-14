@@ -64,11 +64,35 @@ class DashAccessoryDraft : public DashModule {
     endMsg();
   }
 
+  // A control on the panel was pressed. The builder gets the control name and
+  // the value the layout attached to it — an empty string for a momentary one.
+  void onAction(void (*cb)(const char* control, const char* value)) { _onAction = cb; }
+
+  // Just went ACTIVE. **Send everything you have here** (§8): the panel is drawn
+  // from DASH's store, and until something arrives there is nothing in it, so a
+  // module that waits for its next change leaves the panel blank until then.
+  void onActivate(void (*cb)()) { _onActivate = cb; }
+
  protected:
-  // Deliberately empty. The other two sketches log the lifecycle to a spare
-  // UART; here the only stream available is the wire itself, and nothing may
-  // print to it.
-  void onActivated() override {}
+  // No logging here, unlike the other two: the only stream available on this
+  // board is the wire itself, and nothing may print to it. The state dump is the
+  // same as theirs — it goes down the wire, which is where it belongs.
+  void onActivated() override { if (_onActivate) _onActivate(); }
+
+  /* ACTION|id|control|value — the inbound half of the specific column, and the
+     only message an ACCESSORY receives that is about its own panel.
+
+     The base class has already checked the id, so anything arriving here was
+     addressed to this module. A control this module does not recognise is
+     ignored in silence: the layout on the tablet may be newer than the firmware
+     on the board, and refusing a press with an error would turn an ordinary
+     version skew into a fault. */
+  void onCommand(int argc, char** argv) override {
+    if (strcmp(argv[0], "ACTION") != 0) return;
+    if (argc < 3) return;
+    if (_onAction) _onAction(argv[2], argc > 3 ? argv[3] : "");
+  }
+
   void onDeactivated() override {}
 
   /* The install payload. MANIFEST first as a table of contents, so DASH can show
@@ -123,6 +147,9 @@ class DashAccessoryDraft : public DashModule {
   }
 
   static const uint16_t CHUNK = 512;   // one working buffer, reused for every asset
+
+  void (*_onAction)(const char*, const char*) = nullptr;
+  void (*_onActivate)() = nullptr;
 };
 
 /* -------- the module ---------------------------------------------------------- */
@@ -132,17 +159,49 @@ class DashAccessoryDraft : public DashModule {
 // being drawn from the layout already on the tablet's disk. Bumping it is what makes DASH
 // quarantine the stale record and offer the update that re-runs the handshake.
 DashAccessoryDraft dash("0000DA58AC03", "Tank Gauge USB",
-                        "Air-ride tank pressure panel over USB serial", "v1.0");
+                        "Air-ride tank pressure panel over USB serial", "v1.1");
 
 /* -------- this board's own pretend tank --------------------------------------- */
-// No sensor wired up, so the value is generated. A slow sweep across the full range
-// makes the whole scale visible without anyone having to turn anything.
+// No sensor wired up, so the value is held rather than measured. It moves only when
+// the panel asks it to — nothing here runs on a timer, so every movement on screen is
+// attributable to the press that caused it.
 float pressure = 0.0;
-bool  rising   = true;
-const float PRESSURE_MIN = 0.0, PRESSURE_MAX = 11.0, PRESSURE_STEP = 0.1;
+const float PRESSURE_MIN = 0.0, PRESSURE_MAX = 11.0, PRESSURE_STEP = 1.0;
 
-unsigned long lastReport = 0;
-const unsigned long REPORT_MS = 250;
+unsigned long lastHeartbeat = 0;
+const unsigned long HEARTBEAT_MS = 2000;
+
+// Everything this module knows, said out loud. One variable today; a real one
+// would say all of them here, because the panel is drawn from what DASH has been
+// told and nothing else.
+void dumpState() {
+  dash.report("tank_pressure", pressure, 1);
+}
+
+/* A press arrived. Move the tank, clamp it, and say where it ended up.
+
+   THE CLAMP IS NOT A REFUSAL. Pressing PLUS at 11 bar reports 11 again — the
+   module heard, and could not comply, and says so by stating the truth. There is
+   no error message for it and there should not be: DASH draws facts (§8), and
+   the fact is that the tank did not move.
+
+   The report goes out unconditionally, including when nothing changed, because
+   this is the acknowledgement as well as the value — §8 has no separate ROGER
+   for actions, and a press that produced no change still needs answering or
+   DASH is left waiting on a prediction nobody will ever confirm. */
+void onPanelAction(const char* control, const char* value) {
+  if      (strcmp(control, "pressure_up")   == 0) pressure += PRESSURE_STEP;
+  else if (strcmp(control, "pressure_down") == 0) pressure -= PRESSURE_STEP;
+  else if (strcmp(control, "tank_pressure") == 0) pressure = atof(value);
+  else return;                       // not ours — stay quiet rather than answer
+
+  if (pressure > PRESSURE_MAX) pressure = PRESSURE_MAX;
+  if (pressure < PRESSURE_MIN) pressure = PRESSURE_MIN;
+
+  // No logging: on this board the only stream available is the wire itself.
+  dash.report("tank_pressure", pressure, 1);
+  lastHeartbeat = millis();
+}
 
 void setup() {
   // 115200 — the project's one serial rate, matched by DASH's UsbSerialTransport and every other
@@ -156,6 +215,8 @@ void setup() {
   // bit time, and the remedy is a per-block retry (1.6.10), not a slower wire. Recorded so nobody
   // spends the afternoon trying it again.
   Serial.begin(115200);
+  dash.onAction(onPanelAction);  // a button on the panel was pressed
+  dash.onActivate(dumpState);    // §8: the panel is correct from its first frame
   dash.begin(Serial);            // Serial IS the wire — nothing else may write to it
 }
 
@@ -164,11 +225,8 @@ void loop() {
   if (!dash.isActive()) return;  // SILENT until DASH says otherwise (§6)
 
   unsigned long now = millis();
-  if (now - lastReport >= REPORT_MS) {
-    lastReport = now;
-    pressure += rising ? PRESSURE_STEP : -PRESSURE_STEP;
-    if (pressure >= PRESSURE_MAX) { pressure = PRESSURE_MAX; rising = false; }
-    if (pressure <= PRESSURE_MIN) { pressure = PRESSURE_MIN; rising = true;  }
-    dash.report("tank_pressure", pressure, 1);
+  if (now - lastHeartbeat >= HEARTBEAT_MS) {
+    lastHeartbeat = now;
+    dumpState();
   }
 }

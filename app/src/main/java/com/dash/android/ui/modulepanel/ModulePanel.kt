@@ -10,6 +10,7 @@ import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dash.android.panel.PanelDocument
+import com.dash.android.panel.TouchBinding
 import com.dash.android.ui.theme.LocalDashTheme
 
 /**
@@ -63,6 +64,7 @@ fun ModulePanel(
     width: Dp,
     height: Dp,
     modifier: Modifier = Modifier,
+    onPress: (TouchBinding) -> Unit = {},
 ) {
     val theme = LocalDashTheme.current
     Box(
@@ -73,6 +75,11 @@ fun ModulePanel(
             // reaches in, and nothing the module draws spills out over DASH's own surfaces.
             .clipToBounds()
     ) {
-        PanelContent(document = document, values = values, modifier = Modifier.fillMaxSize())
+        PanelContent(
+            document = document,
+            values = values,
+            modifier = Modifier.fillMaxSize(),
+            onPress = onPress,
+        )
     }
 }

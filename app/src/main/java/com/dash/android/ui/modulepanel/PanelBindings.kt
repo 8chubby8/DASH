@@ -44,13 +44,15 @@ fun rememberDynamics(
     layout: PanelLayout,
     values: Map<String, String>,
     theme: DashTheme,
+    pressed: Int? = null,
 ): Map<String, Dynamic> {
     val merged = mutableMapOf<String, Dynamic>()
     layout.bindings.forEachIndexed { index, binding ->
         val named = binding.target as? BindingTarget.Named ?: return@forEachIndexed
         // Keyed by position so each binding keeps its own animation state across recompositions.
         // The list is fixed for the life of a document, so the structure never shifts underneath.
-        val dynamic = key(index) { dynamicFor(binding, values, theme) } ?: return@forEachIndexed
+        val dynamic = key(index) { dynamicFor(binding, values, theme, index == pressed) }
+            ?: return@forEachIndexed
         val at = named.toString()
         merged[at] = merged[at]?.mergedWith(dynamic) ?: dynamic
     }
@@ -71,6 +73,7 @@ private fun dynamicFor(
     binding: PanelBinding,
     values: Map<String, String>,
     theme: DashTheme,
+    pressed: Boolean,
 ): Dynamic? {
     val raw = binding.variable?.let { values[it] }
     if (binding.variable != null && raw == null) return null
@@ -117,9 +120,18 @@ private fun dynamicFor(
             styleDynamic(effect, binding.ease, theme, binding.pulsePeriod())
         }
 
-        // Parsed, recorded in PanelLayout.controls, and honoured at 1.6.7 along with the optimistic
-        // update and the timeout that keeps optimism honest (§8).
-        is TouchBinding -> null
+        // Press feedback (§4.2, roadmap 1.6.7) — **momentary, and about the interaction**, which is
+        // what distinguishes it from `style`: a `style` binding says what the module's state *is*,
+        // this says only that a finger is on the control right now. It is local and immediate, and
+        // nothing about it involves the module or waits for it.
+        //
+        // The effect is built whether or not the control is pressed, with the press choosing only
+        // its target — the same discipline the style animations follow above. Building it on press
+        // would make the release snap back while the press eased in, so a control with a 200 ms
+        // fade would light gently and go out like a switch.
+        is TouchBinding -> binding.feedback?.let { feedback ->
+            styleDynamic(if (pressed) feedback else StyleEffect(), binding.ease, theme, null)
+        }
     }
 }
 

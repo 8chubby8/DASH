@@ -9,7 +9,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.platform.LocalContext
-import com.dash.android.core.ModuleData
 import com.dash.android.panel.Ambient
 import com.dash.android.panel.LayoutSlot
 import com.dash.android.panel.PanelDocument
@@ -98,18 +97,6 @@ fun slotFor(size: PanelSize, edge: PanelEdge): LayoutSlot =
         ambient = Ambient.DAY,
     )
 
-/**
- * One module's reported variables, flattened to plain strings for the layout to read.
- *
- * **Keyed by module id, and the id is never consumed** — a `REPORT` variable belongs to one
- * module's panel and nowhere else (1.4.9). Two modules may each have a `temperature`; they are
- * different data in different panels and can never collide.
- */
-@Composable
-fun ModuleData.valuesFor(moduleId: String?): Map<String, String> {
-    val all by values.collectAsState()
-    return remember(all, moduleId) {
-        if (moduleId == null) emptyMap()
-        else all[moduleId].orEmpty().mapValues { it.value.value }
-    }
-}
+// The panel's values moved to PanelPress.kt at 1.6.7. Reading the store was only half the story
+// once a control could be pressed: what the panel draws is the module's reported variables *with
+// any outstanding prediction laid over the top*, and that belongs with the press that made it.

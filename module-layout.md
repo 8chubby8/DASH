@@ -586,6 +586,31 @@ When a `touch` binding fires, DASH sends `ACTION|id|control|value` and **updates
 immediately**, without waiting for the module. The module then confirms by reporting its new
 state, and DASH reconciles.
 
+> **A control's name *is* the variable it predicts, and its `value` is the prediction.**
+> *(Amended 2026-08-14, roadmap 1.6.7 — built against, and Roger's ruling. This was assumed
+> throughout the section from the day it was written and stated nowhere, which is the kind of
+> gap that only shows up when somebody implements it.)*
+>
+> Everything above depends on it. A press of `control: "preset", value: "high"` is confirmed by
+> `REPORT|id|preset|high`, and the reconcile can only match the two because they carry the same
+> name. Without the rule DASH would know a press had been sent and have no idea which variable to
+> draw ahead of.
+>
+> **So a `touch` binding's `control` names a variable the module reports, and its `value` is the
+> value that variable is expected to take.** Read that way, an `ACTION` is simply *"set this to
+> this"*, and the confirming `REPORT` is *"it is now this"* — which is why no separate
+> acknowledgement message was ever needed.
+>
+> **A control with no `value` predicts nothing**, and that is where the momentary case below comes
+> from. It is not a special case in DASH; it falls out of the rule. There is nothing to draw ahead
+> of, so nothing to time out and nothing to revert.
+>
+> **What the rule does not do is constrain what a control may be.** A button that means *"one more
+> than whatever it is now"* cannot name its result in advance, so it carries no value and is
+> momentary — the panel moves when the module says it moved. That is a perfectly good control and
+> the format has no arithmetic to offer it (§10). An author who wants a press drawn instantly gives
+> it a literal.
+
 **Three outcomes, of which only one is a fault:**
 
 | The module reports | Meaning | DASH does |
@@ -756,9 +781,15 @@ Common to every binding:
 
 | Field | Required | Meaning |
 |---|---|---|
-| `control` | yes | The control name sent as `ACTION\|id\|control\|value`. |
-| `value` | no | The value sent. Omitted sends an empty value field. |
+| `control` | yes | The control name sent as `ACTION\|id\|control\|value`. **It is also the variable this press predicts** — see §8. |
+| `value` | no | The value sent, and the value that variable is expected to take. Omitted sends no value field at all, which makes the control momentary (§8). |
 | `feedback` | no | Appearance applied while pressed — `colour` and/or `opacity`. Local and immediate; nothing to do with the module (§8). |
+
+> *Both rows amended 2026-08-14 (roadmap 1.6.7), alongside §8's rule. `control` gained the half of
+> its job the table never mentioned, and `value` previously read "omitted sends an empty value
+> field" — it sends **no** field, so an omitted value produces `ACTION|id|control` rather than a
+> line with a trailing separator. That is the same shape an event-only broadcast takes, and it is
+> what a momentary control actually means on the wire.*
 
 **`style`**
 

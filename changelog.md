@@ -47,6 +47,55 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.7
+
+**Status:** Complete — a module's panel pressed, and both ends answering. Hardware-verified by Roger on the Tab S9 Ultra over WiFi and Bluetooth, 2026-08-14.
+
+**Scope:** Data between the two devices. 1.6.6 drew what the module sent; this version makes the panel a thing you can operate, and closes the loop back to the board.
+
+**Implemented:**
+
+- **`touch` bindings are honoured** — parsed since 1.6.6 and doing nothing until now. All three target routes are pressable (`module-layout.md` §3), and the third is the one that earned its own file (`PanelTouch.kt`): `layer#element` points at a named path *inside* parsed artwork, so finding it means walking the renderer's own coordinate chain backwards — the node's accumulated group transform, the artwork's uniform fit into its layer, the layer's box within the panel. Getting that wrong would have been invisible rather than obvious: the button draws in the right place and answers somewhere else.
+- **The press area is the element's bounding box at its authored position.** Not its outline — a `+` drawn as two thin bars is a button, not two bars, and hit-testing the path would make the gaps in the author's own glyph into dead spots. And not where a binding has *moved* it to: a control that slid away from your finger as you reached would be indefensible, so the drawn position is deliberately not consulted.
+- **DASH imposes no minimum touch size.** A control too small to hit is a mistake the author can see and fix in their own artwork; DASH silently inflating it would be reaching inside the panel boundary to correct a design decision. The previewer is where that should be said out loud.
+- **Press feedback** (§4.2) — momentary, local, and about the interaction rather than the state, which is what separates it from `style`. The effect is built whether or not the control is pressed, with the press choosing only its target; building it on press would make a 120 ms fade light gently and go out like a switch.
+- **The optimistic update, and the timeout that keeps it honest** (§8). Predictions live in a layer *in front of* `ModuleData`, never inside it — that store holds what modules have said, and a prediction is what DASH expects them to say next. Writing one into the store would have made the State Inspector report a reading no module ever sent. The two are merged only in the map the panel draws from.
+- **§8's three outcomes need only two mechanisms.** Any report of the variable after the press retires the prediction, so "it worked" and "it heard and could not comply" both simply end with the panel drawing what the module actually said. Only silence is a fault.
+- **The Tank Gauge became a thing you drive.** The sweep is gone — it proved the needle moved and could never prove *why* it moved. Now nothing moves unless a button is pressed, so every movement on screen is attributable to the press that caused it. Three controls, chosen to cover both halves of §8: **PLUS/MINUS** are momentary, because "one more than it is now" is not a value anyone can name in advance; **ZERO** names the variable and carries a literal, which is the only control on the panel that exercises optimism at all.
+- **The clamp is not a refusal.** Pressing PLUS at 11 bar reports 11 again, and the module reports it unconditionally because the `REPORT` is the acknowledgement as well as the value. That gives §8's middle row a test without building anything for it.
+- **`DashAccessoryDraft` gained `onAction` and `onActivate` hooks**, in the library's own function-pointer idiom, across all three sketches — the draft the 1.6.10 helper is extracted from, now with the inbound half written. A control the firmware does not recognise is ignored in silence: the layout on the tablet may be newer than the firmware on the board, and refusing a press with an error would turn ordinary version skew into a fault.
+- **The state dump on `ACTIVATE` is now load-bearing** (§8). With the value held rather than generated, this is the first module that would show a blank panel without it.
+
+**Documentation:**
+
+- **`module-layout.md` §8 gained the rule it had always assumed** *(amended 2026-08-14)*: **a touch binding's `control` is the variable it predicts, and its `value` is the prediction.** The whole reconcile depends on the two carrying the same name, and the spec stated it nowhere — the kind of gap that only surfaces when somebody implements it. **A control with no value predicts nothing**, which is where §8's momentary case comes from: it is not a special case in DASH, it falls out of the rule.
+- **§9's `touch` table carried an actual error**, corrected and flagged rather than quietly overwritten: `value` read *"omitted sends an empty value field"*. It sends **no** field — `ACTION|id|control`, no trailing separator, the same shape an event-only broadcast takes. The old text would have had a firmware author parsing for a field that never arrives.
+
+**Regressions:**
+
+- **None shipped.** One defect was introduced and fixed within the version — below.
+
+**Fixes:**
+
+- **The optimistic update had no clock, and the needle stuck.** Found by Roger on hardware, doing exactly the test that was asked for: up to 7 bar, board powered off, press ZERO. The needle went to zero and stayed there indefinitely. **Cause: the coroutine that expires predictions was keyed only on the module's report map.** It ran once at composition, found nothing outstanding, fell straight out of its loop and *completed* — and a press arriving afterwards changed neither key, so nothing restarted it. The optimistic write worked perfectly; the timeout that was supposed to make it honest was never running. **The same defect killed the escalation counter**, which could never increment because nothing ever timed out. Both return with one fix: the predictions are now part of the key, so a press restarts the loop.
+- **The general lesson, recorded because it is cheap here:** a `LaunchedEffect` that polls state must be keyed on the state that decides whether it should be polling, or it only ever answers the question it was asked at composition.
+- **Verified on hardware afterwards, on both transports**, and the escalation counter with it — the module's own log is the evidence rather than anybody's recollection: `1 action(s) unanswered within 1500ms — reverted (1 in a row)` on the WiFi build, then `(1 in a row)` and `(2 in a row)` on the Bluetooth one. The second of those is the half that could not previously have been reached at all.
+
+**Outstanding:**
+
+- **`translate` is not a removal candidate, and should not be raised as one at the lock.** The 1.6.7 redesign dropped the arrow head, so nothing in the current build uses it — but §4.6's test is whether it was *ever* proven, and it was, at 1.6.6, against real artwork. Removing a proven binding because today's panel stopped needing it would decide on behalf of every author who has not built theirs yet. Recorded here so the question is not re-opened at 1.6.10 on a reading of "unused" that was never meant.
+- **How many repeated timeouts constitute a fault, and how it surfaces**, remains §8's open item. The count is kept and logged; no threshold and no badge have been invented for it, because that wants tuning against real hardware rather than guessing.
+- **USB serial's large-payload corruption** is unchanged and still deferred to 1.6.10 with the per-block retry. Nothing in this version touches it — an `ACTION` is a short line, not a block.
+- **Night slots are still unreachable**, the **panel warnings still only reach logcat**, **Bronze tier is still unmeasured**, and **number formatting is still `Locale.ROOT`** — all carried forward from 1.6.6 unchanged.
+
+**Notes:**
+
+- **A panel can be tested against DASH's own parser with no board at all.** Staging a module record and its assets into `files/modules/<id>/` with `run-as` and restarting DASH makes `PanelLoader` read the layout for real and log every warning — which caught that the new artwork parsed cleanly (only the three deliberate out-of-subset warnings) hours before any hardware was connected. A rendered mock-up cannot prove that; it only proves the design. **The staged record is a forgery and must be uninstalled before a real board installs**, or the board will match its version and skip the handshake.
+- **The two boards are the same module twice, and DASH treats them as two.** `GaugeWifi` is `0000DA58AC01` and `GaugeBt` is `0000DA58AC02`, both claiming the large horizontal slot — and 1.6.6 draws the first that can fill it, in database order. So the second installs correctly, sits on disk and never appears, which looks like a failed install and is not one. Swiping between them is 1.6.8, and this is the concrete case that version exists for.
+- **A locked, dozing tablet does not accept incoming TCP**, however healthy the transport is. The board dialled correctly for the better part of an hour against a DASH whose accept loop had bound its port without complaint. Ping answered in 60–110 ms — the WiFi power-save signature — while port 3274 timed out. Worth knowing before diagnosing a WiFi module that "will not connect".
+
+---
+
 ## Version 1.6.6
 
 **Status:** Complete — a module's layout drawn on the panel, verified by Roger on the Tab S9 Ultra over **all three transports**, 2026-08-13.

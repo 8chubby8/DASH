@@ -84,7 +84,7 @@ import com.dash.android.ui.modulepanel.PanelEdge
 import com.dash.android.ui.modulepanel.effectiveEdge
 import com.dash.android.ui.modulepanel.rememberActivePanel
 import com.dash.android.ui.modulepanel.slotFor
-import com.dash.android.ui.modulepanel.valuesFor
+import com.dash.android.ui.modulepanel.rememberPanelPresses
 import com.dash.android.ui.settings.SettingsShell
 import com.dash.android.ui.theme.DashTheme
 import com.dash.android.ui.theme.LocalDashTheme
@@ -303,7 +303,13 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 database = controller.database,
                 slot = slotFor(modulePanelConfig.size, panelEdge),
             )
-            val panelValues = controller.moduleData.valuesFor(panelDocument?.moduleId)
+            // What the panel draws, and what a press on it does (1.6.7). The values are the
+            // module's own reports with any outstanding optimistic update laid over the top.
+            val panelPresses = rememberPanelPresses(
+                moduleData = controller.moduleData,
+                actions = controller.actions,
+                moduleId = panelDocument?.moduleId,
+            )
             val panelLongEdge = if (panelEdge.horizontal) screenWidth else (maxHeight - barThickness)
             val panelThickness = if (panelDocument == null) 0.dp else
                 ModulePanelSpec.thicknessFor(modulePanelConfig.size, panelLongEdge)
@@ -552,10 +558,11 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
 
                 ModulePanel(
                     document = panelDocument,
-                    values = panelValues,
+                    values = panelPresses.values,
                     width = panelW,
                     height = panelH,
                     modifier = Modifier.align(Alignment.TopStart).offset(x = panelX, y = panelY),
+                    onPress = panelPresses.press,
                 )
             }
 
