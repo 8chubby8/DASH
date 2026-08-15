@@ -1,0 +1,125 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+   DASH Module — Climate panel artwork          slot: h_large (8 x 3)
+   ==================================================================
+   Fan stepper left, temperature stepper right, mode buttons across the
+   top, and a cabin diagram in the middle whose zones are both the
+   display and the control.
+
+   THE COLOURS HERE ARE FALLBACKS, NOT THE DESIGN.
+     The layout delegates the background to @backgroundColourPrimary and
+     every raised surface to @backgroundColourSecondary, with the glyphs
+     and lettering on the icon and text tokens (module-layout.md §7). So
+     the panel follows whatever theme the user has chosen, and the module
+     never has to know what those colours are.
+
+     The literals below are what an author sees in Inkscape, which is why
+     the file stays plain, valid and previewable with no DASH-specific
+     markup in it. On the tablet they are all replaced.
+
+   NO STROKES ON THE SURFACES. A  colour replaces fill and stroke
+     together (§4.3's open item), so a bordered button delegated to a
+     token would lose its border into its own fill. The surfaces are flat
+     fills and the separation comes from the two background tokens.
+
+   EVERY ELEMENT A BINDING TOUCHES IS NAMED. Anything with no id is
+   decoration and nothing points at it.
+
+   THE LETTERING IS PATHS, NOT TEXT. <text> is outside the DASH subset,
+   so AUTO was set in a real typeface and converted with
+   Inkscape's Path > Object to Path.
+
+   THE LIVE NUMBERS ARE NOT HERE. Fan speed and temperature are text
+   LAYERS drawn by DASH from the module's values (§2), so the space under
+   each label is deliberately empty artwork.
+-->
+<svg
+   width="800"
+   height="300"
+   viewBox="0 0 800 300"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+
+  <rect id="bg" x="0" y="0" width="800" height="300" fill="#101013" />
+
+  <!-- ========================================= FAN, left -->
+  <path id="fan_panel" fill="#1e1e22" d="M 40 34 H 116 Q 132 34 132 50 V 250 Q 132 266 116 266 H 40 Q 24 266 24 250 V 50 Q 24 34 40 34 Z" />
+  <path id="fan_up"    fill="#1e1e22" d="M 44 42 H 112 Q 124 42 124 54 V 84 Q 124 96 112 96 H 44 Q 32 96 32 84 V 54 Q 32 42 44 42 Z" />
+  <path id="fan_up_glyph" fill="#c8c8cc" d="M 66.5 65.5 H 89.5 Q 93 65.5 93 69 V 69 Q 93 72.5 89.5 72.5 H 66.5 Q 63 72.5 63 69 V 69 Q 63 65.5 66.5 65.5 Z M 78 54 H 78 Q 81.5 54 81.5 57.5 V 80.5 Q 81.5 84 78 84 H 78 Q 74.5 84 74.5 80.5 V 57.5 Q 74.5 54 78 54 Z" />
+  <path id="fan_down"  fill="#1e1e22" d="M 44 204 H 112 Q 124 204 124 216 V 246 Q 124 258 112 258 H 44 Q 32 258 32 246 V 216 Q 32 204 44 204 Z" />
+  <path id="fan_down_glyph" fill="#c8c8cc" d="M 66.5 227.5 H 89.5 Q 93 227.5 93 231 V 231 Q 93 234.5 89.5 234.5 H 66.5 Q 63 234.5 63 231 V 231 Q 63 227.5 66.5 227.5 Z" />
+
+  <!-- ========================================= TEMP, right -->
+  <path id="temp_panel" fill="#1e1e22" d="M 684 34 H 760 Q 776 34 776 50 V 250 Q 776 266 760 266 H 684 Q 668 266 668 250 V 50 Q 668 34 684 34 Z" />
+  <path id="temp_up"    fill="#1e1e22" d="M 688 42 H 756 Q 768 42 768 54 V 84 Q 768 96 756 96 H 688 Q 676 96 676 84 V 54 Q 676 42 688 42 Z" />
+  <path id="temp_up_glyph" fill="#c8c8cc" d="M 710.5 65.5 H 733.5 Q 737 65.5 737 69 V 69 Q 737 72.5 733.5 72.5 H 710.5 Q 707 72.5 707 69 V 69 Q 707 65.5 710.5 65.5 Z M 722 54 H 722 Q 725.5 54 725.5 57.5 V 80.5 Q 725.5 84 722 84 H 722 Q 718.5 84 718.5 80.5 V 57.5 Q 718.5 54 722 54 Z" />
+  <path id="temp_down"  fill="#1e1e22" d="M 688 204 H 756 Q 768 204 768 216 V 246 Q 768 258 756 258 H 688 Q 676 258 676 246 V 216 Q 676 204 688 204 Z" />
+  <path id="temp_down_glyph" fill="#c8c8cc" d="M 710.5 227.5 H 733.5 Q 737 227.5 737 231 V 231 Q 737 234.5 733.5 234.5 H 710.5 Q 707 234.5 707 231 V 231 Q 707 227.5 710.5 227.5 Z" />
+
+  <!-- ========================================= mode buttons, top -->
+  <path id="mode_auto" fill="#1e1e22" d="M 204 34 H 272 Q 284 34 284 46 V 62 Q 284 74 272 74 H 204 Q 192 74 192 62 V 46 Q 192 34 204 34 Z" />
+  <path id="auto_label" fill="#c8c8cc" d="m 219.45703,49.890625 -2.14062,5.804687 h 4.28906 z m -0.89062,-1.554688 h 1.78906 L 224.80078,60 h -1.64062 l -1.0625,-2.992188 h -5.25782 L 215.77734,60 h -1.66406 z m 8.75781,0 h 1.58594 v 7.085938 q 0,1.875 0.67968,2.703125 0.67969,0.820312 2.20313,0.820312 1.51562,0 2.19531,-0.820312 0.67969,-0.828125 0.67969,-2.703125 v -7.085938 h 1.58594 v 7.28125 q 0,2.28125 -1.13282,3.445313 -1.125,1.164062 -3.32812,1.164062 -2.21094,0 -3.34375,-1.164062 -1.125,-1.164063 -1.125,-3.445313 z m 11.27344,0 h 9.86718 v 1.328125 h -4.14062 V 60 h -1.58594 V 49.664062 h -4.14062 z m 17.125,1.070313 q -1.71875,0 -2.73438,1.28125 -1.00781,1.28125 -1.00781,3.492187 0,2.203125 1.00781,3.484375 1.01563,1.28125 2.73438,1.28125 1.71875,0 2.71875,-1.28125 1.00781,-1.28125 1.00781,-3.484375 0,-2.210937 -1.00781,-3.492187 -1,-1.28125 -2.71875,-1.28125 z m 0,-1.28125 q 2.45312,0 3.92187,1.648437 1.46875,1.640625 1.46875,4.40625 0,2.757813 -1.46875,4.40625 -1.46875,1.640625 -3.92187,1.640625 -2.46094,0 -3.9375,-1.640625 -1.46875,-1.640625 -1.46875,-4.40625 0,-2.765625 1.46875,-4.40625 1.47656,-1.648437 3.9375,-1.648437 z" />
+
+  <path id="mode_recirc" fill="#1e1e22" d="M 312 34 H 380 Q 392 34 392 46 V 62 Q 392 74 380 74 H 312 Q 300 74 300 62 V 46 Q 300 34 312 34 Z" />
+  <path id="recirc_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+        d="M 333 62 a 16 12 0 1 1 12 -5" />
+  <path id="recirc_head" fill="#c8c8cc" d="M 338 40 l 13 4 l -10 9 z" />
+
+  <path id="mode_ac" fill="#1e1e22" d="M 420 34 H 488 Q 500 34 500 46 V 62 Q 500 74 488 74 H 420 Q 408 74 408 62 V 46 Q 408 34 420 34 Z" />
+  <path id="ac_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+        d="M 454 40 V 68 M 442 47 L 466 61 M 442 61 L 466 47" />
+
+  <path id="mode_screen" fill="#1e1e22" d="M 528 34 H 596 Q 608 34 608 46 V 62 Q 608 74 596 74 H 528 Q 516 74 516 62 V 46 Q 516 34 528 34 Z" />
+  <path id="screen_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linejoin="round"
+        d="M 549 66 q 0 -15 13 -15 q 13 0 13 15 z" />
+  <path id="screen_waves" fill="none" stroke="#c8c8cc" stroke-width="2.8" stroke-linecap="round"
+        d="M 554 46 q 4 -6 0 -10 M 562 46 q 4 -6 0 -10 M 570 46 q 4 -6 0 -10" />
+
+  <!-- ========================================= the cabin, centre -->
+  <!--
+       The airflow zones are the heart of the panel: each is both the display
+       (which direction is live) and the control (press to set it) — the case
+       module-layout.md §1 uses as its worked example of a target carrying two
+       bindings, drawn for real.
+  -->
+  <path id="cabin_panel" fill="#1e1e22" d="M 208 88 H 592 Q 608 88 608 104 V 250 Q 608 266 592 266 H 208 Q 192 266 192 250 V 104 Q 192 88 208 88 Z" />
+
+  <!-- the seat the air is aimed at: a filled side profile, facing left -->
+  <path id="seat" fill="#3f3f47" d="M 439 118 H 443 Q 454 118 454 129 V 185 Q 454 196 443 196 H 439 Q 428 196 428 185 V 129 Q 428 118 439 118 Z M 371 182 H 443 Q 454 182 454 193 V 195 Q 454 206 443 206 H 371 Q 360 206 360 195 V 193 Q 360 182 371 182 Z" />
+
+  <!-- HEAD -->
+  <path id="zone_head_hit" fill="#1e1e22" d="M 217 98 H 315 Q 326 98 326 109 V 131 Q 326 142 315 142 H 217 Q 206 142 206 131 V 109 Q 206 98 217 98 Z" />
+  <path id="head_arrow" fill="none" stroke="#c8c8cc" stroke-width="4" stroke-linecap="round"
+        d="M 220 120 h 62" />
+  <path id="head_arrow_head" fill="#c8c8cc" d="M 279 111 l 17 9 l -17 9 z" />
+
+  <!-- FEET + HEAD -->
+  <path id="zone_both_hit" fill="#1e1e22" d="M 217 148 H 315 Q 326 148 326 159 V 181 Q 326 192 315 192 H 217 Q 206 192 206 181 V 159 Q 206 148 217 148 Z" />
+  <path id="both_arrow_a" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+        d="M 220 160 h 50" />
+  <path id="both_head_a" fill="#c8c8cc" d="M 267 153 l 13 7 l -13 7 z" />
+  <path id="both_arrow_b" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+        d="M 220 176 h 36 q 9 0 9 9" />
+  <path id="both_head_b" fill="#c8c8cc" d="M 258 183 l 7 13 l 7 -13 z" />
+
+  <!-- FEET -->
+  <path id="zone_feet_hit" fill="#1e1e22" d="M 217 198 H 315 Q 326 198 326 209 V 231 Q 326 242 315 242 H 217 Q 206 242 206 231 V 209 Q 206 198 217 198 Z" />
+  <path id="feet_arrow" fill="none" stroke="#c8c8cc" stroke-width="4" stroke-linecap="round"
+        d="M 220 210 h 46 q 10 0 10 10" />
+  <path id="feet_arrow_head" fill="#c8c8cc" d="M 268 218 l 8 15 l 8 -15 z" />
+
+  <!-- ========================================= heated seats -->
+  <!-- a miniature of the same seat, with heat rising off the backrest -->
+  <path id="seat_left_hit"  fill="#1e1e22" d="M 511 176 H 527 Q 538 176 538 187 V 239 Q 538 250 527 250 H 511 Q 500 250 500 239 V 187 Q 500 176 511 176 Z" />
+  <path id="seat_left_body" fill="#c8c8cc" d="M 525 206 H 528 Q 531 206 531 209 V 229 Q 531 232 528 232 H 525 Q 522 232 522 229 V 209 Q 522 206 525 206 Z M 508 227 H 528 Q 531 227 531 230 V 233 Q 531 236 528 236 H 508 Q 505 236 505 233 V 230 Q 505 227 508 227 Z" />
+  <path id="seat_left_heat" fill="none" stroke="#c8c8cc" stroke-width="2.8" stroke-linecap="round"
+        d="M 508 198 q 4 -6 0 -11 M 516 198 q 4 -6 0 -11 M 524 198 q 4 -6 0 -11" />
+
+  <path id="seat_right_hit"  fill="#1e1e22" d="M 557 176 H 573 Q 584 176 584 187 V 239 Q 584 250 573 250 H 557 Q 546 250 546 239 V 187 Q 546 176 557 176 Z" />
+  <path id="seat_right_body" fill="#c8c8cc" d="M 571 206 H 574 Q 577 206 577 209 V 229 Q 577 232 574 232 H 571 Q 568 232 568 229 V 209 Q 568 206 571 206 Z M 554 227 H 574 Q 577 227 577 230 V 233 Q 577 236 574 236 H 554 Q 551 236 551 233 V 230 Q 551 227 554 227 Z" />
+  <path id="seat_right_heat" fill="none" stroke="#c8c8cc" stroke-width="2.8" stroke-linecap="round"
+        d="M 554 198 q 4 -6 0 -11 M 562 198 q 4 -6 0 -11 M 570 198 q 4 -6 0 -11" />
+
+  <!-- the DASH chevron -->
+  <path id="logo" fill="#8e8e93" d="M 560 122 l 13 -22 l 13 22 l -9 0 l -4 -7 l -4 7 z" />
+</svg>

@@ -14,8 +14,11 @@ import androidx.compose.ui.graphics.Color
  *
  * **The layout is the declaration** (§9). A module declares no variables and no controls
  * separately, because everything it reports and everything it can be told is named in here.
- * [variables] and [controls] read them back out, which is how DASH learns what a module has
+ * [boundVariables] and [controls] read them back out, which is how DASH learns what a module has
  * without the module ever saying so twice.
+ *
+ * [variables] is the one thing a module states outright rather than being read out of its bindings:
+ * its own private message board (§8a), which is what lets a press be drawn before the module answers.
  *
  * **Positions and sizes are fractions of the panel**, never pixels — `0,0` is top-left and `1,1`
  * bottom-right, so a layout drawn once lands in the same relative place on a phone and on a head
@@ -24,10 +27,12 @@ import androidx.compose.ui.graphics.Color
 data class PanelLayout(
     val layers: List<PanelLayer> = emptyList(),
     val bindings: List<PanelBinding> = emptyList(),
+    /** The module's own private message board (§8a). Empty when the module declared none. */
+    val variables: Map<String, PanelVariable> = emptyMap(),
     val warnings: List<Warning> = emptyList(),
 ) {
     /** Every module variable this layout watches — the read half of §9's declaration. */
-    val variables: Set<String>
+    val boundVariables: Set<String>
         get() = (layers.filterIsInstance<TextLayer>().map { it.value } +
             bindings.mapNotNull { it.variable }).toSet()
 
@@ -37,6 +42,64 @@ data class PanelLayout(
 
     /** The layer a binding target names, or null if the layout points at something it never drew. */
     fun layer(id: String): PanelLayer? = layers.firstOrNull { it.id == id }
+}
+
+// ---------------------------------------------------------------------------------- variables
+
+/**
+ * One entry on the module's own private message board (roadmap 1.6.8, `module-layout.md` §8a).
+ *
+ * **This is the module's version of `system_commands.md`.** DASH's shared board has a declared
+ * vocabulary with a type and a set of values per signal, written by DASH because the board is
+ * shared. A module's board is private, so the module writes it — and that single difference is the
+ * whole idea. Nobody reaches into anybody's box.
+ *
+ * **It is a list, and nothing more.** There is no type system here: no boolean, no enum, no
+ * numeric range. A fan is `["off","1","2","3","4","5","6","max"]` and a toggle is `["off","on"]`,
+ * and the second needs no rules of its own because a toggle *is* a two-element list that wraps.
+ *
+ * **The list is what makes a press instant.** DASH finds the current value in [values], moves one
+ * place, and sends what it lands on — so a `+` stops being a direction nobody can predict and
+ * becomes an ordinary set-this-to-this control that draws under the finger like any other.
+ *
+ * **DASH does no arithmetic on a module's data.** It never adds one to `3`; it moves along a list
+ * the module wrote, and it has no idea what the values mean or that `4` is larger than `3`. That
+ * distinction is what keeps this inside the Module Mantra: DASH is obeying a declaration, not
+ * forming an opinion about a module's data.
+ *
+ * *Written out longhand rather than generated from a range. A range was designed and rejected
+ * (2026-08-15, Roger's call) — the deciding case was his own temperature scale, whose ends are
+ * `min` and `max` rather than numbers, so the shorthand could not express the very thing it was
+ * invented for. Twice now a real control has had words at the ends and numbers in the middle.*
+ */
+data class PanelVariable(
+    /** Every value this variable takes, in order. The order is the only thing DASH knows about them. */
+    val values: List<String> = emptyList(),
+    /** Whether the last value steps round to the first. `false` stops at each end. */
+    val wrap: Boolean = false,
+) {
+    /**
+     * The value one place from [current], or null when there is nowhere to go.
+     *
+     * Null covers both stop conditions, and they are deliberately the same answer: an end stop on a
+     * non-wrapping list, and a [current] this list has never heard of. **The second is the browser
+     * rule applied to data** — firmware moves on, an unlisted value arrives, and it still displays
+     * and still drives every binding because it is a string like any other. There is simply no index
+     * to move from, so prediction switches off until a known value returns. Never an error.
+     */
+    fun stepFrom(current: String?, by: Int): String? {
+        if (values.isEmpty() || by == 0) return null
+        val at = values.indexOf(current?.trim())
+        if (at < 0) return null
+        val next = at + by
+        return when {
+            next in values.indices -> values[next]
+            !wrap -> null
+            // Kotlin's % keeps the sign of the dividend, so a step down from the first entry needs
+            // the extra turn to land on the last rather than off the front of the list.
+            else -> values[((next % values.size) + values.size) % values.size]
+        }
+    }
 }
 
 // ------------------------------------------------------------------------------------- layers
@@ -327,6 +390,15 @@ data class TouchBinding(
     override val target: BindingTarget,
     val control: String,
     val value: String = "",
+    /**
+     * How far along [control]'s declared list this press moves — `+1` for a next, `-1` for a
+     * previous, `0` for a control that names its value outright (roadmap 1.6.8).
+     *
+     * **One field serves the stepper and the toggle**, because the list decides what "next" means:
+     * on a fan it is `3` → `4`, on an `["off","on"]` it is the other one. The toggle needed no
+     * mechanism of its own, which is the sign the shape was right.
+     */
+    val step: Int = 0,
     /** Appearance while pressed. Local and immediate; nothing to do with the module. */
     val feedback: StyleEffect? = null,
     override val ease: Int = 0,

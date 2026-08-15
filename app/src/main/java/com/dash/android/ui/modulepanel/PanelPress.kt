@@ -10,6 +10,7 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import com.dash.android.core.ModuleData
 import com.dash.android.core.ReportedValue
+import com.dash.android.panel.PanelVariable
 import com.dash.android.panel.TouchBinding
 import com.dash.android.transport.Actions
 import kotlinx.coroutines.delay
@@ -111,7 +112,7 @@ private class Optimism {
     }
 
     companion object {
-        private const val TAG = "DashPanelPress"
+        const val TAG = "DashPanelPress"
 
         /**
          * **The timeout measures acknowledgement, not completion** (§8). Raising an air-suspended
@@ -141,6 +142,7 @@ fun rememberPanelPresses(
     moduleData: ModuleData,
     actions: Actions,
     moduleId: String?,
+    variables: Map<String, PanelVariable> = emptyMap(),
 ): PanelPresses {
     val all by moduleData.values.collectAsState()
     val optimism = remember(moduleId) { Optimism() }
@@ -183,12 +185,55 @@ fun rememberPanelPresses(
         values = values,
         press = { binding ->
             if (moduleId != null) {
-                // The value is sent as null when the author gave none, so the wire carries
-                // `ACTION|id|control` rather than a trailing empty field — the same shape an
-                // event-only broadcast takes, and what a momentary control actually means.
-                actions.sendAction(moduleId, binding.control, binding.value.ifEmpty { null })
-                if (binding.value.isNotEmpty()) {
-                    optimism.predict(binding.control, binding.value, System.currentTimeMillis())
+                /*
+                 * **A stepped control works out its value before it sends** (roadmap 1.6.8), which
+                 * is what collapses the two kinds of control into one. Up to 1.6.7 a `+` sent a
+                 * direction — `fan_up` — and could not be drawn until the module answered, because
+                 * nothing in the format expressed "one more than it is now". Now the module's own
+                 * board says what the values are and in what order, so DASH lands on the answer
+                 * first and sends it as an ordinary set-this-to-this.
+                 *
+                 * The result is that everything on the wire is now the same message, and §8's rule
+                 * — the control names the variable, the value is the prediction — stops being a case
+                 * and becomes universal.
+                 */
+                val landed = if (binding.step == 0) binding.value else
+                    variables[binding.control]?.stepFrom(values[binding.control], binding.step)
+
+                /*
+                 * **A step that lands nowhere sends nothing** — and this reversed a decision on
+                 * contact with the code, which is worth recording rather than quietly doing.
+                 *
+                 * The intent was to send regardless, on the reasoning that DASH's index is a
+                 * *belief* about the module's state and staying quiet would let a stale belief
+                 * swallow a real press. That reasoning survives; what does not is the message. Once
+                 * a stepped control works out its value first, there is no direction left on the
+                 * wire — so the only thing an end-stop press could carry is DASH's *current* value,
+                 * and sending that would command the module to whatever DASH last believed. A stale
+                 * belief silently swallowing a press is a nuisance; a stale belief silently issuing
+                 * a command is the second-source-of-truth failure this whole design exists to
+                 * avoid. Between the two, the nuisance wins.
+                 *
+                 * And the nuisance is small: a module re-states everything on its heartbeat, so a
+                 * stale belief corrects itself within a second or two without anyone pressing
+                 * anything.
+                 */
+                if (landed.isNullOrEmpty()) {
+                    if (binding.step != 0) {
+                        Log.i(
+                            Optimism.TAG,
+                            "`${binding.control}` has nowhere to step from " +
+                                "'${values[binding.control]}' — end stop, or a value its board does " +
+                                "not list. Nothing sent.",
+                        )
+                    } else {
+                        // A genuinely momentary control: no value, nothing to predict, nothing to
+                        // revert. It still goes out — that is the whole of what it does.
+                        actions.sendAction(moduleId, binding.control, null)
+                    }
+                } else {
+                    actions.sendAction(moduleId, binding.control, landed)
+                    optimism.predict(binding.control, landed, System.currentTimeMillis())
                 }
             }
         },

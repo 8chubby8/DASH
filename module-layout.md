@@ -654,6 +654,74 @@ reset, a trigger, a "level now" — has no `style` binding watching it, so nothi
 optimistically, nothing times out, and there is nothing to revert. Press feedback still
 fires, because that is local and immediate and has nothing to do with the module.
 
+### 8a. The module's own message board
+
+*(Added 2026-08-15, roadmap 1.6.8 — Roger's design. Provisional with the rest of this document.)*
+
+**A module may declare, in its layout, the values each of its variables takes and in what order.**
+
+```json
+"variables": {
+  "fan":         { "values": ["off","1","2","3","4","5","6","max"], "wrap": false },
+  "heated_seat": { "values": ["off","lvl1","lvl2"],                 "wrap": true  },
+  "auto":        { "values": ["off","on"],                          "wrap": true  }
+}
+```
+
+**This is the module's private version of DASH's own system message board.** The shared board has
+a declared vocabulary with a type and a set of values per signal, written by DASH because the board
+is shared. A module's board is private, so the module writes it. That single difference is the whole
+idea, and it is why this does not breach the mantra: nobody is reaching into anybody's box.
+
+**It is a list, and there is no type system.** A toggle is a two-element list that wraps. A fan is
+an eight-element list that stops. Neither needs a rule of its own, and there is no boolean, no enum
+and no numeric range to learn.
+
+#### What it is for: a press that draws immediately
+
+Without it, a `+` cannot be drawn ahead of the module, because *"one more than whatever it is now"*
+is not a value anyone can name in advance. With it, **DASH finds the current value in the list,
+moves one place, and sends what it lands on**:
+
+```
+ACTION|a4cf12b8e901|fan|4
+```
+
+So a stepper is not a special kind of control at all — it is an ordinary set-this-to-this, and the
+rule above applies to it unchanged. **After this, every control on the wire is the same message**,
+and the momentary case shrinks back to what it always should have been: genuinely stateless things,
+a reset or a "level now".
+
+> **DASH does no arithmetic on a module's data.** It never adds one to `3`. It moves along a list
+> the module wrote, with no idea what the values mean or that `4` is larger than `3` — the order is
+> the only thing it knows, and the module supplied that. This is delegation, exactly as a theme
+> token is (§7), rather than DASH forming an opinion about a module's data.
+
+**Values are written out longhand.** A `range` shorthand was designed and rejected (2026-08-15,
+Roger's ruling): the deciding case was a temperature scale whose ends are `min` and `max` rather
+than numbers, so the shorthand could not express the very thing it was invented for. Twice now a
+real control has had words at the ends and numbers in the middle — a fan and a temperature — which
+suggests that is the norm rather than the exception. **The value strings are also the contract**:
+what DASH sends and what it matches the module's `REPORT` against. A generated `17.0` would never
+match a reported `17`, and writing them by hand removes the question.
+
+#### The rules
+
+- **No board, no prediction.** A module that declares none behaves exactly as it did before: presses
+  go out, values change when the module answers. The browser rule, applied to a whole feature.
+- **A value the list does not contain still works.** It displays and drives every binding, because
+  it is a string like any other. There is simply no index to step from, so prediction switches off
+  until a known value returns. Never an error.
+- **A press that lands nowhere sends nothing.** At an end stop on a non-wrapping list — or from a
+  value the board does not list — there is no direction left on the wire to send, and the only thing
+  such a press could carry is DASH's *current* value, which would command the module to whatever
+  DASH last believed. A stale belief swallowing a press is a nuisance; a stale belief issuing a
+  command is the second-source-of-truth failure this design exists to prevent. The heartbeat
+  corrects a stale belief within a second or two anyway.
+- **The board holds only what the panel can operate.** A sensor reading is not a list, and an array
+  for `tank_pressure` would be nonsense. Reported values continue to be declared implicitly by the
+  bindings that use them (§9).
+
 ### When a bound variable never arrives
 
 A binding may reference a variable the module never reports — a typo in the layout, or a
@@ -783,6 +851,7 @@ Common to every binding:
 |---|---|---|
 | `control` | yes | The control name sent as `ACTION\|id\|control\|value`. **It is also the variable this press predicts** — see §8. |
 | `value` | no | The value sent, and the value that variable is expected to take. Omitted sends no value field at all, which makes the control momentary (§8). |
+| `step` | no | Moves `control` along its declared list (§8a) instead of naming a value — `1` for the next, `-1` for the previous. DASH works out the value before sending, so a stepper is an ordinary set-this-to-this. Mutually exclusive with `value`. |
 | `feedback` | no | Appearance applied while pressed — `colour` and/or `opacity`. Local and immediate; nothing to do with the module (§8). |
 
 > *Both rows amended 2026-08-14 (roadmap 1.6.7), alongside §8's rule. `control` gained the half of

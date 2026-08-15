@@ -47,6 +47,54 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.8
+
+**Status:** Complete — a module declares its own message board, and a second real module drives a panel of thirteen controls from it. Built and driven on the Tab S9 Ultra over Bluetooth with Roger through the session, 2026-08-15.
+
+**Scope:** *Planned as multi-module and swiping. It became something else, for a reason worth recording: the Climate panel was designed first, and designing it broke the press model before a line of it was built.* The Tank Gauge had one variable and three buttons. Climate has nine variables and thirteen controls, and almost all of them are steppers and toggles — and **neither could be drawn before the module answered**, because "one more than whatever it is now" is not a value anybody can name in advance. That is what this version fixes.
+
+**Implemented:**
+
+- **§8a — the module's own message board.** A module may declare, in its layout, the values each variable takes and in what order. **This is the private twin of `system_commands.md`**: DASH's shared board has a declared vocabulary because it is shared, and a module's board is written by the module because it is its own. That single difference is the whole idea, and it is why this does not breach the mantra — nobody reaches into anybody's box. *(Roger's design, and his framing; I had been circling a worse version of it.)*
+- **A list, and no type system.** A toggle is a two-element list that wraps; a fan is an eight-element list that stops. Neither needed a rule of its own, which is the sign the shape was right — **the toggle problem disappeared into the stepper solution rather than needing its own mechanism.**
+- **The stepper stopped being a special case.** DASH finds the current value, moves one place, and sends **the value it landed on** — `ACTION|id|fan|4`, never `fan_up`. So a `+` is an ordinary set-this-to-this, it predicts and draws under the finger like any other control, and §8's rule (the control names the variable, the value is the prediction) stops being a case and becomes universal. **Everything on the wire is now the same message.**
+- **DASH does no arithmetic on a module's data.** It never adds one to `3`; it moves along a list the module wrote, with no idea what the values mean or that `4` is larger than `3`. Delegation, exactly as a theme token is — not DASH forming an opinion.
+- **A press that lands nowhere sends nothing** — and this reversed a decision on contact with the code, which is the honest part. The intent was to send regardless, because DASH's index is a *belief* and a stale belief should not swallow a real press. But once a stepper works out its value first there is no direction left on the wire, so the only thing an end-stop press could carry is DASH's current value — which would **command** the module to whatever DASH last believed. A stale belief swallowing a press is a nuisance; a stale belief issuing a command is the second-source-of-truth failure the whole design exists to prevent. The heartbeat corrects a stale belief in a second or two anyway.
+- **The Climate module** (`ClimateWifi` / `ClimateBt` / `ClimateUsb`, ids `0000DA58AC04/05/06`) — one vector, no raster, nine variables, thirteen controls. The three sketches share `assets/` **and** `ClimateModule.h`, so the firmware behind the three panels cannot drift any more than the artwork can.
+- **The firmware holds strings and never steps anything.** Because DASH sends the destination, the board needs no copy of the value lists at all — it is told a string, keeps it, reports it. The lists live once, in the layout, and cannot drift out of step with the panel that draws them.
+- **The module's logic is genuinely its own.** Touching the fan or the vents drops AUTO; AUTO takes the vents by setting `mode` to a value no zone matches, so all three go dark together with no "nothing selected" concept anywhere in the format; leaving AUTO restores the last hand-picked vent from a slot deliberately placed *after* the reported ones so it never reaches the wire. **DASH is told none of it.** One `ACTION` goes out, the module changes two variables, reports both, and the panel redraws both.
+
+**Documentation:**
+
+- **`module-layout.md` gained §8a**, and §9's `touch` table gained `step`. Provisional with the rest until 1.6.10.
+- **A `range` shorthand was designed and rejected** (Roger's ruling). The deciding case was his own temperature scale, whose ends are `min` and `max` rather than numbers — so the shorthand could not express the very thing it was invented for. Twice now a real control has had words at the ends and numbers in the middle, a fan and a temperature, which suggests that is the norm. Writing the values out longhand also removes a whole class of trouble: the strings are the contract, and a generated `17.0` would never match a reported `17`.
+
+**Regressions:**
+
+- **None shipped.** Two defects were found and fixed within the version — below.
+
+**Fixes:**
+
+- **Every press stepped from the value the panel had at install.** Found by Roger in about ten seconds: fan on 3, press down → 1, press up → 3, and never higher. `PanelContent`'s gesture handler is `pointerInput(document)`, so its coroutine is built once per panel and had captured that composition's `onPress` — a lambda closing over the values map as it was then. The module boots at `2`, so every press stepped from a frozen `2` for ever. **Fixed with `rememberUpdatedState`**, so the long-lived coroutine always calls the current handler; keying the input on the handler instead would have torn down and rebuilt the gesture loop on every reported value, a far worse cure.
+- **The ESP32 WiFi retry loop could never associate on a slow AP.** `WiFi.begin()` was being called every 3 s while the radio was still associating, which the core refuses *and restarts* — so association never completed, and the sketch printed `sta is connecting, cannot set config` for ever. Invisible on a fast AP, total on a slow one. Fixed in `ClimateWifi`; **`GaugeWifi` still carries it.**
+
+**Outstanding:**
+
+- **Multi-module and swiping — 1.6.8's original scope — carried to 1.6.9.** Roger's call: the Tank Gauge is being retired, so there is one module at a time on the bench and nothing to swipe between yet. See the roadmap.
+- **`GaugeWifi` still has the association defect.** Left alone deliberately — the Tank Gauge is on its way out, and a fix nobody will run is not worth the reflash.
+- **`style` still has no separate `fill` and `stroke`** (§4.3's open item), which is why every surface in the Climate artwork is a flat fill with no border: a bordered button delegated to a token loses its border into its own fill. Worth settling before the 1.6.10 lock rather than after.
+- **The WiFi sketches are untested.** They only ever run on the mobile router, never the home AP, so `ClimateWifi` has been compiled and never connected. Bluetooth is the bench transport.
+- **Night slots, panel warnings reaching only logcat, Bronze unmeasured, `Locale.ROOT` number formatting** — all carried forward unchanged.
+
+**Notes:**
+
+- **Two long-lived coroutines holding stale state, on consecutive days.** 1.6.7's revert bug was a `LaunchedEffect` keyed only on the report map, so the expiry loop completed at composition and no press restarted it. This one was a `pointerInput` keyed only on the document, holding a lambda that had closed over stale values. **Same disease: a coroutine keyed on one thing while quietly holding a copy of another, invisible until somebody drives the panel properly.** Recorded as a pattern rather than two incidents, because there will be a third.
+- **Designing the panel changed the platform, which is the third time that has happened.** The climate concept forced the message board exactly as the pressure monitor forced number formatting and the air-ride panel proved mutual exclusion never needs to exist. A specification written from first principles would have shipped a stepper that could not be drawn.
+- **Hand-drawing letterforms as SVG paths does not work.** The first attempt rendered "AU" and "TEMF". They were set in a real typeface and converted with Inkscape's Path > Object to Path instead — which is precisely what the spec already tells authors to do, and now there is a reason in the record for why it says so.
+- **A module change is a slower loop than a DASH change**, and it is worth knowing before iterating on a look: rebake assets → reflash the board → bump the version → UPDATE in Module Management. Roger spent part of an afternoon looking at artwork two versions old while I described something else, because I had held the reflash back waiting on a decision. **Bump and flash first, discuss after.**
+
+---
+
 ## Version 1.6.7
 
 **Status:** Complete — a module's panel pressed, and both ends answering. Hardware-verified by Roger on the Tab S9 Ultra over WiFi and Bluetooth, 2026-08-14.

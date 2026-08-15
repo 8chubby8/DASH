@@ -74,8 +74,67 @@ class PanelLayoutReader {
             element.asObject("binding $i")?.let { binding(it, i, known) }
         }
 
+        val variables = variables(root.obj("variables"))
+
         adviseOnUnusedLayers(layers, bindings)
-        return PanelLayout(layers, bindings, warnings.toList())
+        adviseOnSteppingUndeclared(bindings, variables)
+        return PanelLayout(layers, bindings, variables, warnings.toList())
+    }
+
+    /**
+     * The module's private message board (§8a) — a name to an ordered list of values.
+     *
+     * **Absent is normal and means nothing is predicted.** A module that declares no board behaves
+     * exactly as every module did before 1.6.8: presses go out, values change when the module
+     * answers. The browser rule, applied to a whole feature rather than one field.
+     */
+    private fun variables(o: JsonObject?): Map<String, PanelVariable> {
+        if (o == null) return emptyMap()
+        return o.entries.mapNotNull { (name, element) ->
+            val body = element.asObject("variable `$name`") ?: return@mapNotNull null
+            // Values are read as raw strings, never as numbers, because the string IS the contract:
+            // it is what DASH sends in an ACTION and what it matches the module's REPORT against.
+            // Reading `17` as a float and printing it back would send `17.0` and never match.
+            val values = body.array("values").mapNotNull { it.asString() }
+            if (values.isEmpty()) {
+                warn(
+                    Severity.SKIPPED, "variable `$name`",
+                    "Has no `values`, so DASH has no list to move along and cannot draw a press to " +
+                        "it before the module answers. Give it every value it takes, in order.",
+                )
+                return@mapNotNull null
+            }
+            if (values.size != values.toSet().size) {
+                warn(
+                    Severity.DEGRADED, "variable `$name`",
+                    "Lists the same value twice. DASH steps from the first match, so the later copy " +
+                        "can never be reached by pressing.",
+                )
+            }
+            name to PanelVariable(values = values, wrap = body.bool("wrap") ?: false)
+        }.toMap()
+    }
+
+    /**
+     * A `step` control naming a variable with no declared list.
+     *
+     * Worth saying out loud rather than silently degrading: the panel still works — the press is
+     * sent and the module still answers — but it will feel a round trip slower than every other
+     * control on the panel, and the author's own layout is the only place that can say why.
+     */
+    private fun adviseOnSteppingUndeclared(bindings: List<PanelBinding>, variables: Map<String, PanelVariable>) {
+        bindings.filterIsInstance<TouchBinding>()
+            .filter { it.step != 0 && it.control !in variables }
+            .map { it.control }
+            .distinct()
+            .forEach { control ->
+                warn(
+                    Severity.DEGRADED, "control `$control`",
+                    "Is stepped by a touch binding but has no entry in `variables`, so DASH does not " +
+                        "know what its next value would be. The press is still sent and the module " +
+                        "still answers — it simply cannot be drawn until it does.",
+                )
+            }
     }
 
     // -------------------------------------------------------------------------------- layers
@@ -225,7 +284,22 @@ class PanelLayoutReader {
 
             "touch" -> {
                 val control = o.string("control") ?: return warnMissing(what, "control")
-                TouchBinding(target, control, o.string("value").orEmpty(), o.obj("feedback")?.let(::styleEffect), ease)
+                val step = o.int("step") ?: 0
+                if (step != 0 && o.string("value") != null) {
+                    warn(
+                        Severity.DEGRADED, what,
+                        "Has both `step` and `value`. A control either names the value it sets or " +
+                            "moves along a list; it cannot do both. Stepping.",
+                    )
+                }
+                TouchBinding(
+                    target = target,
+                    control = control,
+                    value = if (step != 0) "" else o.string("value").orEmpty(),
+                    step = step,
+                    feedback = o.obj("feedback")?.let(::styleEffect),
+                    ease = ease,
+                )
             }
 
             null -> {
@@ -397,6 +471,16 @@ class PanelLayoutReader {
     private fun kotlinx.serialization.json.JsonElement.asOffset(): Offset? =
         (this as? JsonArray)?.mapNotNull { it.jsonPrimitiveOrNull()?.floatOrNull }
             ?.takeIf { it.size == 2 }?.let { Offset(it[0], it[1]) }
+
+    /**
+     * A board value, kept exactly as written.
+     *
+     * **The string is the contract.** It is what DASH puts in an `ACTION` and what it matches the
+     * module's `REPORT` against, so `17` must stay `"17"` — read as a number and printed back it
+     * would leave as `17.0` and never match anything the module said.
+     */
+    private fun kotlinx.serialization.json.JsonElement.asString(): String? =
+        jsonPrimitiveOrNull()?.contentOrNull?.trim()?.ifBlank { null }
 
     private fun kotlinx.serialization.json.JsonElement.asObject(what: String): JsonObject? {
         val o = this as? JsonObject

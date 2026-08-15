@@ -14,6 +14,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberUpdatedState
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.pointer.pointerInput
@@ -156,22 +157,45 @@ fun PanelContent(
  * A press that lands on nothing is left unconsumed, so it stays available to whatever is underneath
  * the panel rather than being swallowed by a surface that had no use for it.
  */
+@Composable
 private fun Modifier.panelPresses(
     document: PanelDocument,
     onPress: (TouchBinding) -> Unit,
     setPressed: (Int?) -> Unit,
-): Modifier = pointerInput(document) {
-    awaitEachGesture {
-        val down = awaitFirstDown(requireUnconsumed = false)
-        val hit = document.hitTest(size.toSize(), down.position) ?: return@awaitEachGesture
-        down.consume()
-        setPressed(hit.index)
-        onPress(hit.binding)
-        // Feedback lasts exactly as long as the finger does. Cancellation — a scroll elsewhere
-        // stealing the gesture — ends it the same way a lift does, because either way the finger
-        // is no longer on the control.
-        waitForUpOrCancellation()
-        setPressed(null)
+): Modifier {
+    /*
+     * **The handler is read through [rememberUpdatedState], and that is load-bearing.**
+     *
+     * `pointerInput` is keyed on the document, so its coroutine is created once and lives for as
+     * long as that panel is on screen — which is exactly what you want for a gesture loop, and
+     * exactly what makes capturing anything else a trap. Called directly, `onPress` would be the
+     * lambda from the composition in which the *document* last changed, and that lambda closes over
+     * the panel's values as they were at that moment.
+     *
+     * Found on hardware (1.6.8): a fan that started at `2` stepped down to `1` and up to `3` and
+     * would never go higher, because every press was stepping from a value frozen at install time
+     * rather than from the current one. The panel looked alive — the readout moved, the module
+     * answered — and it was reading a snapshot.
+     *
+     * This is the same shape as the `LaunchedEffect` defect fixed the day before: **a long-lived
+     * coroutine keyed on one thing, silently holding a stale copy of another.** Keying the input on
+     * the handler instead would fix it by tearing the gesture loop down on every reported value,
+     * which is a far worse cure than the disease.
+     */
+    val current by rememberUpdatedState(onPress)
+    return pointerInput(document) {
+        awaitEachGesture {
+            val down = awaitFirstDown(requireUnconsumed = false)
+            val hit = document.hitTest(size.toSize(), down.position) ?: return@awaitEachGesture
+            down.consume()
+            setPressed(hit.index)
+            current(hit.binding)
+            // Feedback lasts exactly as long as the finger does. Cancellation — a scroll elsewhere
+            // stealing the gesture — ends it the same way a lift does, because either way the
+            // finger is no longer on the control.
+            waitForUpOrCancellation()
+            setPressed(null)
+        }
     }
 }
 

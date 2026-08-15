@@ -309,6 +309,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 moduleData = controller.moduleData,
                 actions = controller.actions,
                 moduleId = panelDocument?.moduleId,
+                variables = panelDocument?.layout?.variables.orEmpty(),
             )
             val panelLongEdge = if (panelEdge.horizontal) screenWidth else (maxHeight - barThickness)
             val panelThickness = if (panelDocument == null) 0.dp else

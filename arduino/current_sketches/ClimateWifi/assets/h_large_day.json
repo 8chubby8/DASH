@@ -1,0 +1,764 @@
+{
+  "variables": {
+    "fan": {
+      "values": [
+        "off",
+        "1",
+        "2",
+        "3",
+        "4",
+        "5",
+        "6",
+        "max"
+      ],
+      "wrap": false
+    },
+    "temp": {
+      "values": [
+        "min",
+        "16.5",
+        "17",
+        "17.5",
+        "18",
+        "18.5",
+        "19",
+        "19.5",
+        "20",
+        "20.5",
+        "21",
+        "21.5",
+        "22",
+        "22.5",
+        "23",
+        "23.5",
+        "24",
+        "24.5",
+        "25",
+        "25.5",
+        "26",
+        "26.5",
+        "27",
+        "27.5",
+        "28",
+        "28.5",
+        "29",
+        "29.5",
+        "30",
+        "30.5",
+        "31",
+        "31.5",
+        "max"
+      ],
+      "wrap": false
+    },
+    "mode": {
+      "values": [
+        "head",
+        "both",
+        "feet",
+        "auto"
+      ],
+      "wrap": false
+    },
+    "auto": {
+      "values": [
+        "off",
+        "on"
+      ],
+      "wrap": true
+    },
+    "recirc": {
+      "values": [
+        "off",
+        "on"
+      ],
+      "wrap": true
+    },
+    "ac": {
+      "values": [
+        "off",
+        "on"
+      ],
+      "wrap": true
+    },
+    "screen": {
+      "values": [
+        "off",
+        "on"
+      ],
+      "wrap": true
+    },
+    "seat_left": {
+      "values": [
+        "off",
+        "lvl1",
+        "lvl2"
+      ],
+      "wrap": true
+    },
+    "seat_right": {
+      "values": [
+        "off",
+        "lvl1",
+        "lvl2"
+      ],
+      "wrap": true
+    }
+  },
+  "layers": [
+    {
+      "id": "art",
+      "type": "vector",
+      "asset": "climate.svg"
+    },
+    {
+      "id": "fan_value",
+      "type": "text",
+      "value": "fan",
+      "at": [
+        0.0975,
+        0.43
+      ],
+      "fontSize": 0.14,
+      "align": "center",
+      "font": "monospace",
+      "colour": "@textColourSecondary"
+    },
+    {
+      "id": "temp_value",
+      "type": "text",
+      "value": "temp",
+      "at": [
+        0.9025,
+        0.442
+      ],
+      "fontSize": 0.115,
+      "align": "center",
+      "font": "monospace",
+      "colour": "@textColourSecondary"
+    }
+  ],
+  "bindings": [
+    {
+      "bind": "style",
+      "target": "art#bg",
+      "colour": "@backgroundColourPrimary"
+    },
+    {
+      "bind": "style",
+      "target": "art#cabin_panel",
+      "colour": "@backgroundColourPrimary"
+    },
+    {
+      "bind": "style",
+      "target": "art#fan_panel",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_panel",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#fan_up",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#fan_down",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_up",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_down",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#mode_auto",
+      "value": "auto",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#mode_recirc",
+      "value": "recirc",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#mode_ac",
+      "value": "ac",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#mode_screen",
+      "value": "screen",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#zone_head_hit",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "head",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#zone_both_hit",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "both",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#zone_feet_hit",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "feet",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#seat_left_hit",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#seat_right_hit",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#seat",
+      "colour": "@iconColourPrimary",
+      "opacity": 0.3
+    },
+    {
+      "bind": "style",
+      "target": "art#logo",
+      "colour": "@accentColourPrimary",
+      "opacity": 0.7
+    },
+    {
+      "bind": "style",
+      "target": "art#fan_up_glyph",
+      "colour": "@iconColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#fan_down_glyph",
+      "colour": "@iconColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_up_glyph",
+      "colour": "#ff2d20"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_down_glyph",
+      "colour": "#0a84ff"
+    },
+    {
+      "bind": "style",
+      "target": "art#auto_label",
+      "value": "auto",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#recirc_glyph",
+      "value": "recirc",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#recirc_head",
+      "value": "recirc",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#ac_glyph",
+      "value": "ac",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#screen_glyph",
+      "value": "screen",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#screen_waves",
+      "value": "screen",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#head_arrow",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "head",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#head_arrow_head",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "head",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#both_arrow_a",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "both",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#both_head_a",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "both",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#both_arrow_b",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "both",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#both_head_b",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "both",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#feet_arrow",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "feet",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#feet_arrow_head",
+      "value": "mode",
+      "cases": [
+        {
+          "is": "feet",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#seat_left_body",
+      "value": "seat_left",
+      "cases": [
+        {
+          "is": "lvl2",
+          "colour": "#ff3b30"
+        },
+        {
+          "is": "lvl1",
+          "colour": "#ff9500"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.55
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#seat_left_heat",
+      "value": "seat_left",
+      "cases": [
+        {
+          "is": "lvl2",
+          "colour": "#ff3b30"
+        },
+        {
+          "is": "lvl1",
+          "colour": "#ff9500"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.3
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#seat_right_body",
+      "value": "seat_right",
+      "cases": [
+        {
+          "is": "lvl2",
+          "colour": "#ff3b30"
+        },
+        {
+          "is": "lvl1",
+          "colour": "#ff9500"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.55
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#seat_right_heat",
+      "value": "seat_right",
+      "cases": [
+        {
+          "is": "lvl2",
+          "colour": "#ff3b30"
+        },
+        {
+          "is": "lvl1",
+          "colour": "#ff9500"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.3
+      },
+      "ease": 200
+    },
+    {
+      "bind": "touch",
+      "target": "art#fan_up",
+      "control": "fan",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#fan_down",
+      "control": "fan",
+      "step": -1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#temp_up",
+      "control": "temp",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#temp_down",
+      "control": "temp",
+      "step": -1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#mode_auto",
+      "control": "auto",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#mode_recirc",
+      "control": "recirc",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#mode_ac",
+      "control": "ac",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#mode_screen",
+      "control": "screen",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#seat_left_hit",
+      "control": "seat_left",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#seat_right_hit",
+      "control": "seat_right",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#zone_head_hit",
+      "control": "mode",
+      "value": "head",
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#zone_both_hit",
+      "control": "mode",
+      "value": "both",
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#zone_feet_hit",
+      "control": "mode",
+      "value": "feet",
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    }
+  ]
+}
