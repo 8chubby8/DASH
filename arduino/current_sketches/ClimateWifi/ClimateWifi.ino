@@ -1,7 +1,7 @@
 /* ===========================================================================
    DASH Module — Climate (WiFi)           |  module type: ACCESSORY
    Board: Espressif ESP32 DevKitC (WROOM-32, classic)  |  transport: WiFi TCP
-   Built on the DashModule library.       |  roadmap 1.6.8
+   Built on the DashModule library.       |  roadmap 1.6.7
    ---------------------------------------------------------------------------
    THE SECOND ACCESSORY, AND THE FIRST THAT IS ALL CONTROLS. The Tank Gauge
    was one variable and three buttons — this is nine variables and thirteen

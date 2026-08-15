@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake the Climate module's assets into a PROGMEM header (roadmap 1.6.8).
+"""Bake the Climate module's assets into a PROGMEM header (roadmap 1.6.7).
 
     python3 make_assets.py
 

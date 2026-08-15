@@ -656,7 +656,7 @@ fires, because that is local and immediate and has nothing to do with the module
 
 ### 8a. The module's own message board
 
-*(Added 2026-08-15, roadmap 1.6.8 — Roger's design. Provisional with the rest of this document.)*
+*(Added 2026-08-15, roadmap 1.6.7 — Roger's design. Provisional with the rest of this document.)*
 
 **A module may declare, in its layout, the values each of its variables takes and in what order.**
 

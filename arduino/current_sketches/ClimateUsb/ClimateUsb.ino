@@ -1,7 +1,7 @@
 /* ===========================================================================
    DASH Module — Climate (USB serial)     |  module type: ACCESSORY
    Board: Espressif ESP32 DevKitC (WROOM-32, classic)  |  transport: USB CDC
-   Built on the DashModule library.       |  roadmap 1.6.8
+   Built on the DashModule library.       |  roadmap 1.6.7
    ---------------------------------------------------------------------------
    THE USB TWIN OF ClimateWifi. Same panel, same firmware, different pipe —
    see ClimateBt for why the three exist and what they prove.

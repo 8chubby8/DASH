@@ -172,7 +172,7 @@ private fun Modifier.panelPresses(
      * lambda from the composition in which the *document* last changed, and that lambda closes over
      * the panel's values as they were at that moment.
      *
-     * Found on hardware (1.6.8): a fan that started at `2` stepped down to `1` and up to `3` and
+     * Found on hardware (1.6.7): a fan that started at `2` stepped down to `1` and up to `3` and
      * would never go higher, because every press was stepping from a value frozen at install time
      * rather than from the current one. The panel looked alive — the readout moved, the module
      * answered — and it was reading a snapshot.

@@ -47,7 +47,7 @@ data class PanelLayout(
 // ---------------------------------------------------------------------------------- variables
 
 /**
- * One entry on the module's own private message board (roadmap 1.6.8, `module-layout.md` §8a).
+ * One entry on the module's own private message board (roadmap 1.6.7, `module-layout.md` §8a).
  *
  * **This is the module's version of `system_commands.md`.** DASH's shared board has a declared
  * vocabulary with a type and a set of values per signal, written by DASH because the board is
@@ -392,7 +392,7 @@ data class TouchBinding(
     val value: String = "",
     /**
      * How far along [control]'s declared list this press moves — `+1` for a next, `-1` for a
-     * previous, `0` for a control that names its value outright (roadmap 1.6.8).
+     * previous, `0` for a control that names its value outright (roadmap 1.6.7).
      *
      * **One field serves the stepper and the toggle**, because the list decides what "next" means:
      * on a fan it is `3` → `4`, on an `["off","on"]` it is the other one. The toggle needed no

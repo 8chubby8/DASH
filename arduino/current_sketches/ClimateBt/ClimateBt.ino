@@ -1,7 +1,7 @@
 /* ===========================================================================
    DASH Module — Climate (Bluetooth)      |  module type: ACCESSORY
    Board: Espressif ESP32 DevKitC (WROOM-32, classic)  |  transport: BT SPP
-   Built on the DashModule library.       |  roadmap 1.6.8
+   Built on the DashModule library.       |  roadmap 1.6.7
    ---------------------------------------------------------------------------
    THE BLUETOOTH TWIN OF ClimateWifi. Same panel, same firmware, same nine
    variables — only the pipe differs. It exists to answer one question: does

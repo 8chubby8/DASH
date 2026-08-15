@@ -186,7 +186,7 @@ fun rememberPanelPresses(
         press = { binding ->
             if (moduleId != null) {
                 /*
-                 * **A stepped control works out its value before it sends** (roadmap 1.6.8), which
+                 * **A stepped control works out its value before it sends** (roadmap 1.6.7), which
                  * is what collapses the two kinds of control into one. Up to 1.6.7 a `+` sent a
                  * direction — `fan_up` — and could not be drawn until the module answered, because
                  * nothing in the format expressed "one more than it is now". Now the module's own

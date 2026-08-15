@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Bake the Climate module's assets into a PROGMEM header (roadmap 1.6.8).
+"""Bake the Climate module's assets into a PROGMEM header (roadmap 1.6.7).
 
 **Nothing here is this sketch's own.** This module and `ClimateWifi` are the same panel
 and the same firmware down a different pipe, so this script reads ClimateWifi's assets/
