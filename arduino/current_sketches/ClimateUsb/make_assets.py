@@ -31,10 +31,18 @@ from pathlib import Path
 HERE = Path(__file__).parent
 ASSETS = HERE.parent / "ClimateWifi" / "assets"
 
-# The layout goes first so DASH meets the panel before the artwork it refers to. Nothing
-# in the protocol requires that order — the install handshake is a monologue and DASH
-# commits the lot at INSTALL_END — but it reads better in the Serial Monitor.
-ORDER = ["h_large_day.json", "climate.svg"]
+# Each layout goes immediately before the artwork it refers to, so DASH meets a panel
+# before the art it names and a Serial Monitor scrolling past reads as three panels rather
+# than six unrelated blocks. Nothing in the protocol requires the order — the install
+# handshake is a monologue and DASH commits the lot at INSTALL_END.
+ORDER = [
+    "h_large_day.json",  "climate_h_large.svg",
+    "h_medium_day.json", "climate_h_medium.svg",
+    "h_small_day.json",  "climate_h_small.svg",
+    "v_large_day.json",  "climate_v_large.svg",
+    "v_medium_day.json", "climate_v_medium.svg",
+    "v_small_day.json",  "climate_v_small.svg",
+]
 
 # The block name is what a layout refers to, and for a layout document it is the slot name
 # (module-layout.md §9). So the layout is announced as `h_large_day`, without the .json —

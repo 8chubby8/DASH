@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+   DASH Module — Climate panel artwork         slot: v_small (1 x 16)
+   ==================================================================
+   THE HARDEST SHAPE IN THE SET, AND THE ONE THAT ASKS THE LEAST.
+     A 1 x 16 column is a sixteenth of its own height across — about
+     105 px on a landscape tablet. One finger wide. It carries the same
+     four controls h_small carries, for the same reason (§6, progressive
+     disclosure):
+
+       AUTO     which is running the fan, so the fan needs no control
+       A/C
+       SCREEN   demist, the one control that is ever urgent
+       TEMP     the thing you actually reach for
+
+   THE NUMBER IS SMALL BECAUSE THE STRIP IS NARROW, AND THAT IS HONEST
+     "21.5" is four characters and there are about 100 px to put them
+     in. Every other slot gives the value more room; this one cannot,
+     and stretching the panel to pretend otherwise is exactly what §6
+     forbids. A user who wants a bigger number picks a bigger shape —
+     which is the whole point of there being six.
+
+   EVERYTHING IS TALLER THAN IT IS WIDE. There is no width to spend and
+     1700 px of run, so every target takes its size out of the height.
+
+   NO LOGO — see climate_h_small.svg. Every part of this shape is a
+   touch target.
+
+   IDS ARE IDENTICAL TO climate_h_large.svg for everything that appears.
+-->
+<svg
+   width="100"
+   height="1600"
+   viewBox="0 0 100 1600"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+
+  <rect id="bg" x="0" y="0" width="100" height="1600" fill="#101013" />
+
+  <!-- ========================================= AUTO -->
+  <rect id="mode_auto" x="4" y="118" width="92" height="240" rx="24" fill="#1e1e22" />
+  <path id="auto_label" fill="#c8c8cc" transform="translate(-298.84,158.47) scale(1.4681)"
+        d="m 219.45703,49.890625 -2.14062,5.804687 h 4.28906 z m -0.89062,-1.554688 h 1.78906 L 224.80078,60 h -1.64062 l -1.0625,-2.992188 h -5.25782 L 215.77734,60 h -1.66406 z m 8.75781,0 h 1.58594 v 7.085938 q 0,1.875 0.67968,2.703125 0.67969,0.820312 2.20313,0.820312 1.51562,0 2.19531,-0.820312 0.67969,-0.828125 0.67969,-2.703125 v -7.085938 h 1.58594 v 7.28125 q 0,2.28125 -1.13282,3.445313 -1.125,1.164062 -3.32812,1.164062 -2.21094,0 -3.34375,-1.164062 -1.125,-1.164063 -1.125,-3.445313 z m 11.27344,0 h 9.86718 v 1.328125 h -4.14062 V 60 h -1.58594 V 49.664062 h -4.14062 z m 17.125,1.070313 q -1.71875,0 -2.73438,1.28125 -1.00781,1.28125 -1.00781,3.492187 0,2.203125 1.00781,3.484375 1.01563,1.28125 2.73438,1.28125 1.71875,0 2.71875,-1.28125 1.00781,-1.28125 1.00781,-3.484375 0,-2.210937 -1.00781,-3.492187 -1,-1.28125 -2.71875,-1.28125 z m 0,-1.28125 q 2.45312,0 3.92187,1.648437 1.46875,1.640625 1.46875,4.40625 0,2.757813 -1.46875,4.40625 -1.46875,1.640625 -3.92187,1.640625 -2.46094,0 -3.9375,-1.640625 -1.46875,-1.640625 -1.46875,-4.40625 0,-2.765625 1.46875,-4.40625 1.47656,-1.648437 3.9375,-1.648437 z" />
+
+  <!-- ========================================= A/C -->
+  <rect id="mode_ac" x="4" y="408" width="92" height="240" rx="24" fill="#1e1e22" />
+  <g transform="translate(-969.42,406.75) scale(2.2454)">
+    <path id="ac_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+          d="M 454 40 V 68 M 442 47 L 466 61 M 442 61 L 466 47" />
+  </g>
+
+  <!-- ========================================= SCREEN (demist) -->
+  <rect id="mode_screen" x="4" y="698" width="92" height="240" rx="24" fill="#1e1e22" />
+  <g transform="translate(-1211.93,703.09) scale(2.2454)">
+    <path id="screen_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linejoin="round"
+          d="M 549 66 q 0 -15 13 -15 q 13 0 13 15 z" />
+    <path id="screen_waves" fill="none" stroke="#c8c8cc" stroke-width="2.8" stroke-linecap="round"
+          d="M 554 46 q 4 -6 0 -10 M 562 46 q 4 -6 0 -10 M 570 46 q 4 -6 0 -10" />
+  </g>
+
+  <!-- ========================================= TEMP — a stepper stood up -->
+  <rect id="temp_panel" x="4"  y="988"  width="92" height="494" rx="24" fill="#1e1e22" />
+  <rect id="temp_up"    x="12" y="1000" width="76" height="190" rx="20" fill="#1e1e22" />
+  <path id="temp_up_glyph" fill="#c8c8cc"
+        d="M 33 1090 H 67 Q 72 1090 72 1095 V 1095 Q 72 1100 67 1100 H 33 Q 28 1100 28 1095 V 1095 Q 28 1090 33 1090 Z
+           M 50 1073 H 50 Q 55 1073 55 1078 V 1112 Q 55 1117 50 1117 H 50 Q 45 1117 45 1112 V 1078 Q 45 1073 50 1073 Z" />
+  <rect id="temp_down"  x="12" y="1280" width="76" height="190" rx="20" fill="#1e1e22" />
+  <path id="temp_down_glyph" fill="#c8c8cc"
+        d="M 33 1370 H 67 Q 72 1370 72 1375 V 1375 Q 72 1380 67 1380 H 33 Q 28 1380 28 1375 V 1375 Q 28 1370 33 1370 Z" />
+</svg>

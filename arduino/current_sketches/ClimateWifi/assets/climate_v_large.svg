@@ -1,0 +1,144 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+   DASH Module — Climate panel artwork         slot: v_large (3 x 8)
+   ==================================================================
+   STOOD ON ITS END IS A SHAPE, NOT A DRAWING.
+     module-layout.md §6 says every vertical slot is its horizontal twin
+     stood on its end — and that is a statement about the *ratio*, so
+     that there are three shapes to learn rather than six. It is not
+     permission to rotate the artwork. A rotated panel has sideways
+     lettering and sideways glyphs, and DASH does not reflow anything.
+     So this is the large panel re-laid out as a column, drawn from
+     scratch, sharing every id and nothing else.
+
+   THE READING ORDER IS THE HORIZONTAL ONE, TURNED
+     Left-to-right becomes top-to-bottom: fan, the cabin, the mode
+     buttons, temperature. Someone who knows the horizontal panel finds
+     everything where they expect it, one quarter-turn on.
+
+   THE STEPPERS STAY HORIZONTAL. This column is wide — roughly 640 px
+     on a landscape tablet — so [-] value [+] fits across it with room
+     for the number. v_medium is half that width and has to solve it
+     differently; see that file.
+
+   IDS ARE IDENTICAL TO climate_h_large.svg.
+   THE COLOURS ARE FALLBACKS, NOT THE DESIGN — see climate_h_large.svg.
+   GLYPHS ARE LIFTED FROM THE HORIZONTAL ARTWORK AND SCALED WITH A
+   GROUP TRANSFORM, so a shape is literally the same shape in all six
+   slots rather than six shapes redrawn by eye.
+-->
+<svg
+   width="300"
+   height="800"
+   viewBox="0 0 300 800"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+
+  <rect id="bg" x="0" y="0" width="300" height="800" fill="#101013" />
+
+  <!-- ========================================= FAN, top -->
+  <rect id="fan_panel" x="12"  y="20" width="276" height="150" rx="20" fill="#1e1e22" />
+  <rect id="fan_down"  x="24"  y="32" width="60"  height="126" rx="16" fill="#1e1e22" />
+  <path id="fan_down_glyph" fill="#c8c8cc"
+        d="M 41 91 H 67 Q 71 91 71 95 V 95 Q 71 99 67 99 H 41 Q 37 99 37 95 V 95 Q 37 91 41 91 Z" />
+  <rect id="fan_up"    x="216" y="32" width="60"  height="126" rx="16" fill="#1e1e22" />
+  <path id="fan_up_glyph" fill="#c8c8cc"
+        d="M 233 91 H 259 Q 263 91 263 95 V 95 Q 263 99 259 99 H 233 Q 229 99 229 95 V 95 Q 229 91 233 91 Z
+           M 246 78 H 246 Q 250 78 250 82 V 108 Q 250 112 246 112 H 246 Q 242 112 242 108 V 82 Q 242 78 246 78 Z" />
+
+  <!-- ========================================= the cabin, middle -->
+  <!-- Zones stacked with the seat beside them, exactly as in the horizontal
+       panels: three arrows aimed at a passenger says far more than three
+       arrows aimed at nothing. The heated seats sit under them. -->
+  <rect id="cabin_panel" x="12" y="186" width="276" height="272" rx="20" fill="#1e1e22" />
+
+  <!-- HEAD -->
+  <rect id="zone_head_hit" x="24" y="198" width="152" height="56" rx="12" fill="#1e1e22" />
+  <g transform="translate(-187.84,91.60) scale(1.1200)">
+    <path id="head_arrow" fill="none" stroke="#c8c8cc" stroke-width="4" stroke-linecap="round"
+          d="M 220 120 h 62" />
+    <path id="head_arrow_head" fill="#c8c8cc" d="M 279 111 l 17 9 l -17 9 z" />
+  </g>
+
+  <!-- FEET + HEAD -->
+  <rect id="zone_both_hit" x="24" y="260" width="152" height="56" rx="12" fill="#1e1e22" />
+  <g transform="translate(-179.02,92.56) scale(1.1200)">
+    <path id="both_arrow_a" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+          d="M 220 160 h 50" />
+    <path id="both_head_a" fill="#c8c8cc" d="M 267 153 l 13 7 l -13 7 z" />
+    <path id="both_arrow_b" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+          d="M 220 176 h 36 q 9 0 9 9" />
+    <path id="both_head_b" fill="#c8c8cc" d="M 258 183 l 7 13 l 7 -13 z" />
+  </g>
+
+  <!-- FEET -->
+  <rect id="zone_feet_hit" x="24" y="322" width="152" height="56" rx="12" fill="#1e1e22" />
+  <g transform="translate(-181.12,103.04) scale(1.1200)">
+    <path id="feet_arrow" fill="none" stroke="#c8c8cc" stroke-width="4" stroke-linecap="round"
+          d="M 220 210 h 46 q 10 0 10 10" />
+    <path id="feet_arrow_head" fill="#c8c8cc" d="M 268 218 l 8 15 l 8 -15 z" />
+  </g>
+
+  <!-- the seat the air is aimed at -->
+  <path id="seat" fill="#3f3f47" transform="translate(-103.30,154.54) scale(0.8238)"
+        d="M 439 118 H 443 Q 454 118 454 129 V 185 Q 454 196 443 196 H 439 Q 428 196 428 185 V 129 Q 428 118 439 118 Z
+           M 371 182 H 443 Q 454 182 454 193 V 195 Q 454 206 443 206 H 371 Q 360 206 360 195 V 193 Q 360 182 371 182 Z" />
+
+  <!-- the DASH chevron -->
+  <path id="logo" fill="#8e8e93" d="M 219 366 l 13 -22 l 13 22 l -9 0 l -4 -7 l -4 7 z" />
+
+  <!-- heated seats -->
+  <rect id="seat_left_hit"  x="24"  y="388" width="122" height="58" rx="16" fill="#1e1e22" />
+  <g transform="translate(-421.69,210.80) scale(0.9782)">
+    <path id="seat_left_body" fill="#c8c8cc"
+          d="M 525 206 H 528 Q 531 206 531 209 V 229 Q 531 232 528 232 H 525 Q 522 232 522 229 V 209 Q 522 206 525 206 Z
+             M 508 227 H 528 Q 531 227 531 230 V 233 Q 531 236 528 236 H 508 Q 505 236 505 233 V 230 Q 505 227 508 227 Z" />
+    <path id="seat_left_heat" fill="none" stroke="#c8c8cc" stroke-width="2.8" stroke-linecap="round"
+          d="M 508 198 q 4 -6 0 -11 M 516 198 q 4 -6 0 -11 M 524 198 q 4 -6 0 -11" />
+  </g>
+
+  <rect id="seat_right_hit" x="154" y="388" width="122" height="58" rx="16" fill="#1e1e22" />
+  <g transform="translate(-336.69,210.80) scale(0.9782)">
+    <path id="seat_right_body" fill="#c8c8cc"
+          d="M 571 206 H 574 Q 577 206 577 209 V 229 Q 577 232 574 232 H 571 Q 568 232 568 229 V 209 Q 568 206 571 206 Z
+             M 554 227 H 574 Q 577 227 577 230 V 233 Q 577 236 574 236 H 554 Q 551 236 551 233 V 230 Q 551 227 554 227 Z" />
+    <path id="seat_right_heat" fill="none" stroke="#c8c8cc" stroke-width="2.8" stroke-linecap="round"
+          d="M 554 198 q 4 -6 0 -11 M 562 198 q 4 -6 0 -11 M 570 198 q 4 -6 0 -11" />
+  </g>
+
+  <!-- ========================================= mode buttons, a 2 x 2 -->
+  <rect id="mode_auto" x="12" y="474" width="132" height="64" rx="16" fill="#1e1e22" />
+  <path id="auto_label" fill="#c8c8cc" transform="translate(-282.36,423.84) scale(1.5166)"
+        d="m 219.45703,49.890625 -2.14062,5.804687 h 4.28906 z m -0.89062,-1.554688 h 1.78906 L 224.80078,60 h -1.64062 l -1.0625,-2.992188 h -5.25782 L 215.77734,60 h -1.66406 z m 8.75781,0 h 1.58594 v 7.085938 q 0,1.875 0.67968,2.703125 0.67969,0.820312 2.20313,0.820312 1.51562,0 2.19531,-0.820312 0.67969,-0.828125 0.67969,-2.703125 v -7.085938 h 1.58594 v 7.28125 q 0,2.28125 -1.13282,3.445313 -1.125,1.164062 -3.32812,1.164062 -2.21094,0 -3.34375,-1.164062 -1.125,-1.164063 -1.125,-3.445313 z m 11.27344,0 h 9.86718 v 1.328125 h -4.14062 V 60 h -1.58594 V 49.664062 h -4.14062 z m 17.125,1.070313 q -1.71875,0 -2.73438,1.28125 -1.00781,1.28125 -1.00781,3.492187 0,2.203125 1.00781,3.484375 1.01563,1.28125 2.73438,1.28125 1.71875,0 2.71875,-1.28125 1.00781,-1.28125 1.00781,-3.484375 0,-2.210937 -1.00781,-3.492187 -1,-1.28125 -2.71875,-1.28125 z m 0,-1.28125 q 2.45312,0 3.92187,1.648437 1.46875,1.640625 1.46875,4.40625 0,2.757813 -1.46875,4.40625 -1.46875,1.640625 -3.92187,1.640625 -2.46094,0 -3.9375,-1.640625 -1.46875,-1.640625 -1.46875,-4.40625 0,-2.765625 1.46875,-4.40625 1.47656,-1.648437 3.9375,-1.648437 z" />
+
+  <rect id="mode_recirc" x="156" y="474" width="132" height="64" rx="16" fill="#1e1e22" />
+  <g transform="translate(-278.89,430.69) scale(1.5059)">
+    <path id="recirc_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+          d="M 333 62 a 16 12 0 1 1 12 -5" />
+    <path id="recirc_head" fill="#c8c8cc" d="M 338 40 l 13 4 l -10 9 z" />
+  </g>
+
+  <rect id="mode_ac" x="12" y="550" width="132" height="64" rx="16" fill="#1e1e22" />
+  <g transform="translate(-605.67,500.68) scale(1.5059)">
+    <path id="ac_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+          d="M 454 40 V 68 M 442 47 L 466 61 M 442 61 L 466 47" />
+  </g>
+
+  <rect id="mode_screen" x="156" y="550" width="132" height="64" rx="16" fill="#1e1e22" />
+  <g transform="translate(-624.31,504.94) scale(1.5059)">
+    <path id="screen_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linejoin="round"
+          d="M 549 66 q 0 -15 13 -15 q 13 0 13 15 z" />
+    <path id="screen_waves" fill="none" stroke="#c8c8cc" stroke-width="2.8" stroke-linecap="round"
+          d="M 554 46 q 4 -6 0 -10 M 562 46 q 4 -6 0 -10 M 570 46 q 4 -6 0 -10" />
+  </g>
+
+  <!-- ========================================= TEMP, bottom -->
+  <rect id="temp_panel" x="12"  y="630" width="276" height="150" rx="20" fill="#1e1e22" />
+  <rect id="temp_down"  x="24"  y="642" width="60"  height="126" rx="16" fill="#1e1e22" />
+  <path id="temp_down_glyph" fill="#c8c8cc"
+        d="M 41 701 H 67 Q 71 701 71 705 V 705 Q 71 709 67 709 H 41 Q 37 709 37 705 V 705 Q 37 701 41 701 Z" />
+  <rect id="temp_up"    x="216" y="642" width="60"  height="126" rx="16" fill="#1e1e22" />
+  <path id="temp_up_glyph" fill="#c8c8cc"
+        d="M 233 701 H 259 Q 263 701 263 705 V 705 Q 263 709 259 709 H 233 Q 229 709 229 705 V 705 Q 229 701 233 701 Z
+           M 246 688 H 246 Q 250 688 250 692 V 718 Q 250 722 246 722 H 246 Q 242 722 242 718 V 692 Q 242 688 246 688 Z" />
+</svg>

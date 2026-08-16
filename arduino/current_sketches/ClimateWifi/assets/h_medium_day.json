@@ -109,17 +109,17 @@
     {
       "id": "art",
       "type": "vector",
-      "asset": "climate_h_large.svg"
+      "asset": "climate_h_medium.svg"
     },
     {
       "id": "fan_value",
       "type": "text",
       "value": "fan",
       "at": [
-        0.0975,
-        0.43
+        0.125,
+        0.36
       ],
-      "fontSize": 0.14,
+      "fontSize": 0.24,
       "align": "center",
       "font": "monospace",
       "colour": "@textColourSecondary"
@@ -129,10 +129,10 @@
       "type": "text",
       "value": "temp",
       "at": [
-        0.9025,
-        0.442
+        0.875,
+        0.383
       ],
-      "fontSize": 0.115,
+      "fontSize": 0.2,
       "align": "center",
       "font": "monospace",
       "colour": "@textColourSecondary"

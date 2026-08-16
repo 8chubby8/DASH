@@ -1,0 +1,274 @@
+{
+  "variables": {
+    "temp": {
+      "values": [
+        "min",
+        "16.5",
+        "17",
+        "17.5",
+        "18",
+        "18.5",
+        "19",
+        "19.5",
+        "20",
+        "20.5",
+        "21",
+        "21.5",
+        "22",
+        "22.5",
+        "23",
+        "23.5",
+        "24",
+        "24.5",
+        "25",
+        "25.5",
+        "26",
+        "26.5",
+        "27",
+        "27.5",
+        "28",
+        "28.5",
+        "29",
+        "29.5",
+        "30",
+        "30.5",
+        "31",
+        "31.5",
+        "max"
+      ],
+      "wrap": false
+    },
+    "auto": {
+      "values": [
+        "off",
+        "on"
+      ],
+      "wrap": true
+    },
+    "ac": {
+      "values": [
+        "off",
+        "on"
+      ],
+      "wrap": true
+    },
+    "screen": {
+      "values": [
+        "off",
+        "on"
+      ],
+      "wrap": true
+    }
+  },
+  "layers": [
+    {
+      "id": "art",
+      "type": "vector",
+      "asset": "climate_v_small.svg"
+    },
+    {
+      "id": "temp_value",
+      "type": "text",
+      "value": "temp",
+      "at": [
+        0.5,
+        0.7584
+      ],
+      "fontSize": 0.023,
+      "align": "center",
+      "font": "monospace",
+      "colour": "@textColourSecondary"
+    }
+  ],
+  "bindings": [
+    {
+      "bind": "style",
+      "target": "art#bg",
+      "colour": "@backgroundColourPrimary"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_panel",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_up",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_down",
+      "colour": "@backgroundColourSecondary"
+    },
+    {
+      "bind": "style",
+      "target": "art#mode_auto",
+      "value": "auto",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#mode_ac",
+      "value": "ac",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#mode_screen",
+      "value": "screen",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#248a3d"
+        }
+      ],
+      "default": {
+        "colour": "@backgroundColourSecondary"
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_up_glyph",
+      "colour": "#ff2d20"
+    },
+    {
+      "bind": "style",
+      "target": "art#temp_down_glyph",
+      "colour": "#0a84ff"
+    },
+    {
+      "bind": "style",
+      "target": "art#auto_label",
+      "value": "auto",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#ac_glyph",
+      "value": "ac",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#screen_glyph",
+      "value": "screen",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "style",
+      "target": "art#screen_waves",
+      "value": "screen",
+      "cases": [
+        {
+          "is": "on",
+          "colour": "#ffffff"
+        }
+      ],
+      "default": {
+        "colour": "@iconColourSecondary",
+        "opacity": 0.4
+      },
+      "ease": 200
+    },
+    {
+      "bind": "touch",
+      "target": "art#temp_up",
+      "control": "temp",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#temp_down",
+      "control": "temp",
+      "step": -1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#mode_auto",
+      "control": "auto",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#mode_ac",
+      "control": "ac",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    },
+    {
+      "bind": "touch",
+      "target": "art#mode_screen",
+      "control": "screen",
+      "step": 1,
+      "feedback": {
+        "colour": "@accentColourSecondary"
+      },
+      "ease": 120
+    }
+  ]
+}

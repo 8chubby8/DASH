@@ -8,13 +8,31 @@
    controls, which is what a real panel looks like.
 
    WHAT IT SENDS, AND WHEN
-     On INSTALL it streams two blocks out of flash:
+     On INSTALL it streams twelve blocks out of flash — all six day slots,
+     each a layout and the artwork it refers to:
 
-       h_large_day   the panel description for the large horizontal slot
-       climate.svg   the artwork — one vector, no raster
+       h_large_day  /climate_h_large.svg    8 x 3  everything, room to breathe
+       h_medium_day /climate_h_medium.svg  16 x 3  everything, re-laid out
+       h_small_day  /climate_h_small.svg   16 x 1  temp, AUTO, A/C, demist
+       v_large_day  /climate_v_large.svg    3 x 8  everything, as a column
+       v_medium_day /climate_v_medium.svg   3 x 16 everything, steppers stood up
+       v_small_day  /climate_v_small.svg    1 x 16 temp, AUTO, A/C, demist
 
      Then SILENT until ACTIVATE, then a full state dump, then a report
      whenever anything changes.
+
+     THE SIX ARE DRAWN, NOT SCALED. module-layout.md §6: DASH never reshapes
+     a layout to fit a slot it was not drawn for, and a vertical slot is its
+     horizontal twin's *ratio* stood on end, not its artwork rotated. So a
+     module that wants six shapes authors six shapes.
+
+     THE FIRMWARE IS UNTOUCHED BY ANY OF IT. The same nine variables serve
+     all six; the two small slots simply have fewer controls pointing at
+     them. Not a line below this comment knows how many slots exist.
+
+     NO NIGHT VARIANTS. The Ambient switch is a version 2 setting, so the
+     six `night` slots would be accepted, stored and never selected (§6).
+     They get drawn when there is something to select them.
 
    IT HOLDS STATE AND NOTHING ELSE
      There is no climate hardware behind this. Every variable is a number in
@@ -59,7 +77,7 @@ WiFiClient client;
    a module whose panel has moved on while its version stands still keeps being
    drawn from the copy already on the tablet's disk. */
 ClimateModule dash("0000DA58AC04", "Climate",
-                   "Single-zone cabin climate", "v1.6");
+                   "Single-zone cabin climate", "v1.8");
 
 unsigned long lastLinkTry = 0;
 const unsigned long LINK_RETRY_MS = 3000;

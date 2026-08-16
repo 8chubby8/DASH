@@ -1,0 +1,75 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<!--
+   DASH Module — Climate panel artwork         slot: h_small (16 x 1)
+   ==================================================================
+   THE SLOT WHERE THE CUT HAPPENS.
+     module-layout.md §6, progressive disclosure: "a module may show
+     different amounts of information in different shapes — ten
+     parameters in large, five in small. The author decides what
+     survives the cut."
+
+     This is that decision, made. A 16 x 1 strip is a sixteenth of the
+     screen's width tall — roughly 185 px on a 2960 px tablet. Nine
+     variables cannot live there at a size a moving thumb can hit, so
+     four do:
+
+       TEMP     the thing you actually reach for
+       AUTO     which is running the fan, so the fan needs no control
+       A/C
+       SCREEN   demist, the one control that is ever urgent
+
+     Fan, recirculation, vent direction and the heated seats are absent
+     from this slot. Not hidden, not shrunk — absent. The user chose a
+     strip; this is what a strip honestly holds.
+
+   NO LOGO. Every part of this shape is a touch target, and a chevron
+   would be taking space off a control to sign a signature. The module
+   is named in the Module Manager.
+
+   IDS ARE IDENTICAL TO climate_h_large.svg for everything that appears here.
+   THE COLOURS ARE FALLBACKS, NOT THE DESIGN — see climate_h_large.svg.
+   GLYPHS ARE LIFTED FROM climate_h_large.svg AND SCALED WITH A TRANSFORM.
+-->
+<svg
+   width="1600"
+   height="100"
+   viewBox="0 0 1600 100"
+   version="1.1"
+   xmlns="http://www.w3.org/2000/svg">
+
+  <rect id="bg" x="0" y="0" width="1600" height="100" fill="#101013" />
+
+  <!-- ========================================= AUTO -->
+  <rect id="mode_auto" x="20" y="10" width="280" height="80" rx="20" fill="#1e1e22" />
+  <path id="auto_label" fill="#c8c8cc" transform="translate(-576.09,-117.83) scale(3.0979)"
+        d="m 219.45703,49.890625 -2.14062,5.804687 h 4.28906 z m -0.89062,-1.554688 h 1.78906 L 224.80078,60 h -1.64062 l -1.0625,-2.992188 h -5.25782 L 215.77734,60 h -1.66406 z m 8.75781,0 h 1.58594 v 7.085938 q 0,1.875 0.67968,2.703125 0.67969,0.820312 2.20313,0.820312 1.51562,0 2.19531,-0.820312 0.67969,-0.828125 0.67969,-2.703125 v -7.085938 h 1.58594 v 7.28125 q 0,2.28125 -1.13282,3.445313 -1.125,1.164062 -3.32812,1.164062 -2.21094,0 -3.34375,-1.164062 -1.125,-1.164063 -1.125,-3.445313 z m 11.27344,0 h 9.86718 v 1.328125 h -4.14062 V 60 h -1.58594 V 49.664062 h -4.14062 z m 17.125,1.070313 q -1.71875,0 -2.73438,1.28125 -1.00781,1.28125 -1.00781,3.492187 0,2.203125 1.00781,3.484375 1.01563,1.28125 2.73438,1.28125 1.71875,0 2.71875,-1.28125 1.00781,-1.28125 1.00781,-3.484375 0,-2.210937 -1.00781,-3.492187 -1,-1.28125 -2.71875,-1.28125 z m 0,-1.28125 q 2.45312,0 3.92187,1.648437 1.46875,1.640625 1.46875,4.40625 0,2.757813 -1.46875,4.40625 -1.46875,1.640625 -3.92187,1.640625 -2.46094,0 -3.9375,-1.640625 -1.46875,-1.640625 -1.46875,-4.40625 0,-2.765625 1.46875,-4.40625 1.47656,-1.648437 3.9375,-1.648437 z" />
+
+  <!-- ========================================= A/C -->
+  <rect id="mode_ac" x="316" y="10" width="280" height="80" rx="20" fill="#1e1e22" />
+  <g transform="translate(-442.41,-56.86) scale(1.9789)">
+    <path id="ac_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linecap="round"
+          d="M 454 40 V 68 M 442 47 L 466 61 M 442 61 L 466 47" />
+  </g>
+
+  <!-- ========================================= SCREEN (demist) -->
+  <rect id="mode_screen" x="612" y="10" width="280" height="80" rx="20" fill="#1e1e22" />
+  <g transform="translate(-360.13,-51.27) scale(1.9789)">
+    <path id="screen_glyph" fill="none" stroke="#c8c8cc" stroke-width="3.5" stroke-linejoin="round"
+          d="M 549 66 q 0 -15 13 -15 q 13 0 13 15 z" />
+    <path id="screen_waves" fill="none" stroke="#c8c8cc" stroke-width="2.8" stroke-linecap="round"
+          d="M 554 46 q 4 -6 0 -10 M 562 46 q 4 -6 0 -10 M 570 46 q 4 -6 0 -10" />
+  </g>
+
+  <!-- ========================================= TEMP, right — a stepper on its side -->
+  <!-- The widest group by a distance, because it is the one that is read as
+       well as pressed. The number is a text LAYER; the space between the two
+       buttons is deliberately empty artwork. -->
+  <rect id="temp_panel" x="908"  y="10" width="672" height="80" rx="20" fill="#1e1e22" />
+  <rect id="temp_down"  x="922"  y="18" width="164" height="64" rx="16" fill="#1e1e22" />
+  <path id="temp_down_glyph" fill="#c8c8cc"
+        d="M 986 44 H 1022 Q 1028 44 1028 50 V 50 Q 1028 56 1022 56 H 986 Q 980 56 980 50 V 50 Q 980 44 986 44 Z" />
+  <rect id="temp_up"    x="1402" y="18" width="164" height="64" rx="16" fill="#1e1e22" />
+  <path id="temp_up_glyph" fill="#c8c8cc"
+        d="M 1466 44 H 1502 Q 1508 44 1508 50 V 50 Q 1508 56 1502 56 H 1466 Q 1460 56 1460 50 V 50 Q 1460 44 1466 44 Z
+           M 1484 26 H 1484 Q 1490 26 1490 32 V 68 Q 1490 74 1484 74 H 1484 Q 1478 74 1478 68 V 32 Q 1478 26 1484 26 Z" />
+</svg>

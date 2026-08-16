@@ -26,7 +26,7 @@
 #include "ClimateModule.h"
 
 ClimateModule dash("0000DA58AC06", "Climate USB",
-                   "Single-zone cabin climate over USB serial", "v1.6");
+                   "Single-zone cabin climate over USB serial", "v1.8");
 
 void setup() {
   // 115200 — the project's one serial rate, matched by DASH's UsbSerialTransport and every

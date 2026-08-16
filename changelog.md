@@ -149,6 +149,95 @@ found `step` in the format with no entry explaining it would have no way back to
 
 ---
 
+### Extended 2026-08-16 — the Climate module fills all six day slots
+
+**Not a new version, and not a platform change** *(Roger's call — "I just wanted to actually have all
+the sizes")*. A continuation of the tangent above: the Climate module shipped one slot, and now ships
+six. **1.6.8 remains multi-module.**
+
+**Not one line of DASH changed, and that is the entry.** Every slot name, every ratio, the slot
+selector and the *no layout, no panel* rule were already built at 1.6.4 and 1.6.6. Adding five shapes
+to a module needed five drawings and five layout documents and nothing else — no new message, no new
+field, no capability. **That is `module-layout.md` §6 working as designed**, and it is the first time
+the six-shape set has been exercised by a module rather than described in a document.
+
+**Implemented:**
+
+- **Five more slots on the Climate module**, all `day`: `h_medium` (16 × 3), `h_small` (16 × 1),
+  `v_large` (3 × 8), `v_medium` (3 × 16), `v_small` (1 × 16). Twelve blocks, 115,972 bytes.
+- **The two large shapes carry everything; the two small ones carry four controls.** `h_small` and
+  `v_small` show temperature, AUTO, A/C and demist — **§6's progressive disclosure, decided rather
+  than described.** The fan has no control because AUTO is running it, which is the honest reading of
+  a strip a sixteenth of its own length thick.
+- **Each shape got its own answer to the same problem, which is the argument for the set.** A stepper
+  is horizontal in `h_large` and `v_large`, and **stands up in `v_medium`** — `[−] 21.5 [+]` across a
+  320 px column leaves the number about 100 px, and "21.5" is four characters, so `[+]` above, the
+  value across the full width, `[−]` below. Two shapes, two designs. Anything DASH did to reflow one
+  into the other's slot would be DASH forming an opinion about someone's artwork.
+- **The vertical slots are re-laid out, never rotated.** §6's *"every vertical slot is its horizontal
+  twin stood on its end"* is a statement about the **ratio** — it is what makes three shapes to learn
+  rather than six. Rotating the artwork would give sideways lettering and sideways glyphs. Left-to-right
+  becomes top-to-bottom instead, so the reading order survives the quarter-turn.
+- **The layouts are generated from `h_large_day.json`, not retyped.** Each new layout takes that
+  document's bindings verbatim and moves only the artwork name and the two text layers; the two small
+  slots are the same list *filtered* to the ids their artwork actually draws, which is where their
+  four variables and eighteen bindings come from. **A binding cannot pick up a different meaning on
+  the way into another slot** if nobody ever retypes it.
+- **The artwork was renamed to a matrix** — `climate_h_large/medium/small.svg` and `climate_v_*.svg`,
+  replacing `climate.svg` / `climate_medium.svg` / `climate_small.svg`. Six files that read as
+  three shapes × two orientations.
+- **Shared glyphs are lifted verbatim and placed with a group transform**, so the A/C asterisk in
+  `v_small` is literally the same path as the one in `h_large` rather than six redrawings. Confirmed
+  safe first: `VectorArtLayer` applies `node.transform` to the *draw scope*, so a scaled stroke scales
+  with its geometry and the artwork cannot diverge from what the parser does with it.
+
+**Fixes:**
+
+- **AUTO was overflowing its button, because the label is 47 units wide and I had assumed 38.** Placing
+  a lifted glyph means centring it, and centring it means knowing its bounding box — which I had been
+  estimating by reading path data. Every shared glyph is now measured with `inkscape --query-id` and
+  every transform computed from the real numbers.
+- **Fitting each glyph to its own button independently broke the family.** The three vent arrows came
+  out at scale 1.52, 1.02 and 1.75 — each the same *fraction of a button*, and no longer one drawing.
+  **A family now takes a single scale, the smallest that fits every member.** In the source artwork
+  they sit at scale 1 in identical buttons, so their relative sizes are already right; sharing one
+  scale is what carries that relationship into a new shape. This is the fix that made the six panels
+  look like one design rather than six variations.
+
+**Outstanding:**
+
+- **Not yet seen on the tablet.** The Bluetooth board is flashed at `v1.8` and connected, and the
+  panels were checked against a throwaway renderer in the scratchpad — **which proves the design and
+  not the parser.** Cycling the panel size and edge through all six on the Samsung is still to do.
+- **`ClimateWifi` and `ClimateUsb` are updated in the repository and not flashed.** One board on the
+  bench; Bluetooth is the bench transport.
+- **The sketch is at 89% of program storage** (1,174,924 of 1,310,720 bytes). **The six `night` slots
+  would roughly double the payload again and will not fit on the default partition** — that is a
+  partition-scheme change to `huge_app` when Ambient lands in version 2, not a surprise on the day.
+  Worth knowing now because it is the first hint that a module shipping twelve fully-authored slots
+  has a real flash budget to think about.
+- **Night slots, panel warnings reaching only logcat, Bronze unmeasured, `Locale.ROOT` number
+  formatting, `style` still having no separate `fill` and `stroke`** — all carried forward unchanged.
+
+**Notes:**
+
+- **A previewer that guesses is worse than no previewer.** The throwaway renderer used to look at
+  these put its text layers in *pixel* space when the artwork carries its own viewBox, and drew the
+  fan value off the bottom of the panel. Caught in seconds because it was obviously wrong — but it is
+  exactly the failure `panel-preview/CLAUDE.md` names as the hazard, arrived at independently and
+  within an hour of starting. **The scratchpad tool is not panel-preview and must not become it**; it
+  resolves theme tokens and static bindings well enough to judge a layout and knows nothing about the
+  subset.
+- **The measured-and-shared-scale rule is the reusable part.** Any module author lifting one glyph
+  into several slots hits both defects in the same order: first the bounding box they guessed, then
+  the family that stopped matching. Worth saying out loud in the SDK material at 1.6.10.
+- **Six fully-authored slots is roughly 116 KB and about fifteen minutes of drawing per shape.** A
+  useful number for the "is twelve a burden on community builders" question, which the answer to
+  remains no — every slot is optional and a one-shape module is a legitimate module. But the cost of
+  choosing *all* of them is now measured rather than guessed.
+
+---
+
 ## Version 1.6.6
 
 **Status:** Complete — a module's layout drawn on the panel, verified by Roger on the Tab S9 Ultra over **all three transports**, 2026-08-13.
