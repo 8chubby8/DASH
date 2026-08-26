@@ -1,0 +1,2452 @@
+<!DOCTYPE html>
+<html lang="en-GB">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>DASH Panel Preview</title>
+<style>
+/* ═══════════════════════════════════════════════════════════════════════════
+   DASH Panel Preview — one file, no dependencies, no network, no build step.
+   See CLAUDE.md in this folder. The spec is ../module-layout.md.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+:root {
+  --ink:        #e8e8ed;
+  --ink-dim:    #8e8e93;
+  --ink-faint:  #5a5a60;
+  --surface:    #1c1c1f;
+  --surface-2:  #232327;
+  --surface-3:  #2c2c31;
+  --line:       #38383d;
+  --accent:     #4a9eff;
+  --skipped:    #ff453a;
+  --degraded:   #ff9f0a;
+  --advice:     #64d2ff;
+  --ok:         #32d74b;
+  --mono: ui-monospace, "SF Mono", "Cascadia Mono", "Roboto Mono", Menlo, Consolas, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+}
+
+* { box-sizing: border-box; }
+
+html, body {
+  height: 100%;
+  margin: 0;
+  background: #131316;
+  color: var(--ink);
+  font: 13px/1.5 var(--sans);
+  overflow: hidden;
+}
+
+/* ── shell ──────────────────────────────────────────────────────────────── */
+
+#shell { display: flex; flex-direction: column; height: 100%; }
+
+header {
+  display: flex; align-items: center; gap: 16px;
+  padding: 10px 16px;
+  background: var(--surface);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+header h1 {
+  margin: 0; font-size: 14px; font-weight: 600; letter-spacing: 0.02em;
+  white-space: nowrap;
+}
+header h1 small { color: var(--ink-faint); font-weight: 400; margin-left: 8px; }
+
+.spacer { flex: 1; }
+
+button, select, input[type=text], input[type=number] {
+  font: inherit;
+  color: var(--ink);
+  background: var(--surface-3);
+  border: 1px solid var(--line);
+  border-radius: 6px;
+  padding: 5px 10px;
+}
+button { cursor: pointer; }
+button:hover { background: #35353b; }
+button.on { background: var(--accent); border-color: var(--accent); color: #08131f; font-weight: 600; }
+button:disabled { opacity: 0.4; cursor: default; }
+label.field { display: inline-flex; align-items: center; gap: 6px; color: var(--ink-dim); white-space: nowrap; }
+
+.seg { display: inline-flex; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.seg button { border: none; border-radius: 0; padding: 5px 12px; }
+.seg button + button { border-left: 1px solid var(--line); }
+
+#subsetChip {
+  font: 11px/1 var(--mono); padding: 5px 9px; border-radius: 5px;
+  border: 1px solid var(--line); white-space: nowrap;
+}
+#subsetChip.good { color: var(--ok); border-color: #23502c; background: #12240f; }
+#subsetChip.bad  { color: var(--skipped); border-color: #5a2320; background: #2a1210; }
+
+/* ── body ───────────────────────────────────────────────────────────────── */
+
+#body { flex: 1; display: flex; min-height: 0; }
+
+#stageWrap {
+  flex: 1; min-width: 0;
+  display: flex; flex-direction: column;
+  background:
+    repeating-conic-gradient(#191a1d 0% 25%, #141518 0% 50%) 50% / 24px 24px;
+}
+
+#toolbar {
+  display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
+  padding: 8px 16px;
+  background: var(--surface-2);
+  border-bottom: 1px solid var(--line);
+  flex: none;
+}
+
+#stage {
+  flex: 1; min-height: 0;
+  display: flex; align-items: center; justify-content: center;
+  padding: 28px;
+  overflow: auto;
+}
+
+/* The panel boundary. DASH draws no border, background, padding or radius here —
+   the outline below is the previewer's own furniture, marking where the castle
+   wall is, and it sits OUTSIDE the panel box so it covers nothing. */
+#panelFrame { position: relative; flex: none; outline: 1px solid var(--line); outline-offset: 6px; }
+#panel { position: relative; overflow: hidden; }
+#panel.measuring { cursor: crosshair; }
+
+/* The first frame is never eased. Compose's animate*AsState starts AT its target
+   on first composition, so a panel arrives correct and animates only when a value
+   afterwards changes. Without this the preview eases in from the artwork's own
+   colours on every build, which DASH never does. */
+#panel.settling, #panel.settling * { transition: none !important; }
+
+#panel .layer { position: absolute; }
+#panel .layer > svg  { width: 100%; height: 100%; display: block; overflow: visible; }
+#panel .layer > img  { width: 100%; height: 100%; display: block; object-fit: contain; }
+#panel .layer.tint > img { visibility: hidden; }
+#panel .layer .tintmask {
+  position: absolute; inset: 0;
+  -webkit-mask-repeat: no-repeat; mask-repeat: no-repeat;
+  -webkit-mask-position: center;  mask-position: center;
+  -webkit-mask-size: contain;     mask-size: contain;
+}
+#panel .textlayer { position: absolute; white-space: pre; line-height: normal; }
+
+#pressOverlay, #measureOverlay { position: absolute; inset: 0; pointer-events: none; }
+#pressOverlay div {
+  position: absolute; border: 1px dashed rgba(74,158,255,0.85);
+  background: rgba(74,158,255,0.08);
+}
+#pressOverlay div.tiny { border-color: rgba(255,159,10,0.9); background: rgba(255,159,10,0.12); }
+#measureBox { position: absolute; border: 1px solid var(--advice); background: rgba(100,210,255,0.12); display: none; }
+
+#readout {
+  flex: none; padding: 8px 16px; font: 12px/1.5 var(--mono); color: var(--ink-dim);
+  background: var(--surface-2); border-top: 1px solid var(--line);
+  display: flex; gap: 20px; align-items: center; flex-wrap: wrap;
+}
+#readout b { color: var(--ink); font-weight: 600; }
+#readout .hint { color: var(--ink-faint); }
+
+/* ── sidebar ────────────────────────────────────────────────────────────── */
+
+#side {
+  width: 400px; flex: none;
+  display: flex; flex-direction: column;
+  background: var(--surface);
+  border-left: 1px solid var(--line);
+}
+#tabs { display: flex; flex: none; border-bottom: 1px solid var(--line); }
+#tabs button {
+  flex: 1; border: none; border-radius: 0; background: var(--surface-2);
+  padding: 9px 0; color: var(--ink-dim);
+}
+#tabs button.on { background: var(--surface); color: var(--ink); box-shadow: inset 0 -2px 0 var(--accent); font-weight: 600; }
+#tabs .count {
+  display: inline-block; min-width: 18px; margin-left: 6px; padding: 0 5px;
+  border-radius: 9px; font: 10px/16px var(--mono); background: var(--surface-3); color: var(--ink);
+}
+#tabs .count.skipped  { background: var(--skipped);  color: #2a0d0b; }
+#tabs .count.degraded { background: var(--degraded); color: #2a1a00; }
+
+.pane { display: none; flex: 1; overflow-y: auto; padding: 12px 14px 40px; }
+.pane.on { display: block; }
+
+/* data pane */
+.var { margin-bottom: 14px; padding-bottom: 12px; border-bottom: 1px solid var(--surface-3); }
+.var:last-child { border-bottom: none; }
+.var .top { display: flex; align-items: baseline; gap: 8px; margin-bottom: 6px; }
+.var .name { font: 12px/1.4 var(--mono); color: var(--ink); font-weight: 600; }
+.var .kind { font-size: 11px; color: var(--ink-faint); }
+.var .val  { margin-left: auto; font: 12px/1.4 var(--mono); color: var(--accent); }
+.var .val.absent { color: var(--skipped); }
+.var .row { display: flex; align-items: center; gap: 8px; }
+.var input[type=range] { flex: 1; min-width: 0; accent-color: var(--accent); }
+.var select { flex: 1; min-width: 0; }
+.var .stepbtn { width: 34px; text-align: center; padding: 5px 0; }
+.var .absentbtn { font-size: 11px; padding: 4px 8px; }
+.var .note { margin-top: 5px; font-size: 11px; color: var(--ink-faint); }
+
+/* warnings pane */
+.warn {
+  margin-bottom: 8px; padding: 9px 11px; border-radius: 6px;
+  background: var(--surface-2); border-left: 3px solid var(--ink-faint);
+}
+.warn.skipped  { border-left-color: var(--skipped); }
+.warn.degraded { border-left-color: var(--degraded); }
+.warn.advice   { border-left-color: var(--advice); }
+.warn .what {
+  font: 11px/1.4 var(--mono); color: var(--ink); font-weight: 600;
+  display: flex; gap: 8px; align-items: baseline;
+}
+.warn .sev { font-size: 10px; letter-spacing: 0.08em; text-transform: uppercase; }
+.warn.skipped  .sev { color: var(--skipped); }
+.warn.degraded .sev { color: var(--degraded); }
+.warn.advice   .sev { color: var(--advice); }
+.warn .msg { margin-top: 3px; color: var(--ink-dim); font-size: 12px; }
+.warn .msg code { font-family: var(--mono); color: var(--ink); }
+.warn .advicetext { margin-top: 4px; color: var(--ink); font-size: 12px; }
+.warn .advicetext::before { content: "→ "; color: var(--ink-faint); }
+
+.empty { color: var(--ink-faint); text-align: center; padding: 40px 20px; font-size: 12px; }
+
+/* files pane */
+.filerow {
+  display: flex; align-items: baseline; gap: 8px; padding: 5px 0;
+  border-bottom: 1px solid var(--surface-3); font: 11px/1.5 var(--mono);
+}
+.filerow .tag {
+  flex: none; width: 62px; font-size: 10px; letter-spacing: 0.04em;
+  text-transform: uppercase; color: var(--ink-faint);
+}
+.filerow .nm { flex: 1; word-break: break-all; }
+.filerow .sz { color: var(--ink-faint); }
+.filerow.active .nm { color: var(--accent); font-weight: 600; }
+
+h3.sec {
+  margin: 18px 0 8px; font-size: 11px; letter-spacing: 0.08em; text-transform: uppercase;
+  color: var(--ink-faint); font-weight: 600;
+}
+h3.sec:first-child { margin-top: 0; }
+
+/* ── drop target ────────────────────────────────────────────────────────── */
+
+#drop {
+  position: fixed; inset: 0; z-index: 50; display: none;
+  align-items: center; justify-content: center;
+  background: rgba(10,10,12,0.88); backdrop-filter: blur(3px);
+  font-size: 18px; color: var(--ink);
+  border: 3px dashed var(--accent);
+}
+#drop.on { display: flex; }
+
+#welcome { max-width: 620px; margin: auto; padding: 40px; color: var(--ink-dim); }
+#welcome h2 { color: var(--ink); font-size: 18px; margin: 0 0 12px; }
+#welcome p { margin: 0 0 12px; }
+#welcome code { font-family: var(--mono); color: var(--ink); background: var(--surface-2); padding: 1px 5px; border-radius: 4px; }
+#welcome ul { margin: 0 0 12px; padding-left: 20px; }
+#welcome li { margin-bottom: 5px; }
+</style>
+</head>
+<body>
+
+<div id="shell">
+  <header>
+    <h1>DASH Panel Preview <small>layout previewer &amp; linter</small></h1>
+    <button id="loadBtn">Load files…</button>
+    <input type="file" id="fileInput" multiple hidden
+           accept=".json,.svg,.png,.jpg,.jpeg,.webp,application/json,image/svg+xml,image/png">
+    <span id="subsetChip" class="bad">no subset</span>
+    <div class="spacer"></div>
+    <label class="field">Layout
+      <select id="layoutPick"><option value="">— none —</option></select>
+    </label>
+  </header>
+
+  <div id="body">
+    <div id="stageWrap">
+      <div id="toolbar">
+        <label class="field">Slot
+          <select id="slotPick"></select>
+        </label>
+        <div class="seg" id="ambientSeg">
+          <button data-ambient="day" class="on">Day</button>
+          <button data-ambient="night">Night</button>
+        </div>
+        <div class="seg" id="modeSeg">
+          <button data-mode="interact" class="on">Interact</button>
+          <button data-mode="measure">Measure</button>
+        </div>
+        <button id="pressToggle">Show press areas</button>
+        <label class="field">Zoom
+          <input type="range" id="zoom" min="20" max="100" value="100" style="width:90px">
+          <span id="zoomOut" style="font:11px/1 var(--mono);width:34px">100%</span>
+        </label>
+        <div class="spacer"></div>
+        <label class="field">Theme
+          <select id="themePick">
+            <option value="dash">DASH default</option>
+            <option value="dark">Dark (hypothetical)</option>
+            <option value="warm">Warm (hypothetical)</option>
+          </select>
+        </label>
+      </div>
+
+      <div id="stage">
+        <div id="panelFrame" style="display:none">
+          <div id="panel">
+            <div id="pressOverlay" style="display:none"></div>
+            <div id="measureOverlay"><div id="measureBox"></div></div>
+          </div>
+        </div>
+        <div id="welcome">
+          <h2>Drop a module's layout and its artwork anywhere on this window.</h2>
+          <p>Or use <b>Load files…</b>. Everything stays on this machine — the tool makes no
+             network calls and has no server.</p>
+          <ul>
+            <li><code>h_large_day.json</code> and the rest — one layout per slot</li>
+            <li><code>*.svg</code> and <code>*.png</code> — the artwork those layouts reference</li>
+            <li><code>svg-subset.json</code> — <b>required to draw vector layers.</b> It is the
+                authoritative definition of what DASH renders, read by the DASH parser and by this
+                tool. Without it this tool would be showing you the <i>browser's</i> SVG support,
+                which is not evidence of anything.</li>
+          </ul>
+          <p style="color:var(--ink-faint)">Whole folders can be dropped. From the DASH repo,
+             <code>arduino/current_sketches/ClimateWifi/assets/</code> plus
+             <code>svg-subset.json</code> is everything you need.</p>
+        </div>
+      </div>
+
+      <div id="readout">
+        <span id="slotInfo">—</span>
+        <span id="cursorInfo" class="hint">move over the panel for coordinates</span>
+        <span id="measureInfo"></span>
+      </div>
+    </div>
+
+    <div id="side">
+      <div id="tabs">
+        <button data-pane="data" class="on">Module data</button>
+        <button data-pane="warnings">Warnings <span class="count" id="warnCount">0</span></button>
+        <button data-pane="files">Files</button>
+      </div>
+      <div class="pane on" id="pane-data"></div>
+      <div class="pane" id="pane-warnings"></div>
+      <div class="pane" id="pane-files"></div>
+    </div>
+  </div>
+</div>
+
+<div id="drop">Drop layouts, artwork and <code style="font-family:var(--mono)">svg-subset.json</code></div>
+
+<script>
+"use strict";
+
+/* ═══════════════════════════════════════════════════════════════════════════
+   FIDELITY NOTE — read before changing anything in here.
+
+   This tool exists to show an author what DASH will draw. Every behaviour below
+   was copied from a specific file in the DASH app, and the file is named at the
+   point of copying. When one of those files changes, this one is wrong until it
+   is changed to match.
+
+     app/src/main/java/com/dash/android/panel/PanelLayoutReader.kt   — reading a layout, and its warnings
+     app/src/main/java/com/dash/android/panel/PanelLayout.kt         — the model, defaults, stepFrom()
+     app/src/main/java/com/dash/android/panel/LayoutSlot.kt          — the twelve slot names
+     app/src/main/java/com/dash/android/ui/modulepanel/PanelBindings.kt   — dynamics, merge, ease, tokens
+     app/src/main/java/com/dash/android/ui/modulepanel/PanelContent.kt    — layer boxes, text, reveal
+     app/src/main/java/com/dash/android/ui/modulepanel/VectorArtLayer.kt  — vector fit, element transforms
+     app/src/main/java/com/dash/android/ui/modulepanel/PanelTouch.kt      — hit testing
+     app/src/main/java/com/dash/android/ui/modulepanel/PanelPress.kt      — the optimistic update
+     app/src/main/java/com/dash/android/panel/SvgSubset.kt                — reading svg-subset.json
+
+   The SVG *subset* is not copied: it is read from svg-subset.json, the same file
+   the app reads. That is the Prime Directive and it is the one thing here that
+   cannot drift. Everything else can, so it is written down.
+   ═══════════════════════════════════════════════════════════════════════════ */
+
+// ── state ─────────────────────────────────────────────────────────────────
+
+const S = {
+  subset: null,            // parsed svg-subset.json
+  layouts: new Map(),      // name -> { raw, doc }
+  svgText: new Map(),      // asset name -> source text
+  rasters: new Map(),      // asset name -> { url, width, height }
+  files: [],               // for the Files pane
+  current: null,           // layout name
+  slot: null,              // { orientation, size, ambient }
+  ambient: "day",
+  mode: "interact",
+  showPress: false,
+  zoom: 1,
+  theme: "dash",
+  values: new Map(),       // variable -> string, or absent
+  pressedIndex: null,
+  pressAreas: [],          // { index, binding, rect(px) }
+  panelPx: { w: 0, h: 0 },
+};
+
+// ── the theme tokens ──────────────────────────────────────────────────────
+/*
+ * From ui/theme/DashTheme.kt. There is exactly ONE theme in DASH today —
+ * `DashTheme.default()`. User-facing presets are a version 2 feature, and the
+ * Ambient (day/night) switch is a version 2 setting too: for the whole of 1.6.x
+ * DASH resolves the `day` slot (LayoutSlot.kt).
+ *
+ * The two extra sets below are NOT DASH themes and are labelled hypothetical.
+ * They are here because a panel that delegates to tokens should be checked
+ * against a palette it was not drawn on, which is the whole point of delegating.
+ */
+const THEMES = {
+  dash: {
+    label: "DASH default",
+    backgroundColourPrimary:   "#D2D2D7",
+    backgroundColourSecondary: "#2C2C2E",
+    textColourPrimary:         "#000000",
+    textColourSecondary:       "#E5E5EA",
+    iconColourPrimary:         "#000000",
+    iconColourSecondary:       "#E5E5EA",
+    accentColourPrimary:       "#C2C2C7",
+    accentColourSecondary:     "#8E8E93",
+    font: "monospace",                       // DashTheme.default() — FontFamily.Monospace
+  },
+  dark: {
+    label: "Dark (hypothetical)",
+    backgroundColourPrimary:   "#121214",
+    backgroundColourSecondary: "#252529",
+    textColourPrimary:         "#F2F2F7",
+    textColourSecondary:       "#C7C7CC",
+    iconColourPrimary:         "#F2F2F7",
+    iconColourSecondary:       "#C7C7CC",
+    accentColourPrimary:       "#0A84FF",
+    accentColourSecondary:     "#5E5CE6",
+    font: "monospace",
+  },
+  warm: {
+    label: "Warm (hypothetical)",
+    backgroundColourPrimary:   "#F5EFE6",
+    backgroundColourSecondary: "#3A322A",
+    textColourPrimary:         "#241C14",
+    textColourSecondary:       "#F0E6D8",
+    iconColourPrimary:         "#241C14",
+    iconColourSecondary:       "#F0E6D8",
+    accentColourPrimary:       "#C8781E",
+    accentColourSecondary:     "#8A6A45",
+    font: "serif",
+  },
+};
+
+const THEME_TOKENS = [
+  "backgroundColourPrimary", "backgroundColourSecondary",
+  "textColourPrimary", "textColourSecondary",
+  "iconColourPrimary", "iconColourSecondary",
+  "accentColourPrimary", "accentColourSecondary",
+  "font",
+];
+
+function theme() { return THEMES[S.theme]; }
+
+// ── slots ─────────────────────────────────────────────────────────────────
+/* LayoutSlot.kt + ModulePanelModel.kt. Six shapes × two ambient modes, and the
+   names are derived from the shapes rather than listed. */
+
+const SIZES = { small: { long: 16, thick: 1 }, medium: { long: 16, thick: 3 }, large: { long: 8, thick: 3 } };
+const ALL_SLOTS = [];
+for (const size of ["small", "medium", "large"])
+  for (const orientation of ["h", "v"])
+    for (const ambient of ["day", "night"])
+      ALL_SLOTS.push({ size, orientation, ambient, name: `${orientation}_${size}_${ambient}` });
+
+function slotForName(name) {
+  return ALL_SLOTS.find(s => s.name === String(name || "").trim()) || null;
+}
+function slotAspect(slot) {
+  const s = SIZES[slot.size];
+  return slot.orientation === "h" ? s.long / s.thick : s.thick / s.long;
+}
+function slotRatioLabel(slot) {
+  const s = SIZES[slot.size];
+  return slot.orientation === "h" ? `${s.long} × ${s.thick}` : `${s.thick} × ${s.long}`;
+}
+
+// ── warnings ──────────────────────────────────────────────────────────────
+/* The three severities are PanelLayoutReader.kt's: SKIPPED (it is not drawn),
+   DEGRADED (it is drawn, differently), ADVICE (it is fine, but). */
+
+class Warnings {
+  constructor() { this.list = []; }
+  add(severity, what, message, advice) { this.list.push({ severity, what, message, advice }); }
+  skipped(what, m, a)  { this.add("skipped", what, m, a); }
+  degraded(what, m, a) { this.add("degraded", what, m, a); }
+  advice(what, m, a)   { this.add("advice", what, m, a); }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  THE SUBSET  —  svg-subset.json, read exactly as SvgSubset.kt reads it
+// ══════════════════════════════════════════════════════════════════════════
+
+class Subset {
+  constructor(root) {
+    this.root = root;
+    this.version = root.version || 0;
+    this.elements = root.elements || {};
+    this.excludedElements = (root.excluded && root.excluded.elements) || {};
+    this.excludedAttributes = (root.excluded && root.excluded.attributes) || {};
+    this.global = new Set((root.attributes && root.attributes.global) || []);
+    this.presentation = new Set((root.attributes && root.attributes.presentation) || []);
+    this.styleProperties = new Set(
+      (root.attributes && root.attributes.style && root.attributes.style.properties) || []);
+    this.transforms = new Set(root.transforms || []);
+    this.ignoredNamespaces = new Set((root.ignored && root.ignored.namespaces) || []);
+    this.ignoredElements = new Set((root.ignored && root.ignored.elements) || []);
+    this.ignoredAttributes = new Set((root.ignored && root.ignored.attributes) || []);
+    this.namedColours = (root.colours && root.colours.named) || {};
+  }
+  allowsElement(n) { return Object.prototype.hasOwnProperty.call(this.elements, n); }
+  allowsAttribute(el, attr) {
+    if (this.global.has(attr) || this.presentation.has(attr)) return true;
+    const spec = this.elements[el];
+    if (!spec) return false;
+    return (spec.geometry || []).includes(attr) || (spec.properties || []).includes(attr);
+  }
+  requiredAttributes(el) { return (this.elements[el] && this.elements[el].requires) || []; }
+  allowsTransform(fn) { return this.transforms.has(fn); }
+  exclusionForElement(n) { return this.excludedElements[n] || null; }
+  exclusionForAttribute(n) { return this.excludedAttributes[n] || null; }
+  isIgnoredNamespace(uri) { return this.ignoredNamespaces.has(uri); }
+  isIgnoredElement(n) { return this.ignoredElements.has(n); }
+  isIgnoredAttribute(n) { return this.ignoredAttributes.has(n); }
+  namedColour(n) { return this.namedColours[String(n).toLowerCase()] || null; }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  THE PRUNER  —  the half of this tool that matters
+// ══════════════════════════════════════════════════════════════════════════
+/*
+ * The browser renders SVG natively and completely. DASH does not. So the artwork
+ * is NOT handed to the browser as it arrived: it is walked first, and everything
+ * outside the subset is removed before anything is drawn. What reaches the screen
+ * is only what DASH would also put there.
+ *
+ * That is the difference between a previewer and a confident liar, and it is why
+ * the exclusion messages come out of svg-subset.json rather than being written
+ * here — an author gets the same words the app would give them.
+ */
+
+const TOOL_ID = /^(path|rect|circle|ellipse|line|polygon|polyline|g|tspan|text|use|image)\d+(-\d+)?$/;
+
+function pruneSvg(source, assetName, warn) {
+  const parsed = new DOMParser().parseFromString(source, "image/svg+xml");
+  if (parsed.querySelector("parsererror")) {
+    warn.skipped(assetName, "Is not valid XML, so nothing in it could be read.");
+    return null;
+  }
+  const svg = parsed.documentElement;
+  if (svg.localName !== "svg") {
+    warn.skipped(assetName, "Does not start with an <code>&lt;svg&gt;</code> element.");
+    return null;
+  }
+
+  const viewBox = svg.getAttribute("viewBox");
+  if (!viewBox) {
+    warn.skipped(assetName,
+      "Has no <code>viewBox</code>, which DASH needs in order to know what coordinate space the " +
+      "artwork is drawn in. Nothing can be scaled into the panel without it.",
+      "In Inkscape this is Document Properties — save as Plain SVG with a defined page size.");
+    return null;
+  }
+
+  const ids = new Set();
+  const toolNamed = [];
+  let generic = 0;
+
+  walk(svg);
+
+  if (toolNamed.length) {
+    // §9's amendment: the hazard in real tool output is not a missing id but one
+    // that exists, means nothing and changes on the next export. Said ONCE per
+    // document — a file with a dozen of them would otherwise bury every warning
+    // that matters under a list of tick marks.
+    warn.advice(assetName,
+      `Contains ${toolNamed.length} element${toolNamed.length === 1 ? "" : "s"} with a ` +
+      `tool-generated id (<code>${toolNamed.slice(0, 4).join("</code>, <code>")}</code>` +
+      `${toolNamed.length > 4 ? ", …" : ""}). Those change on the next export, so a binding ` +
+      `pointing at one will break silently.`,
+      "Name anything you intend to bind to, in your tool's object properties.");
+  }
+
+  return { svg, viewBox, ids };
+
+  function walk(node) {
+    for (const child of Array.from(node.children)) {
+      const name = child.localName;
+      const ns = child.namespaceURI;
+
+      // Noise first — a file Inkscape wrote is full of it and none of it draws.
+      if ((ns && ns !== "http://www.w3.org/2000/svg" && subsetIgnoresNs(ns)) ||
+          S.subset.isIgnoredElement(name)) {
+        child.remove();
+        continue;
+      }
+
+      const excluded = S.subset.exclusionForElement(name);
+      if (excluded) {
+        warn.degraded(`${assetName} — <code>&lt;${name}&gt;</code>`, excluded.reason, excluded.advice);
+        child.remove();
+        continue;
+      }
+
+      if (!S.subset.allowsElement(name)) {
+        generic++;
+        if (generic <= 6) {
+          warn.degraded(`${assetName} — <code>&lt;${name}&gt;</code>`,
+            "Is not in the SVG subset DASH renders, so it is not drawn.");
+        }
+        child.remove();
+        continue;
+      }
+
+      attributes(child, name);
+
+      const missing = S.subset.requiredAttributes(name)
+        .filter(a => !child.hasAttribute(a));
+      if (missing.length) {
+        warn.degraded(`${assetName} — <code>&lt;${name}&gt;</code>`,
+          `Has no <code>${missing.join("</code>, <code>")}</code>, so there is no geometry to draw.`);
+        child.remove();
+        continue;
+      }
+
+      const id = child.getAttribute("id");
+      if (id) {
+        if (ids.has(id)) {
+          warn.degraded(`${assetName} — <code>#${id}</code>`,
+            "Appears more than once in this file. A binding can only reach the first, so the " +
+            "others can never be styled or moved.");
+        }
+        ids.add(id);
+        if (TOOL_ID.test(id)) toolNamed.push(id);
+      }
+
+      walk(child);
+    }
+  }
+
+  function subsetIgnoresNs(ns) { return S.subset.isIgnoredNamespace(ns); }
+
+  function attributes(el, name) {
+    for (const attr of Array.from(el.attributes)) {
+      const an = attr.localName;
+      const ns = attr.namespaceURI;
+
+      if (ns && S.subset.isIgnoredNamespace(ns)) { el.removeAttributeNode(attr); continue; }
+      if (S.subset.isIgnoredAttribute(an)) { el.removeAttributeNode(attr); continue; }
+      if (an === "xmlns" || attr.name.startsWith("xmlns:")) continue;
+
+      // `href` on a gradient is in the subset (a gradient inheriting another's stops).
+      if (an === "href" && (name === "linearGradient" || name === "radialGradient")) continue;
+
+      const excluded = S.subset.exclusionForAttribute(an);
+      if (excluded) {
+        warn.degraded(`${assetName} — <code>${an}</code> on <code>&lt;${name}${
+          el.id ? " id=\"" + el.id + "\"" : ""}&gt;</code>`, excluded.reason, excluded.advice);
+        el.removeAttributeNode(attr);
+        continue;
+      }
+
+      if (an === "style") { styleAttribute(el, name, attr); continue; }
+      if (an === "transform" || an === "gradientTransform") { transformAttribute(el, name, attr); continue; }
+
+      if (!S.subset.allowsAttribute(name, an)) { el.removeAttributeNode(attr); continue; }
+      colourCheck(el, name, an, attr.value);
+    }
+  }
+
+  /*
+   * The style ATTRIBUTE is parsed — not CSS, simply a semicolon-separated list of
+   * the same properties. Inkscape writes most presentation this way, and without
+   * this a large share of real Inkscape output would render as black shapes.
+   */
+  function styleAttribute(el, name, attr) {
+    const kept = [];
+    for (const part of attr.value.split(";")) {
+      if (!part.trim()) continue;
+      const at = part.indexOf(":");
+      if (at < 0) continue;
+      const prop = part.slice(0, at).trim();
+      const val = part.slice(at + 1).trim();
+      if (S.subset.styleProperties.has(prop)) {
+        kept.push(`${prop}:${val}`);
+        colourCheck(el, name, prop, val);
+        continue;
+      }
+      const excluded = S.subset.exclusionForAttribute(prop);
+      if (excluded) {
+        warn.degraded(`${assetName} — <code>${prop}</code> in a <code>style</code> attribute`,
+          excluded.reason, excluded.advice);
+      }
+      // Anything else in a style attribute is simply not a property DASH reads.
+    }
+    if (kept.length) el.setAttribute("style", kept.join(";"));
+    else el.removeAttribute("style");
+  }
+
+  function transformAttribute(el, name, attr) {
+    const fns = Array.from(attr.value.matchAll(/([A-Za-z]+)\s*\(/g)).map(m => m[1]);
+    const bad = fns.filter(f => !S.subset.allowsTransform(f));
+    if (bad.length) {
+      warn.degraded(`${assetName} — <code>${attr.localName}</code> on <code>&lt;${name}&gt;</code>`,
+        `Uses <code>${bad.join("</code>, <code>")}</code>, which is not a transform DASH applies.`,
+        `The transforms DASH reads are ${[...S.subset.transforms].join(", ")}.`);
+    }
+  }
+
+  /*
+   * Colours are checked, never rewritten. A named colour DASH does not know draws
+   * black on the tablet and would draw correctly here, which is exactly the kind
+   * of quiet disagreement this tool exists to catch.
+   */
+  function colourCheck(el, name, prop, value) {
+    if (prop !== "fill" && prop !== "stroke" && prop !== "stop-color") return;
+    const v = String(value).trim();
+    if (!v || v === "none" || v === "currentColor") return;
+    if (v.startsWith("#") || v.startsWith("rgb(") || v.startsWith("url(")) return;
+    if (S.subset.namedColour(v)) return;
+    warn.degraded(`${assetName} — <code>${prop}="${v}"</code>`,
+      "Is not a colour DASH understands, so the element draws with no colour of its own.",
+      "Colours are #RGB, #RRGGBB, rgb(), one of the 147 CSS names, or none.");
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  THE LAYOUT READER  —  mirrors PanelLayoutReader.kt, warnings included
+// ══════════════════════════════════════════════════════════════════════════
+/*
+ * Nothing in here throws and nothing is fatal. The browser rule: DASH reads what
+ * it understands and ignores what it does not, so a malformed field costs the
+ * author that field and nothing else — never a dead panel.
+ */
+
+function readLayout(source, warn) {
+  let root;
+  try { root = JSON.parse(source); } catch (e) {
+    warn.skipped("the layout", "Is not valid JSON, so nothing in it could be read: " + e.message);
+    return { layers: [], bindings: [], variables: {} };
+  }
+  if (!root || typeof root !== "object" || Array.isArray(root)) {
+    warn.skipped("the layout",
+      "Is not a JSON object. The document should be " +
+      "<code>{ \"layers\": [ … ], \"bindings\": [ … ] }</code>.");
+    return { layers: [], bindings: [], variables: {} };
+  }
+
+  const layers = arr(root.layers).map((o, i) => layer(o, i)).filter(Boolean);
+  const known = new Set(layers.map(l => l.id));
+  const bindings = arr(root.bindings).map((o, i) => binding(o, i, known)).filter(Boolean);
+  const variables = readVariables(root.variables);
+
+  adviseOnUnusedLayers(layers, bindings);
+  adviseOnSteppingUndeclared(bindings, variables);
+
+  return { layers, bindings, variables };
+
+  function arr(v) { return Array.isArray(v) ? v : []; }
+  function str(o, k) { const v = o[k]; return (typeof v === "string" || typeof v === "number") ? String(v) : null; }
+  function num(o, k) { const v = o[k]; const n = typeof v === "string" ? parseFloat(v) : v; return typeof n === "number" && isFinite(n) ? n : null; }
+  function int(o, k) { const n = num(o, k); return n === null ? null : Math.trunc(n); }
+  function bool(o, k) { const v = o[k]; if (typeof v === "boolean") return v; if (v === "true") return true; if (v === "false") return false; return null; }
+  function pair(o, k) {
+    const v = o[k];
+    if (!Array.isArray(v) || v.length !== 2) return null;
+    const a = parseFloat(v[0]), b = parseFloat(v[1]);
+    return isFinite(a) && isFinite(b) ? [a, b] : null;
+  }
+
+  function readVariables(o) {
+    if (!o || typeof o !== "object" || Array.isArray(o)) return {};
+    const out = {};
+    for (const [name, body] of Object.entries(o)) {
+      if (!body || typeof body !== "object") {
+        warn.skipped(`variable \`${name}\``, "Is not an object, so there was nothing to read.");
+        continue;
+      }
+      // Values are kept as raw strings. The string IS the contract: it is what DASH
+      // puts in an ACTION and what it matches the module's REPORT against, so `17`
+      // read as a number and printed back would leave as `17.0` and never match.
+      const values = arr(body.values)
+        .map(v => (typeof v === "string" || typeof v === "number") ? String(v).trim() : null)
+        .filter(v => v);
+      if (!values.length) {
+        warn.skipped(`variable \`${name}\``,
+          "Has no <code>values</code>, so DASH has no list to move along and cannot draw a press " +
+          "to it before the module answers.",
+          "Give it every value it takes, in order.");
+        continue;
+      }
+      if (new Set(values).size !== values.length) {
+        warn.degraded(`variable \`${name}\``,
+          "Lists the same value twice. DASH steps from the first match, so the later copy can " +
+          "never be reached by pressing.");
+      }
+      out[name] = { values, wrap: bool(body, "wrap") || false };
+    }
+    return out;
+  }
+
+  function layer(o, i) {
+    if (!o || typeof o !== "object") { warn.skipped(`layer ${i}`, "Is not an object."); return null; }
+    const id = str(o, "id");
+    if (!id || !id.trim()) {
+      warn.skipped(`layer ${i}`, "Has no <code>id</code>, so no binding could ever point at it.");
+      return null;
+    }
+    const opacity = clamp(num(o, "opacity") ?? 1, 0, 1);
+    const type = (str(o, "type") || "").trim().toLowerCase();
+
+    if (type === "raster" || type === "vector") {
+      const asset = str(o, "asset");
+      if (!asset || !asset.trim()) {
+        warn.skipped(`layer #${id}`, `Is a ${type} layer with no <code>asset</code>, so there is nothing to draw.`);
+        return null;
+      }
+      return {
+        kind: type, id, asset: asset.trim(),
+        at: pair(o, "at"), size: pair(o, "size"),
+        pivot: pair(o, "pivot") || [0.5, 0.5],
+        opacity,
+      };
+    }
+
+    if (type === "text") {
+      const value = str(o, "value");
+      if (!value || !value.trim()) {
+        warn.skipped(`layer #${id}`, "Is a text layer with no <code>value</code>, so it names no variable to print.");
+        return null;
+      }
+      const at = pair(o, "at");
+      if (!at) {
+        warn.skipped(`layer #${id}`,
+          "Is a text layer with no <code>at</code>, so DASH has nowhere to draw it. Text has an anchor, not a box.");
+        return null;
+      }
+      const fontSize = num(o, "fontSize");
+      if (fontSize === null || fontSize <= 0) {
+        warn.skipped(`layer #${id}`,
+          "Is a text layer with no usable <code>fontSize</code>. It is a fraction of the panel's " +
+          "height, so 0.1 is a tenth of the panel.");
+        return null;
+      }
+      let align = "left";
+      const rawAlign = str(o, "align");
+      if (rawAlign !== null) {
+        const a = rawAlign.trim().toLowerCase();
+        if (a === "center" || a === "centre") align = "center";
+        else if (a === "right") align = "right";
+        else if (a !== "left") {
+          warn.degraded(`layer #${id}`, "<code>align</code> is not left, center or right. Drawn left-aligned.");
+        }
+      }
+      return {
+        kind: "text", id, value: value.trim(), at, fontSize, align,
+        colour: colour(o, "colour", `layer #${id}`) || { token: "textColourPrimary" },
+        font: font(str(o, "font"), `layer #${id}`),
+        bold: (str(o, "weight") || "").trim().toLowerCase() === "bold",
+        italic: bool(o, "italic") || false,
+        decimals: o.decimals === undefined ? null : clamp(int(o, "decimals") ?? 0, 0, 8),
+        prefix: str(o, "prefix") || "",
+        suffix: str(o, "suffix") || "",
+        opacity,
+      };
+    }
+
+    if (!type) { warn.skipped(`layer #${id}`, "Has no <code>type</code>. It must be raster, vector or text."); return null; }
+    warn.skipped(`layer #${id}`,
+      `Has type <code>${esc(type)}</code>, which DASH does not draw.`,
+      "The three layer types are raster, vector and text.");
+    return null;
+  }
+
+  function font(raw, what) {
+    if (raw === null) return { token: true };
+    if (raw.trim() === "@font") return { token: true };
+    if (raw.startsWith("@")) {
+      warn.degraded(what, `<code>${esc(raw)}</code> is not a DASH token. The only font token is <code>@font</code>. Using it.`);
+      return { token: true };
+    }
+    return { family: raw.trim() };
+  }
+
+  function colour(o, key, what) {
+    const raw = str(o, key);
+    if (raw === null) return null;
+    const v = raw.trim();
+    if (v.startsWith("@")) {
+      const name = v.slice(1);
+      if (!THEME_TOKENS.includes(name)) {
+        warn.degraded(what,
+          `<code>${esc(v)}</code> is not a DASH theme token, so nothing is delegated and the ` +
+          `element keeps its own colour.`,
+          "The tokens are " + THEME_TOKENS.map(t => "@" + t).join(", ") + ".");
+        return null;
+      }
+      return { token: name };
+    }
+    // Where there is any doubt, the literal wins — DASH may never infer a
+    // delegation the author did not make.
+    if (/^#[0-9a-f]{3}$/i.test(v)) return { literal: "#" + v[1] + v[1] + v[2] + v[2] + v[3] + v[3] };
+    if (/^#[0-9a-f]{6}$/i.test(v)) return { literal: v };
+    if (/^#[0-9a-f]{8}$/i.test(v)) return { literal: "#" + v.slice(3) + v.slice(1, 3) }; // #AARRGGBB → #RRGGBBAA
+    warn.degraded(what,
+      `<code>${esc(v)}</code> is not a colour DASH understands.`,
+      "Colours are <code>#RRGGBB</code> or a <code>@token</code>.");
+    return null;
+  }
+
+  function target(o, i, layerIds) {
+    const raw = str(o, "target");
+    if (raw !== null) {
+      const hash = raw.indexOf("#");
+      const layerId = (hash < 0 ? raw : raw.slice(0, hash)).trim();
+      const element = hash < 0 ? null : (raw.slice(hash + 1).trim() || null);
+      if (!layerId) { warn.skipped(`binding ${i}`, "Has an empty <code>target</code>."); return null; }
+      if (!layerIds.has(layerId)) {
+        warn.skipped(`binding ${i}`,
+          `Targets <code>${esc(raw)}</code>, but this layout has no layer called <code>${esc(layerId)}</code>.`,
+          "Check the spelling against the layer's <code>id</code>.");
+        return null;
+      }
+      return { layer: layerId, element };
+    }
+    const r = o.rect;
+    if (Array.isArray(r) && r.length === 4 && r.every(n => isFinite(parseFloat(n)))) {
+      const v = r.map(parseFloat);
+      return { rect: [v[0], v[1], v[2], v[3]] };
+    }
+    warn.skipped(`binding ${i}`, "Names neither a <code>target</code> nor a <code>rect</code>, so it points at nothing.");
+    return null;
+  }
+
+  function binding(o, i, layerIds) {
+    if (!o || typeof o !== "object") { warn.skipped(`binding ${i}`, "Is not an object."); return null; }
+    const kind = (str(o, "bind") || "").trim().toLowerCase();
+    const t = target(o, i, layerIds);
+    if (!t) return null;
+    const ease = Math.max(0, int(o, "ease") ?? 0);
+    const what = `binding ${i} (${targetLabel(t)})`;
+    const missing = f => { warn.skipped(what, `Has no <code>${f}</code>, which that binding cannot work without.`); return null; };
+
+    if (kind === "style") {
+      const value = str(o, "value");
+      const cases = arr(o.cases).map(styleCase).filter(Boolean);
+      if (value === null && cases.length) {
+        warn.degraded(what,
+          "Has <code>cases</code> but no <code>value</code>, so there is no variable to match them " +
+          "against. The cases are ignored and it acts as a static restyle.");
+      }
+      return {
+        kind: "style", target: t, ease, variable: value,
+        cases: value === null ? [] : cases,
+        // With no variable the binding's own properties ARE the effect — §4.3's
+        // static restyle, and how a token is delegated to an element.
+        default: (o.default && typeof o.default === "object") ? styleEffect(o.default) : styleEffect(o),
+      };
+    }
+    if (kind === "reveal") {
+      const value = str(o, "value"); if (value === null) return missing("value");
+      const from = pair(o, "from");   if (!from) return missing("from");
+      const rawDir = str(o, "direction");
+      let direction = "up";
+      if (rawDir !== null) {
+        const d = rawDir.trim().toLowerCase();
+        if (["up", "down", "left", "right"].includes(d)) direction = d;
+        else warn.degraded(what, "<code>direction</code> is not up, down, left or right. Filling up.");
+      }
+      return { kind: "reveal", target: t, ease, variable: value, from, direction };
+    }
+    if (kind === "rotate") {
+      const value = str(o, "value"); if (value === null) return missing("value");
+      const from = pair(o, "from");   if (!from) return missing("from");
+      const to = pair(o, "to");       if (!to) return missing("to");
+      return { kind: "rotate", target: t, ease, variable: value, from, to, pivot: pair(o, "pivot") };
+    }
+    if (kind === "translate") {
+      const value = str(o, "value"); if (value === null) return missing("value");
+      const from = pair(o, "from");   if (!from) return missing("from");
+      const to = arr(o.to).map(v => Array.isArray(v) && v.length === 2 ? [parseFloat(v[0]), parseFloat(v[1])] : null).filter(Boolean);
+      if (to.length !== 2) return missing("to");
+      return { kind: "translate", target: t, ease, variable: value, from, start: to[0], end: to[1] };
+    }
+    if (kind === "touch") {
+      const control = str(o, "control"); if (control === null) return missing("control");
+      const step = int(o, "step") ?? 0;
+      if (step !== 0 && str(o, "value") !== null) {
+        warn.degraded(what,
+          "Has both <code>step</code> and <code>value</code>. A control either names the value it " +
+          "sets or moves along a list; it cannot do both. Stepping.");
+      }
+      return {
+        kind: "touch", target: t, ease, variable: null, control: control.trim(),
+        value: step !== 0 ? "" : (str(o, "value") || ""),
+        step,
+        feedback: (o.feedback && typeof o.feedback === "object") ? styleEffect(o.feedback) : null,
+      };
+    }
+    if (!kind) { warn.skipped(what, "Has no <code>bind</code>, so DASH does not know what it should do."); return null; }
+    warn.skipped(what,
+      `<code>${esc(kind)}</code> is not a binding DASH knows.`,
+      "The five are touch, style, reveal, rotate and translate.");
+    return null;
+  }
+
+  function styleCase(o) {
+    if (!o || typeof o !== "object") return null;
+    let match = null;
+    if ("is" in o) match = { is: String(o.is) };
+    else if ("below" in o && num(o, "below") !== null) match = { below: num(o, "below") };
+    else if ("above" in o && num(o, "above") !== null) match = { above: num(o, "above") };
+    else if ("between" in o && pair(o, "between")) { const b = pair(o, "between"); match = { between: b }; }
+    if (!match) {
+      warn.skipped("a style case",
+        "Matches on nothing.",
+        "A case needs one of <code>is</code>, <code>below</code>, <code>above</code> or <code>between</code>.");
+      return null;
+    }
+    return { match, effect: styleEffect(o) };
+  }
+
+  function styleEffect(o) {
+    const op = num(o, "opacity");
+    const pulse = int(o, "pulse");
+    return {
+      colour: colour(o, "colour", "a style effect"),
+      opacity: op === null ? null : clamp(op, 0, 1),
+      pulse: (pulse !== null && pulse > 0) ? pulse : null,
+    };
+  }
+
+  function adviseOnUnusedLayers(layers, bindings) {
+    if (!layers.length) {
+      warn.skipped("the layout", "Declares no layers, so the panel would draw nothing.");
+      return;
+    }
+    const dynamic = layers.some(l => l.kind === "text") || bindings.some(b => b.variable);
+    if (!dynamic) {
+      warn.advice("the layout",
+        "Draws artwork but watches no module variable, so the panel will never change. That is " +
+        "valid — but if it was meant to move, check the bindings.");
+    }
+  }
+
+  function adviseOnSteppingUndeclared(bindings, variables) {
+    const seen = new Set();
+    for (const b of bindings) {
+      if (b.kind !== "touch" || b.step === 0) continue;
+      if (variables[b.control] || seen.has(b.control)) continue;
+      seen.add(b.control);
+      warn.degraded(`control \`${b.control}\``,
+        "Is stepped by a touch binding but has no entry in <code>variables</code>, so DASH does " +
+        "not know what its next value would be. The press is still sent and the module still " +
+        "answers — it simply cannot be drawn until it does.");
+    }
+  }
+}
+
+function targetLabel(t) {
+  if (t.rect) return `rect ${t.rect.map(n => round(n, 3)).join(", ")}`;
+  return t.element ? `${t.layer}#${t.element}` : t.layer;
+}
+function targetKey(t) { return t.rect ? null : targetLabel(t); }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  THE DYNAMICS  —  mirrors PanelBindings.kt
+// ══════════════════════════════════════════════════════════════════════════
+
+function emptyDynamic() {
+  return { rotate: 0, pivot: null, translate: [0, 0], colour: null, opacity: 1, reveal: 1, revealDirection: "up", pulse: null, ease: 0 };
+}
+
+/* Later bindings fill in what earlier ones left alone; neither wins outright. */
+function merge(a, b) {
+  return {
+    rotate: b.rotate !== 0 ? b.rotate : a.rotate,
+    pivot: b.pivot || a.pivot,
+    translate: (b.translate[0] !== 0 || b.translate[1] !== 0) ? b.translate : a.translate,
+    colour: b.colour || a.colour,
+    opacity: a.opacity * b.opacity,
+    reveal: Math.min(a.reveal, b.reveal),
+    revealDirection: b.reveal < 1 ? b.revealDirection : a.revealDirection,
+    pulse: b.pulse || a.pulse,
+    ease: Math.max(a.ease, b.ease),
+  };
+}
+
+/* Where raw sits in range, 0–1. Clamped, so a module reporting beyond its own
+   declared range pins the needle at the end of its sweep rather than winding it
+   past the stop — which is what a real gauge does. */
+function fractionOf(raw, range) {
+  if (raw === null || raw === undefined) return null;
+  const v = parseFloat(String(raw).trim());
+  if (!isFinite(v)) return null;
+  const span = range[1] - range[0];
+  if (span === 0) return 0;
+  return clamp((v - range[0]) / span, 0, 1);
+}
+
+function matches(match, raw) {
+  const n = parseFloat(String(raw).trim());
+  if ("is" in match) return String(raw).trim().toLowerCase() === match.is.trim().toLowerCase();
+  if (!isFinite(n)) return false;
+  if ("below" in match) return n < match.below;
+  if ("above" in match) return n > match.above;
+  if ("between" in match) return n >= match.between[0] && n <= match.between[1];
+  return false;
+}
+
+function resolveColour(ref) {
+  if (!ref) return null;
+  if (ref.literal) return ref.literal;
+  if (ref.token === "font") return null;   // a typeface, not a colour
+  return theme()[ref.token] || null;
+}
+
+function pulsePeriod(binding) {
+  for (const c of binding.cases) if (c.effect.pulse) return c.effect.pulse;
+  return binding.default.pulse;
+}
+
+function computeDynamics(doc, values, pressedIndex) {
+  const out = new Map();
+  doc.bindings.forEach((b, index) => {
+    const key = targetKey(b.target);
+    if (!key) return;                        // a bare rect draws nothing; it is only pressable
+    const d = dynamicFor(b, values, index === pressedIndex);
+    if (!d) return;
+    out.set(key, out.has(key) ? merge(out.get(key), d) : d);
+  });
+  return out;
+}
+
+function dynamicFor(b, values, pressed) {
+  const raw = b.variable === null || b.variable === undefined ? null : values.get(b.variable);
+  // When a bound variable never arrives, the binding does nothing and its target
+  // keeps the appearance it was drawn with. Never an error, never a blank panel,
+  // and never a value invented to stand in — treating an absent reading as zero
+  // would park a needle at empty and look exactly like a real measurement.
+  if (b.variable && (raw === undefined || raw === null)) return null;
+
+  const d = emptyDynamic();
+  d.ease = b.ease;
+
+  if (b.kind === "rotate") {
+    const f = fractionOf(raw, b.from); if (f === null) return null;
+    d.rotate = b.to[0] + (b.to[1] - b.to[0]) * f;
+    d.pivot = b.pivot;
+    return d;
+  }
+  if (b.kind === "reveal") {
+    const f = fractionOf(raw, b.from); if (f === null) return null;
+    d.reveal = f; d.revealDirection = b.direction;
+    return d;
+  }
+  if (b.kind === "translate") {
+    const f = fractionOf(raw, b.from); if (f === null) return null;
+    d.translate = [b.start[0] + (b.end[0] - b.start[0]) * f, b.start[1] + (b.end[1] - b.start[1]) * f];
+    return d;
+  }
+  if (b.kind === "style") {
+    // First match wins. With no variable there are no cases and the binding's own
+    // properties are the effect — the static restyle a theme token is delegated by.
+    const hit = raw === null || raw === undefined ? null : b.cases.find(c => matches(c.match, raw));
+    const effect = hit ? hit.effect : b.default;
+    d.colour = resolveColour(effect.colour);
+    d.opacity = effect.opacity === null ? 1 : effect.opacity;
+    const period = pulsePeriod(b);
+    d.pulse = (period && effect.pulse) ? period : null;
+    return d;
+  }
+  if (b.kind === "touch") {
+    if (!b.feedback) return null;
+    // Press feedback is momentary and about the interaction; `style` reflects
+    // state. The effect is built whether or not the control is pressed, so the
+    // release eases out at the same rate the press eased in.
+    const effect = pressed ? b.feedback : { colour: null, opacity: null, pulse: null };
+    d.colour = resolveColour(effect.colour);
+    d.opacity = effect.opacity === null ? 1 : effect.opacity;
+    return d;
+  }
+  return null;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  RENDERING
+// ══════════════════════════════════════════════════════════════════════════
+
+const EASE_CURVE = "cubic-bezier(0.4, 0.0, 0.2, 1)";   // Compose's FastOutSlowIn
+const PULSE_FLOOR = 0.25;                              // PanelBindings.kt
+
+const el = {
+  panel: document.getElementById("panel"),
+  frame: document.getElementById("panelFrame"),
+  stage: document.getElementById("stage"),
+  welcome: document.getElementById("welcome"),
+  pressOverlay: document.getElementById("pressOverlay"),
+  measureOverlay: document.getElementById("measureOverlay"),
+  measureBox: document.getElementById("measureBox"),
+  slotInfo: document.getElementById("slotInfo"),
+  cursorInfo: document.getElementById("cursorInfo"),
+  measureInfo: document.getElementById("measureInfo"),
+};
+
+let vectorCache = new Map();   // asset -> { svg, viewBox, ids } (pruned)
+let renderedLayers = [];       // { layer, node, elements: Map(id->el), pressRects }
+let lintWarnings = [];         // from the last full build
+
+function build() {
+  el.panel.querySelectorAll(".layer, .textlayer, .pulse-style").forEach(n => n.remove());
+  renderedLayers = [];
+  vectorCache = new Map();
+  S.pressAreas = [];
+
+  const entry = S.current ? S.layouts.get(S.current) : null;
+  if (!entry) {
+    el.frame.style.display = "none";
+    el.welcome.style.display = "";
+    el.slotInfo.textContent = "—";
+    lintWarnings = [];
+    paintWarnings([]);
+    paintData();
+    return;
+  }
+  el.frame.style.display = "";
+  el.welcome.style.display = "none";
+
+  const warn = new Warnings();
+  const doc = readLayout(entry.raw, warn);
+  entry.doc = doc;
+
+  sizePanel();
+  adviseOnAssets(doc, warn);
+
+  for (const layer of doc.layers) {
+    if (layer.kind === "vector") buildVector(layer, warn);
+    else if (layer.kind === "raster") buildRaster(layer, warn);
+    else buildText(layer);
+  }
+
+  checkBindingTargets(doc, warn);
+  measurePressAreas(doc, warn);
+
+  lintWarnings = warn.list;
+  paintWarnings(lintWarnings);
+  seedValues(doc);
+  paintData();
+
+  // Draw the first frame with every transition suppressed, then release them, so
+  // the panel arrives as DASH would show it rather than sliding into place.
+  el.panel.classList.add("settling");
+  apply();
+  void el.panel.offsetWidth;                       // force the styles to land
+  requestAnimationFrame(() => el.panel.classList.remove("settling"));
+}
+
+function sizePanel() {
+  const aspect = slotAspect(S.slot);
+  const box = el.stage.getBoundingClientRect();
+  const availW = (box.width - 70) * S.zoom;
+  const availH = (box.height - 70) * S.zoom;
+  let w = availW, h = w / aspect;
+  if (h > availH) { h = availH; w = h * aspect; }
+  S.panelPx = { w: Math.max(40, Math.round(w)), h: Math.max(20, Math.round(h)) };
+  el.panel.style.width = S.panelPx.w + "px";
+  el.panel.style.height = S.panelPx.h + "px";
+
+  const s = SIZES[S.slot.size];
+  el.slotInfo.innerHTML =
+    `<b>${S.slot.name}</b> &nbsp; ${slotRatioLabel(S.slot)} &nbsp; ` +
+    `<span class="hint">drawn at ${S.panelPx.w}×${S.panelPx.h} px here</span>`;
+}
+
+function buildVector(layer, warn) {
+  const node = document.createElement("div");
+  node.className = "layer";
+  placeLayer(node, layer);
+  el.panel.insertBefore(node, el.pressOverlay);
+
+  const source = S.svgText.get(layer.asset);
+  if (source === undefined) {
+    warn.skipped(`layer #${layer.id}`,
+      `Draws <code>${esc(layer.asset)}</code>, which has not been loaded. Nothing is drawn for this layer.`,
+      "Load the file, or check the asset name against the block the module ships it under.");
+    renderedLayers.push({ layer, node, elements: new Map() });
+    return;
+  }
+  if (!S.subset) {
+    warn.skipped(`layer #${layer.id}`,
+      "Is a vector layer, and <code>svg-subset.json</code> has not been loaded. This tool will not " +
+      "draw an SVG it cannot check, because the browser renders far more of the specification than " +
+      "DASH does and the result would not be evidence of anything.",
+      "Load svg-subset.json from the repository root.");
+    renderedLayers.push({ layer, node, elements: new Map() });
+    return;
+  }
+
+  let pruned = vectorCache.get(layer.asset);
+  if (pruned === undefined) {
+    pruned = pruneSvg(source, layer.asset, warn);
+    vectorCache.set(layer.asset, pruned);
+  }
+  if (!pruned) { renderedLayers.push({ layer, node, elements: new Map() }); return; }
+
+  const svg = pruned.svg.cloneNode(true);
+  svg.removeAttribute("width");
+  svg.removeAttribute("height");
+  // VectorArtLayer.kt scales the artwork uniformly into the box and centres it —
+  // which is exactly xMidYMid meet. A layout's slot has the same aspect as the
+  // artwork drawn for it, so in practice this is an exact fit; the letterboxing
+  // only shows up when an author has drawn to the wrong shape, and showing it is
+  // the honest way to tell them.
+  svg.setAttribute("preserveAspectRatio", "xMidYMid meet");
+  node.appendChild(svg);
+
+  const elements = new Map();
+  svg.querySelectorAll("[id]").forEach(e => { if (!elements.has(e.id)) elements.set(e.id, e); });
+  // Keep each element's authored transform so a dynamic one can be composed onto it.
+  elements.forEach(e => e.dataset.baseTransform = e.getAttribute("transform") || "");
+
+  const box = layerBox(layer);
+  const authored = { w: box[2] * S.panelPx.w, h: box[3] * S.panelPx.h };
+  const vb = parseViewBox(pruned.viewBox);
+  if (vb && authored.w > 0 && authored.h > 0) {
+    const artAspect = vb.w / vb.h, boxAspect = authored.w / authored.h;
+    if (Math.abs(artAspect - boxAspect) / boxAspect > 0.02) {
+      warn.degraded(`layer #${layer.id}`,
+        `The artwork is <code>${round(artAspect, 3)}:1</code> but the box it is drawn into is ` +
+        `<code>${round(boxAspect, 3)}:1</code>, so it is letterboxed rather than filling.`,
+        "DASH scales artwork uniformly and never distorts it. Redraw the viewBox to the slot's " +
+        "shape, or give the layer an <code>at</code> and <code>size</code> that match the artwork.");
+    }
+  }
+
+  renderedLayers.push({ layer, node, elements, viewBox: vb, svg });
+}
+
+function buildRaster(layer, warn) {
+  const node = document.createElement("div");
+  node.className = "layer";
+  placeLayer(node, layer);
+  el.panel.insertBefore(node, el.pressOverlay);
+
+  const asset = S.rasters.get(layer.asset);
+  if (!asset) {
+    warn.skipped(`layer #${layer.id}`,
+      `Draws <code>${esc(layer.asset)}</code>, which has not been loaded. Nothing is drawn for this layer.`);
+    renderedLayers.push({ layer, node, elements: new Map() });
+    return;
+  }
+  const img = document.createElement("img");
+  img.src = asset.url;
+  node.appendChild(img);
+  // `colour` on a raster is a tint — the artwork's alpha with a flat colour
+  // through it, which is what ColorFilter.tint does. Held ready, unused until a
+  // style binding asks for one.
+  const mask = document.createElement("div");
+  mask.className = "tintmask";
+  mask.style.webkitMaskImage = `url("${asset.url}")`;
+  mask.style.maskImage = `url("${asset.url}")`;
+  mask.style.display = "none";
+  node.appendChild(mask);
+
+  renderedLayers.push({ layer, node, elements: new Map(), img, mask, asset });
+}
+
+function buildText(layer) {
+  const node = document.createElement("div");
+  node.className = "textlayer";
+  el.panel.insertBefore(node, el.pressOverlay);
+  renderedLayers.push({ layer, node, elements: new Map() });
+}
+
+function placeLayer(node, layer) {
+  const b = layerBox(layer);
+  node.style.left = b[0] * 100 + "%";
+  node.style.top = b[1] * 100 + "%";
+  node.style.width = b[2] * 100 + "%";
+  node.style.height = b[3] * 100 + "%";
+}
+
+/* BoxedLayer.box() — at and size are both optional, and omitting them means fill
+   the panel. That is how a background is expressed without DASH ever needing the
+   concept of one. */
+function layerBox(layer) {
+  const at = layer.at || [0, 0];
+  const size = layer.size || [1 - at[0], 1 - at[1]];
+  return [at[0], at[1], size[0], size[1]];
+}
+
+function parseViewBox(raw) {
+  const n = String(raw).trim().split(/[\s,]+/).map(parseFloat);
+  if (n.length !== 4 || n.some(v => !isFinite(v))) return null;
+  return { x: n[0], y: n[1], w: n[2], h: n[3] };
+}
+
+/* A binding may name an element that is not in the artwork. That is a genuine
+   mistake rather than a habit, and it is reported per occurrence — it is exactly
+   the case that otherwise costs an author an afternoon. */
+function checkBindingTargets(doc, warn) {
+  for (const b of doc.bindings) {
+    if (b.target.rect || !b.target.element) continue;
+    const r = renderedLayers.find(x => x.layer.id === b.target.layer);
+    if (!r) continue;
+    if (r.layer.kind !== "vector") {
+      warn.skipped(`binding on \`${targetLabel(b.target)}\``,
+        "Names an element inside a layer that is not a vector. Only a vector layer has elements " +
+        "that can be reached by name, so this binding does nothing.");
+      continue;
+    }
+    if (!r.elements.size) continue;   // artwork missing; already reported
+    if (!r.elements.has(b.target.element)) {
+      warn.skipped(`binding on \`${targetLabel(b.target)}\``,
+        `The artwork <code>${esc(r.layer.asset)}</code> has no element with ` +
+        `<code>id="${esc(b.target.element)}"</code>, so this binding does nothing at all — silently.`,
+        "Check the id in your drawing tool's object properties.");
+    }
+  }
+}
+
+/*
+ * Asset resolution advice.
+ *
+ * DASH caps nothing and rejects nothing (§2), and degrades under memory pressure
+ * rather than refusing. So this is the only place an author is told that the
+ * extra pixels cost memory and buy nothing — phrased as advice, never as an error.
+ * It is not our place to judge what someone does with their own system.
+ */
+function adviseOnAssets(doc, warn) {
+  const s = SIZES[S.slot.size];
+  // §2's worked figure: a large horizontal panel at full width on a large tablet
+  // renders around 2560 × 960. That is 320 px per ratio unit, which generalises
+  // to the other five shapes.
+  const unit = 320;
+  const panelW = (S.slot.orientation === "h" ? s.long : s.thick) * unit;
+  const panelH = (S.slot.orientation === "h" ? s.thick : s.long) * unit;
+
+  for (const layer of doc.layers) {
+    if (layer.kind !== "raster") continue;
+    const asset = S.rasters.get(layer.asset);
+    if (!asset || !asset.width) continue;
+    const box = layerBox(layer);
+    const drawnW = Math.round(box[2] * panelW), drawnH = Math.round(box[3] * panelH);
+    if (asset.width > drawnW * 1.25) {
+      const mb = (asset.width * asset.height * 4) / (1024 * 1024);
+      warn.advice(`layer #${layer.id} — <code>${esc(layer.asset)}</code>`,
+        `Is ${asset.width}×${asset.height}, and renders at about ${drawnW}×${drawnH} on a large ` +
+        `tablet. A bitmap that size holds roughly ${round(mb, 1)} MB of live memory whatever the ` +
+        `file weighs on disk, because a PNG is compressed on disk and uncompressed in use.`,
+        `Draw at the resolution the panel actually renders at. The extra pixels are scaled back ` +
+        `down before they reach the screen.`);
+    }
+  }
+}
+
+// ── press areas ───────────────────────────────────────────────────────────
+/*
+ * PanelTouch.kt.
+ *
+ *   - The area is the element's BOUNDING BOX, not its outline. An author who drew
+ *     a `+` out of two thin bars did not mean "only the bars are pressable".
+ *   - The DRAWN position is deliberately not consulted, so these are measured
+ *     before any dynamic transform is applied.
+ *   - Topmost wins. A binding's depth is the depth of the layer it points at, and
+ *     a later binding beats an earlier one at the same depth.
+ *   - A bare `rect` sits above every layer.
+ */
+function measurePressAreas(doc, warn) {
+  S.pressAreas = [];
+  const panelRect = el.panel.getBoundingClientRect();
+
+  doc.bindings.forEach((b, index) => {
+    if (b.kind !== "touch") return;
+    const t = b.target;
+    let rect = null, depth = null;
+
+    if (t.rect) {
+      depth = Number.MAX_SAFE_INTEGER;
+      rect = [t.rect[0] * S.panelPx.w, t.rect[1] * S.panelPx.h, t.rect[2] * S.panelPx.w, t.rect[3] * S.panelPx.h];
+    } else {
+      const i = doc.layers.findIndex(l => l.id === t.layer);
+      if (i < 0) return;
+      depth = i;
+      const r = renderedLayers.find(x => x.layer.id === t.layer);
+      const box = layerBox(doc.layers[i]);
+      const boxPx = [box[0] * S.panelPx.w, box[1] * S.panelPx.h, box[2] * S.panelPx.w, box[3] * S.panelPx.h];
+      if (!t.element) {
+        rect = boxPx;
+      } else {
+        // A layer#element target aimed at a raster names something that cannot
+        // exist, and answers nothing rather than falling back to the whole layer.
+        if (!r || r.layer.kind !== "vector") return;
+        const node = r.elements.get(t.element);
+        if (!node) return;
+        rect = elementRectInPanel(node, panelRect);
+      }
+    }
+    if (!rect) return;
+    S.pressAreas.push({ index, binding: b, depth, rect });
+  });
+
+  // Advice only, and stated with its assumption. DASH imposes no minimum touch
+  // size — quietly inflating one would be reaching inside the panel boundary to
+  // correct a design decision. The previewer is the right place to say it aloud.
+  const shortEdge = Math.min(S.panelPx.w, S.panelPx.h);
+  for (const a of S.pressAreas) {
+    const small = Math.min(a.rect[2], a.rect[3]);
+    if (small > 0 && small / shortEdge < 0.08) {
+      warn.advice(`press area on \`${targetLabel(a.binding.target)}\``,
+        `Is ${round(small / shortEdge * 100, 1)}% of the panel's short edge. On a panel about ` +
+        `${SIZES[S.slot.size].thick * 320} px thick that is roughly ` +
+        `${Math.round(small / shortEdge * SIZES[S.slot.size].thick * 320)} px — under a fingertip ` +
+        `in a moving vehicle.`,
+        "DASH never inflates a touch area, so the size you draw is the size it is.");
+    }
+  }
+}
+
+function elementRectInPanel(node, panelRect) {
+  let bbox;
+  try { bbox = node.getBBox(); } catch (e) { return null; }
+  if (!bbox || (!bbox.width && !bbox.height)) return null;
+  const ctm = node.getScreenCTM();
+  if (!ctm) return null;
+  const corners = [[bbox.x, bbox.y], [bbox.x + bbox.width, bbox.y],
+                   [bbox.x + bbox.width, bbox.y + bbox.height], [bbox.x, bbox.y + bbox.height]]
+    .map(([x, y]) => ({ x: ctm.a * x + ctm.c * y + ctm.e, y: ctm.b * x + ctm.d * y + ctm.f }));
+  const xs = corners.map(p => p.x), ys = corners.map(p => p.y);
+  return [
+    Math.min(...xs) - panelRect.left, Math.min(...ys) - panelRect.top,
+    Math.max(...xs) - Math.min(...xs), Math.max(...ys) - Math.min(...ys),
+  ];
+}
+
+function hitTest(x, y) {
+  let best = null, bestDepth = -Infinity;
+  for (const a of S.pressAreas) {
+    if (a.depth < bestDepth) continue;
+    const [rx, ry, rw, rh] = a.rect;
+    if (x < rx || y < ry || x > rx + rw || y > ry + rh) continue;
+    best = a; bestDepth = a.depth;
+  }
+  return best;
+}
+
+// ── applying the dynamics to what is on screen ────────────────────────────
+
+function apply() {
+  const entry = S.current ? S.layouts.get(S.current) : null;
+  if (!entry || !entry.doc) return;
+  const doc = entry.doc;
+  const dynamics = computeDynamics(doc, S.values, S.pressedIndex);
+  const t = theme();
+
+  for (const r of renderedLayers) {
+    const layer = r.layer;
+    const d = dynamics.get(layer.id) || null;
+
+    if (layer.kind === "text") {
+      const raw = S.values.get(layer.value);
+      const colour = (d && d.colour) || resolveColour(layer.colour) || t.textColourPrimary;
+      const fontPx = layer.fontSize * S.panelPx.h;
+      const n = r.node;
+      n.textContent = formatText(layer, raw);
+      n.style.left = layer.at[0] * 100 + "%";
+      n.style.top = layer.at[1] * 100 + "%";
+      n.style.fontSize = fontPx + "px";
+      n.style.fontFamily = fontFamilyFor(layer.font);
+      n.style.fontWeight = layer.bold ? "700" : "400";
+      n.style.fontStyle = layer.italic ? "italic" : "normal";
+      n.style.color = colour;
+      n.style.opacity = layer.opacity * (d ? d.opacity : 1);
+      n.style.transform = layer.align === "center" ? "translateX(-50%)"
+                        : layer.align === "right" ? "translateX(-100%)" : "";
+      n.style.transition = d && d.ease ? `color ${d.ease}ms ${EASE_CURVE}, opacity ${d.ease}ms ${EASE_CURVE}` : "";
+      applyPulse(n, d);
+      continue;
+    }
+
+    // Layer-level transform. PanelContent.kt: offset by the box plus any
+    // translate, then rotate about the layer's own pivot (a binding's pivot wins),
+    // then opacity, then the reveal clip.
+    const pivot = (d && d.pivot) || layer.pivot;
+    const tr = d ? d.translate : [0, 0];
+    const n = r.node;
+    n.style.transformOrigin = `${pivot[0] * 100}% ${pivot[1] * 100}%`;
+    n.style.transform =
+      `translate(${tr[0] * S.panelPx.w}px, ${tr[1] * S.panelPx.h}px) rotate(${d ? d.rotate : 0}deg)`;
+    n.style.opacity = layer.opacity * (d ? d.opacity : 1);
+    n.style.clipPath = revealClip(d);
+    n.style.transition = d && d.ease
+      ? `transform ${d.ease}ms ${EASE_CURVE}, opacity ${d.ease}ms ${EASE_CURVE}, clip-path ${d.ease}ms ${EASE_CURVE}`
+      : "";
+    applyPulse(n, d);
+
+    if (layer.kind === "raster" && r.img) {
+      const tint = d && d.colour;
+      r.node.classList.toggle("tint", !!tint);
+      r.mask.style.display = tint ? "" : "none";
+      if (tint) {
+        r.mask.style.backgroundColor = tint;
+        r.mask.style.transition = d.ease ? `background-color ${d.ease}ms ${EASE_CURVE}` : "";
+      }
+    }
+
+    if (layer.kind === "vector") applyToElements(r, dynamics);
+  }
+
+  paintPressOverlay();
+  paintValuesReadout();
+}
+
+function applyToElements(r, dynamics) {
+  const prefix = r.layer.id + "#";
+  const wanted = new Map();
+  dynamics.forEach((d, key) => { if (key.startsWith(prefix)) wanted.set(key.slice(prefix.length), d); });
+
+  r.elements.forEach((node, id) => {
+    const d = wanted.get(id);
+    const base = node.dataset.baseTransform || "";
+
+    if (!d) {
+      if (node.dataset.styled) {
+        node.style.fill = ""; node.style.stroke = ""; node.style.opacity = "";
+        node.style.transition = ""; node.style.clipPath = "";
+        node.setAttribute("transform", base);
+        if (!base) node.removeAttribute("transform");
+        delete node.dataset.styled;
+      }
+      applyPulse(node, null);
+      return;
+    }
+    node.dataset.styled = "1";
+
+    /*
+     * A style binding's colour REPLACES the artwork's own paint entirely,
+     * including a gradient — §4.3's "colour means make this thing this colour".
+     * Applied to fill and stroke together, which is why the climate artwork
+     * deliberately carries no strokes on its delegated surfaces.
+     */
+    if (d.colour) {
+      const paintsFill = node.getAttribute("fill") !== "none" &&
+        !/(^|;)\s*fill\s*:\s*none/.test(node.getAttribute("style") || "");
+      const paintsStroke = node.hasAttribute("stroke") ||
+        /(^|;)\s*stroke\s*:/.test(node.getAttribute("style") || "");
+      node.style.fill = paintsFill ? d.colour : "";
+      node.style.stroke = paintsStroke ? d.colour : "";
+    } else {
+      node.style.fill = ""; node.style.stroke = "";
+    }
+    node.style.opacity = d.opacity;
+
+    // VectorArtLayer.kt's order: translate in artwork space, then the node's own
+    // transform, then rotate about the element's own box.
+    //
+    // CAVEAT, and it is written down rather than hidden: DASH composes against
+    // the node's fully accumulated transform, so its `translate` acts in viewBox
+    // space no matter how many groups the element sits inside. Here the element
+    // keeps its place in the DOM, so a translate on an element nested inside a
+    // transformed <g> acts in that group's space instead. No artwork drawn so far
+    // does that. If one does, this is the line that is wrong.
+    const parts = [];
+    const vb = r.viewBox;
+    if (vb && (d.translate[0] !== 0 || d.translate[1] !== 0)) {
+      parts.push(`translate(${d.translate[0] * vb.w} ${d.translate[1] * vb.h})`);
+    }
+    if (base) parts.push(base);
+    if (d.rotate !== 0) {
+      let bbox = null;
+      try { bbox = node.getBBox(); } catch (e) { /* not renderable */ }
+      if (bbox) {
+        const p = d.pivot || [0.5, 0.5];
+        const cx = bbox.x + p[0] * bbox.width;
+        const cy = bbox.y + p[1] * bbox.height;
+        parts.push(`rotate(${d.rotate} ${cx} ${cy})`);
+      }
+    }
+    if (parts.length) node.setAttribute("transform", parts.join(" "));
+    else if (base) node.setAttribute("transform", base);
+    else node.removeAttribute("transform");
+
+    node.style.clipPath = revealClipForElement(node, d);
+    node.style.transition = d.ease
+      ? `fill ${d.ease}ms ${EASE_CURVE}, stroke ${d.ease}ms ${EASE_CURVE}, ` +
+        `opacity ${d.ease}ms ${EASE_CURVE}, transform ${d.ease}ms ${EASE_CURVE}`
+      : "";
+    applyPulse(node, d);
+  });
+}
+
+/* A reveal is a clip, never a scale. Scaling to show a proportion distorts the
+   artwork: a bar with rounded ends or a gradient deforms visibly as it shrinks. */
+function revealClip(d) {
+  if (!d || d.reveal >= 1) return "";
+  const hidden = (1 - d.reveal) * 100;
+  switch (d.revealDirection) {
+    case "down":  return `inset(0 0 ${hidden}% 0)`;
+    case "left":  return `inset(0 0 0 ${hidden}%)`;
+    case "right": return `inset(0 ${hidden}% 0 0)`;
+    default:      return `inset(${hidden}% 0 0 0)`;   // up
+  }
+}
+
+function revealClipForElement(node, d) {
+  if (!d || d.reveal >= 1) return "";
+  let b; try { b = node.getBBox(); } catch (e) { return ""; }
+  if (!b) return "";
+  const r = d.reveal;
+  let x = b.x, y = b.y, w = b.width, h = b.height;
+  switch (d.revealDirection) {
+    case "down":  h = b.height * r; break;
+    case "left":  x = b.x + b.width * (1 - r); w = b.width * r; break;
+    case "right": w = b.width * r; break;
+    default:      y = b.y + b.height * (1 - r); h = b.height * r; break;
+  }
+  // A path() in user units — the same rectangle DASH clips to.
+  return `path("M ${x} ${y} H ${x + w} V ${y + h} H ${x} Z")`;
+}
+
+let pulseSheet = null;
+const pulseNames = new Map();
+function applyPulse(node, d) {
+  if (!d || !d.pulse) { node.style.animation = ""; return; }
+  const base = parseFloat(node.style.opacity || "1") || 1;
+  const key = `${d.pulse}-${round(base, 3)}`;
+  let name = pulseNames.get(key);
+  if (!name) {
+    if (!pulseSheet) {
+      const style = document.createElement("style");
+      document.head.appendChild(style);
+      pulseSheet = style.sheet;
+    }
+    name = "pulse_" + pulseNames.size;
+    pulseNames.set(key, name);
+    pulseSheet.insertRule(
+      `@keyframes ${name} { from { opacity: ${base}; } to { opacity: ${base * PULSE_FLOOR}; } }`,
+      pulseSheet.cssRules.length);
+  }
+  // Half the period each way, so one full cycle is the period the author asked for.
+  node.style.animation = `${name} ${d.pulse / 2}ms ${EASE_CURVE} infinite alternate`;
+}
+
+/* PanelBindings.kt's format(). decimals is not decoration — a reading of 30.0
+   beside one of 29.5 must not print as 30, and a ride height goes negative.
+   Formatted in a fixed locale, never the device's: re-punctuating 10.5 to 10,5
+   would be DASH forming an opinion inside the panel boundary. */
+function formatText(layer, raw) {
+  if (raw === undefined || raw === null) return "";
+  let body = String(raw);
+  if (layer.decimals !== null) {
+    const n = parseFloat(body.trim());
+    if (isFinite(n)) body = n.toFixed(layer.decimals);
+  }
+  return layer.prefix + body + layer.suffix;
+}
+
+/* sans-serif, serif and monospace are guaranteed by the Android framework and
+   always resolve. Anything else is attempted and falls back to the default. */
+function fontFamilyFor(font) {
+  if (font.token) return theme().font;
+  const f = font.family.trim().toLowerCase();
+  if (f === "monospace") return "monospace";
+  if (f === "serif") return "serif";
+  if (f === "sans-serif" || f === "sans") return "sans-serif";
+  if (f === "cursive") return "cursive";
+  return "sans-serif";                       // FontFamily.Default
+}
+
+function paintPressOverlay() {
+  el.pressOverlay.style.display = S.showPress ? "" : "none";
+  if (!S.showPress) return;
+  el.pressOverlay.innerHTML = "";
+  const shortEdge = Math.min(S.panelPx.w, S.panelPx.h);
+  for (const a of S.pressAreas) {
+    const d = document.createElement("div");
+    const [x, y, w, h] = a.rect;
+    d.style.left = x + "px"; d.style.top = y + "px";
+    d.style.width = w + "px"; d.style.height = h + "px";
+    if (Math.min(w, h) / shortEdge < 0.08) d.className = "tiny";
+    d.title = `${a.binding.control}${a.binding.step ? ` step ${a.binding.step > 0 ? "+" : ""}${a.binding.step}` : ` = ${a.binding.value || "(no value)"}`}`;
+    el.pressOverlay.appendChild(d);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  MODULE DATA  —  the sliders and steppers that stand in for a board
+// ══════════════════════════════════════════════════════════════════════════
+
+function seedValues(doc) {
+  const wanted = variableList(doc);
+  for (const v of wanted) {
+    if (S.values.has(v.name)) continue;
+    if (v.values) S.values.set(v.name, v.values[0]);
+    else if (v.range) S.values.set(v.name, String(v.range[0]));
+    else S.values.set(v.name, "");
+  }
+  // Drop anything this layout does not mention, so switching slots does not
+  // leave a control for a variable that is no longer on the panel.
+  const names = new Set(wanted.map(v => v.name));
+  for (const k of Array.from(S.values.keys())) if (!names.has(k)) S.values.delete(k);
+}
+
+/*
+ * The layout IS the declaration. A module declares no variables and no controls
+ * separately, so everything a panel watches is read back out of its own layers
+ * and bindings, exactly as PanelLayout.boundVariables and .controls do.
+ */
+function variableList(doc) {
+  const out = new Map();
+  const note = (name, patch) => {
+    if (!name) return;
+    const v = out.get(name) || { name };
+    out.set(name, Object.assign(v, patch));
+  };
+
+  for (const [name, spec] of Object.entries(doc.variables)) {
+    note(name, { values: spec.values, wrap: spec.wrap, declared: true });
+  }
+  for (const l of doc.layers) if (l.kind === "text") note(l.value, { text: true });
+  for (const b of doc.bindings) {
+    if (b.variable) {
+      const patch = { watched: true };
+      if (b.from && (b.kind === "rotate" || b.kind === "reveal" || b.kind === "translate")) patch.range = b.from;
+      if (b.kind === "style") patch.cases = (b.cases || []).map(c => c.match);
+      note(b.variable, patch);
+    }
+    if (b.kind === "touch") note(b.control, { control: true });
+  }
+  return Array.from(out.values());
+}
+
+function paintData() {
+  const pane = document.getElementById("pane-data");
+  const entry = S.current ? S.layouts.get(S.current) : null;
+  if (!entry || !entry.doc) {
+    pane.innerHTML = `<div class="empty">Load a layout to stand in for its module.</div>`;
+    return;
+  }
+  const vars = variableList(entry.doc).sort((a, b) => a.name.localeCompare(b.name));
+  if (!vars.length) {
+    pane.innerHTML = `<div class="empty">This layout watches no module variable, so there is nothing to drive.</div>`;
+    return;
+  }
+
+  pane.innerHTML = "";
+  const head = document.createElement("div");
+  head.style.cssText = "margin-bottom:14px;color:var(--ink-faint);font-size:11px";
+  head.innerHTML =
+    `Standing in for the module. <b style="color:var(--ink-dim)">Not reported</b> removes the value ` +
+    `entirely — a binding whose variable never arrives does nothing and its target keeps the ` +
+    `appearance it was drawn with.`;
+  pane.appendChild(head);
+
+  for (const v of vars) pane.appendChild(variableRow(v));
+}
+
+function variableRow(v) {
+  const wrap = document.createElement("div");
+  wrap.className = "var";
+  const absent = !S.values.has(v.name);
+  const value = S.values.get(v.name);
+
+  const kinds = [];
+  if (v.declared) kinds.push(`list of ${v.values.length}${v.wrap ? ", wraps" : ""}`);
+  if (v.range) kinds.push(`range ${v.range[0]}–${v.range[1]}`);
+  if (v.text) kinds.push("printed");
+  if (v.control && !v.declared) kinds.push("control");
+
+  const top = document.createElement("div");
+  top.className = "top";
+  top.innerHTML =
+    `<span class="name">${esc(v.name)}</span>` +
+    `<span class="kind">${esc(kinds.join(" · "))}</span>` +
+    `<span class="val${absent ? " absent" : ""}">${absent ? "not reported" : esc(String(value))}</span>`;
+  wrap.appendChild(top);
+
+  const row = document.createElement("div");
+  row.className = "row";
+
+  if (v.declared) {
+    const prev = button("−", () => step(v, -1));
+    const sel = document.createElement("select");
+    for (const opt of v.values) {
+      const o = document.createElement("option");
+      o.value = opt; o.textContent = opt;
+      if (!absent && opt === value) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.onchange = () => { S.values.set(v.name, sel.value); refreshData(); };
+    const next = button("+", () => step(v, 1));
+    prev.className = "stepbtn"; next.className = "stepbtn";
+    row.append(prev, sel, next);
+  } else if (v.range) {
+    const [lo, hi] = v.range;
+    const span = hi - lo;
+    const slider = document.createElement("input");
+    slider.type = "range";
+    slider.min = String(lo); slider.max = String(hi);
+    slider.step = String(Math.abs(span) / 200 || 0.01);
+    slider.value = absent ? String(lo) : String(parseFloat(value) || lo);
+    slider.oninput = () => { S.values.set(v.name, trimNumber(slider.value)); refreshData(); };
+    const box = document.createElement("input");
+    box.type = "text"; box.style.width = "76px";
+    box.value = absent ? "" : String(value);
+    box.onchange = () => { S.values.set(v.name, box.value.trim()); refreshData(); };
+    row.append(slider, box);
+  } else {
+    const box = document.createElement("input");
+    box.type = "text"; box.style.flex = "1";
+    box.value = absent ? "" : String(value);
+    box.placeholder = "whatever the module reports";
+    box.oninput = () => { S.values.set(v.name, box.value); refreshData(); };
+    row.append(box);
+  }
+
+  const abs = button(absent ? "Report" : "Not reported", () => {
+    if (absent) S.values.set(v.name, v.values ? v.values[0] : (v.range ? String(v.range[0]) : ""));
+    else S.values.delete(v.name);
+    refreshData();
+  });
+  abs.className = "absentbtn";
+  if (!absent) abs.style.color = "var(--ink-dim)";
+  row.appendChild(abs);
+  wrap.appendChild(row);
+
+  if (v.declared && v.cases) {
+    const unmatched = v.values.filter(val => !v.cases.some(c => matches(c, val)));
+    if (unmatched.length === v.values.length && v.cases.length) {
+      const n = document.createElement("div");
+      n.className = "note";
+      n.textContent = "No declared value of this variable matches any style case — the default is all this panel will ever show.";
+      wrap.appendChild(n);
+    }
+  }
+  return wrap;
+}
+
+/* PanelVariable.stepFrom(). Null covers both stop conditions, and they are
+   deliberately the same answer: an end stop on a non-wrapping list, and a value
+   the list has never heard of. */
+function stepFrom(spec, current, by) {
+  if (!spec.values.length || by === 0) return null;
+  const at = spec.values.indexOf(current === undefined || current === null ? null : String(current).trim());
+  if (at < 0) return null;
+  const next = at + by;
+  if (next >= 0 && next < spec.values.length) return spec.values[next];
+  if (!spec.wrap) return null;
+  return spec.values[((next % spec.values.length) + spec.values.length) % spec.values.length];
+}
+
+function step(v, by) {
+  const landed = stepFrom({ values: v.values, wrap: v.wrap }, S.values.get(v.name), by);
+  if (landed === null) return;
+  S.values.set(v.name, landed);
+  refreshData();
+}
+
+function refreshData() { paintData(); apply(); }
+function paintValuesReadout() { /* the values are shown in each row's header */ }
+
+function button(label, onclick) {
+  const b = document.createElement("button");
+  b.textContent = label; b.onclick = onclick;
+  return b;
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  PRESSES  —  the optimistic update, without a module to answer
+// ══════════════════════════════════════════════════════════════════════════
+/*
+ * PanelPress.kt. A touch binding's `control` is the variable it predicts and its
+ * `value` is what it predicts, so DASH draws the press immediately and reconciles
+ * when the module reports.
+ *
+ * There is no module here, so the prediction simply stands. That is the honest
+ * simulation of the case an author is checking — what the panel looks like the
+ * instant a finger lands — and the tool says plainly when a press would send
+ * nothing at all.
+ */
+function press(hit) {
+  const doc = S.layouts.get(S.current).doc;
+  const b = hit.binding;
+  S.pressedIndex = hit.index;
+  apply();
+
+  const spec = doc.variables[b.control];
+  const landed = b.step === 0 ? b.value
+    : (spec ? stepFrom(spec, S.values.get(b.control), b.step) : null);
+
+  if (!landed) {
+    // A step that lands nowhere sends nothing. At an end stop — or from a value
+    // the board does not list — the only thing the press could carry is DASH's
+    // current value, and sending that would command the module to whatever DASH
+    // last believed.
+    flashReadout(b.step !== 0
+      ? `\`${b.control}\` has nowhere to step from “${S.values.get(b.control) ?? "not reported"}” — nothing sent.`
+      : `ACTION | ${b.control}   (momentary — no value, nothing predicted)`);
+  } else {
+    flashReadout(`ACTION | ${b.control} | ${landed}`);
+    S.values.set(b.control, landed);
+    paintData();
+  }
+  apply();
+}
+
+function release() {
+  if (S.pressedIndex === null) return;
+  S.pressedIndex = null;
+  apply();
+}
+
+let flashTimer = null;
+function flashReadout(text) {
+  el.measureInfo.innerHTML = `<b>${esc(text)}</b>`;
+  clearTimeout(flashTimer);
+  flashTimer = setTimeout(() => { el.measureInfo.textContent = ""; }, 2600);
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  WARNINGS PANE
+// ══════════════════════════════════════════════════════════════════════════
+
+function paintWarnings(list) {
+  const pane = document.getElementById("pane-warnings");
+  const counter = document.getElementById("warnCount");
+  const order = { skipped: 0, degraded: 1, advice: 2 };
+  const sorted = list.slice().sort((a, b) => order[a.severity] - order[b.severity]);
+
+  counter.textContent = String(list.length);
+  counter.className = "count" +
+    (list.some(w => w.severity === "skipped") ? " skipped"
+      : list.some(w => w.severity === "degraded") ? " degraded" : "");
+
+  if (!sorted.length) {
+    pane.innerHTML = `<div class="empty">Nothing to report.<br><br>
+      Every layer draws, every binding points at something that exists, and every element in the
+      artwork is inside the subset DASH renders.</div>`;
+    return;
+  }
+  pane.innerHTML = "";
+  const legend = document.createElement("div");
+  legend.style.cssText = "margin-bottom:10px;font-size:11px;color:var(--ink-faint)";
+  legend.innerHTML =
+    `<b style="color:var(--skipped)">Skipped</b> — not drawn at all. ` +
+    `<b style="color:var(--degraded)">Degraded</b> — drawn, differently. ` +
+    `<b style="color:var(--advice)">Advice</b> — fine, but worth knowing.`;
+  pane.appendChild(legend);
+
+  for (const w of sorted) {
+    const d = document.createElement("div");
+    d.className = "warn " + w.severity;
+    d.innerHTML =
+      `<div class="what"><span class="sev">${w.severity}</span><span>${w.what}</span></div>` +
+      `<div class="msg">${w.message}</div>` +
+      (w.advice ? `<div class="advicetext">${w.advice}</div>` : "");
+    pane.appendChild(d);
+  }
+}
+
+// ══════════════════════════════════════════════════════════════════════════
+//  FILES
+// ══════════════════════════════════════════════════════════════════════════
+
+function paintFiles() {
+  const pane = document.getElementById("pane-files");
+  if (!S.files.length) {
+    pane.innerHTML = `<div class="empty">No files loaded.</div>`;
+    return;
+  }
+  const groups = { subset: [], layout: [], vector: [], raster: [], ignored: [] };
+  for (const f of S.files) groups[f.kind].push(f);
+  const titles = {
+    subset: "The subset", layout: "Layouts", vector: "Vector artwork",
+    raster: "Raster artwork", ignored: "Not used",
+  };
+  pane.innerHTML = "";
+  for (const key of ["subset", "layout", "vector", "raster", "ignored"]) {
+    if (!groups[key].length) continue;
+    const h = document.createElement("h3");
+    h.className = "sec"; h.textContent = titles[key];
+    pane.appendChild(h);
+    for (const f of groups[key]) {
+      const row = document.createElement("div");
+      row.className = "filerow" + (key === "layout" && f.name === S.current ? " active" : "");
+      row.innerHTML =
+        `<span class="tag">${key === "layout" ? (slotForName(f.name) ? "slot" : "json") : key}</span>` +
+        `<span class="nm">${esc(f.file)}</span>` +
+        `<span class="sz">${f.detail || ""}</span>`;
+      pane.appendChild(row);
+    }
+  }
+}
+
+async function ingest(files) {
+  for (const file of files) {
+    const name = file.name;
+    const lower = name.toLowerCase();
+    const base = name.replace(/\.[^.]+$/, "");
+
+    if (lower === "svg-subset.json") {
+      const text = await file.text();
+      try {
+        S.subset = new Subset(JSON.parse(text));
+        S.files.push({ kind: "subset", name, file: name, detail: "v" + S.subset.version });
+      } catch (e) {
+        S.files.push({ kind: "ignored", name, file: name, detail: "unreadable" });
+      }
+      continue;
+    }
+    if (lower.endsWith(".json")) {
+      const text = await file.text();
+      let looksLikeLayout = false;
+      try { const o = JSON.parse(text); looksLikeLayout = o && (Array.isArray(o.layers) || Array.isArray(o.bindings)); }
+      catch (e) { /* readLayout will say so */ looksLikeLayout = true; }
+      if (looksLikeLayout) {
+        S.layouts.set(base, { raw: text, doc: null });
+        S.files.push({ kind: "layout", name: base, file: name, detail: slotForName(base) ? slotRatioLabel(slotForName(base)) : "not a slot name" });
+      } else {
+        S.files.push({ kind: "ignored", name, file: name, detail: "no layers or bindings" });
+      }
+      continue;
+    }
+    if (lower.endsWith(".svg")) {
+      S.svgText.set(name, await file.text());
+      S.files.push({ kind: "vector", name, file: name, detail: kb(file.size) });
+      continue;
+    }
+    if (/\.(png|jpe?g|webp|gif|bmp)$/.test(lower)) {
+      const url = await readAsDataUrl(file);
+      const dims = await imageSize(url);
+      S.rasters.set(name, { url, width: dims.w, height: dims.h });
+      S.files.push({ kind: "raster", name, file: name, detail: `${dims.w}×${dims.h} · ${kb(file.size)}` });
+      continue;
+    }
+    S.files.push({ kind: "ignored", name, file: name, detail: "not a layout or an asset" });
+  }
+
+  refreshSubsetChip();
+  refreshLayoutPicker();
+  paintFiles();
+
+  if (!S.current && S.layouts.size) {
+    // Prefer a real slot name, and the day variant, because that is the one DASH
+    // resolves for the whole of the 1.6.x era.
+    const names = Array.from(S.layouts.keys());
+    const best = names.find(n => { const s = slotForName(n); return s && s.ambient === "day"; }) || names[0];
+    selectLayout(best);
+  } else {
+    build();
+  }
+}
+
+function readAsDataUrl(file) {
+  return new Promise(res => { const r = new FileReader(); r.onload = () => res(r.result); r.readAsDataURL(file); });
+}
+function imageSize(url) {
+  return new Promise(res => {
+    const i = new Image();
+    i.onload = () => res({ w: i.naturalWidth, h: i.naturalHeight });
+    i.onerror = () => res({ w: 0, h: 0 });
+    i.src = url;
+  });
+}
+function kb(n) { return n < 1024 ? n + " B" : n < 1024 * 1024 ? Math.round(n / 1024) + " kB" : (n / 1048576).toFixed(1) + " MB"; }
+
+// ══════════════════════════════════════════════════════════════════════════
+//  WIRING
+// ══════════════════════════════════════════════════════════════════════════
+
+function refreshSubsetChip() {
+  const chip = document.getElementById("subsetChip");
+  if (S.subset) {
+    chip.className = "good";
+    chip.textContent = `svg-subset.json v${S.subset.version}`;
+    chip.title = "The authoritative subset, read by DASH's parser and by this tool.";
+  } else {
+    chip.className = "bad";
+    chip.textContent = "no subset — vectors will not draw";
+    chip.title = "Load svg-subset.json from the DASH repository root.";
+  }
+}
+
+function refreshLayoutPicker() {
+  const pick = document.getElementById("layoutPick");
+  pick.innerHTML = "";
+  if (!S.layouts.size) { pick.innerHTML = `<option value="">— none —</option>`; return; }
+  const names = Array.from(S.layouts.keys()).sort();
+  for (const n of names) {
+    const o = document.createElement("option");
+    const slot = slotForName(n);
+    o.value = n;
+    o.textContent = slot ? `${n}   (${slotRatioLabel(slot)})` : n;
+    if (n === S.current) o.selected = true;
+    pick.appendChild(o);
+  }
+}
+
+function selectLayout(name) {
+  S.current = name;
+  const slot = slotForName(name);
+  if (slot) { S.slot = slot; S.ambient = slot.ambient; }
+  else if (!S.slot) S.slot = ALL_SLOTS.find(s => s.name === "h_large_day");
+  refreshLayoutPicker();
+  refreshSlotPicker();
+  refreshAmbient();
+  paintFiles();
+  build();
+}
+
+function refreshSlotPicker() {
+  const pick = document.getElementById("slotPick");
+  pick.innerHTML = "";
+  for (const shape of ["large", "medium", "small"]) {
+    for (const orientation of ["h", "v"]) {
+      const o = document.createElement("option");
+      o.value = `${orientation}_${shape}`;
+      const fake = { size: shape, orientation };
+      o.textContent = `${orientation === "h" ? "Horizontal" : "Vertical"} ${shape} — ${slotRatioLabel(fake)}`;
+      if (S.slot && S.slot.size === shape && S.slot.orientation === orientation) o.selected = true;
+      pick.appendChild(o);
+    }
+  }
+}
+
+function refreshAmbient() {
+  document.querySelectorAll("#ambientSeg button").forEach(b =>
+    b.classList.toggle("on", b.dataset.ambient === S.ambient));
+}
+
+/* The ambient switch changes the theme tokens and the active slot together, as
+   one coordinated change, or a panel renders night artwork in day colours. There
+   is only one DASH theme today, so here it changes which slot layout is shown —
+   and says so if the module never drew one. */
+function setAmbient(ambient) {
+  S.ambient = ambient;
+  refreshAmbient();
+  const wanted = `${S.slot.orientation}_${S.slot.size}_${ambient}`;
+  if (S.layouts.has(wanted)) { selectLayout(wanted); return; }
+  if (ambient === "night") {
+    // §6: a missing night variant falls back to the day one — the same artwork
+    // rather than a distorted shape, which is why that fallback is uncontroversial.
+    const day = `${S.slot.orientation}_${S.slot.size}_day`;
+    if (S.layouts.has(day)) {
+      flashReadout(`No ${wanted} — DASH falls back to ${day}, the same artwork.`);
+      selectLayout(day);
+      return;
+    }
+  }
+  flashReadout(`This module has no ${wanted}.`);
+}
+
+function setSlot(orientation, size) {
+  const wanted = `${orientation}_${size}_${S.ambient}`;
+  if (S.layouts.has(wanted)) { selectLayout(wanted); return; }
+  const day = `${orientation}_${size}_day`;
+  if (S.ambient === "night" && S.layouts.has(day)) { selectLayout(day); return; }
+  // No layout, no panel. Not stretched, not substituted, not apologised for with
+  // a placeholder — the module's author did not draw that shape, and DASH will
+  // not invent it. The screen reclaims the space.
+  S.slot = { orientation, size, ambient: S.ambient, name: wanted };
+  S.current = null;
+  refreshLayoutPicker();
+  build();
+  document.getElementById("welcome").innerHTML =
+    `<h2>No panel.</h2>
+     <p>This module ships no layout for <code>${wanted}</code>, so DASH draws nothing at all —
+        not a stretched version of another slot, and not a placeholder.</p>
+     <p style="color:var(--ink-faint)">Every slot is optional and partial support is normal. The
+        remedy belongs to whoever can fix it: supply the missing layout, or select a size the
+        module has.</p>`;
+  document.getElementById("welcome").style.display = "";
+  el.frame.style.display = "none";
+}
+
+// ── events ────────────────────────────────────────────────────────────────
+
+document.getElementById("loadBtn").onclick = () => document.getElementById("fileInput").click();
+document.getElementById("fileInput").onchange = e => { ingest(Array.from(e.target.files)); e.target.value = ""; };
+
+document.getElementById("layoutPick").onchange = e => { if (e.target.value) selectLayout(e.target.value); };
+document.getElementById("slotPick").onchange = e => {
+  const [orientation, size] = e.target.value.split("_");
+  setSlot(orientation, size);
+};
+document.querySelectorAll("#ambientSeg button").forEach(b => b.onclick = () => setAmbient(b.dataset.ambient));
+document.querySelectorAll("#modeSeg button").forEach(b => b.onclick = () => {
+  S.mode = b.dataset.mode;
+  document.querySelectorAll("#modeSeg button").forEach(x => x.classList.toggle("on", x === b));
+  el.panel.classList.toggle("measuring", S.mode === "measure");
+  el.measureBox.style.display = "none";
+});
+document.getElementById("pressToggle").onclick = e => {
+  S.showPress = !S.showPress;
+  e.target.classList.toggle("on", S.showPress);
+  paintPressOverlay();
+};
+document.getElementById("themePick").onchange = e => { S.theme = e.target.value; apply(); };
+document.getElementById("zoom").oninput = e => {
+  S.zoom = e.target.value / 100;
+  document.getElementById("zoomOut").textContent = e.target.value + "%";
+  build();
+};
+document.querySelectorAll("#tabs button").forEach(b => b.onclick = () => {
+  document.querySelectorAll("#tabs button").forEach(x => x.classList.toggle("on", x === b));
+  document.querySelectorAll(".pane").forEach(p => p.classList.toggle("on", p.id === "pane-" + b.dataset.pane));
+  if (b.dataset.pane === "files") paintFiles();
+});
+
+// panel interaction
+let measureStart = null;
+
+el.panel.addEventListener("pointerdown", e => {
+  const r = el.panel.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  if (S.mode === "measure") {
+    measureStart = [x, y];
+    el.panel.setPointerCapture(e.pointerId);
+    el.measureBox.style.display = "";
+    updateMeasureBox(x, y);
+    return;
+  }
+  const hit = hitTest(x, y);
+  if (hit) { el.panel.setPointerCapture(e.pointerId); press(hit); }
+});
+
+el.panel.addEventListener("pointermove", e => {
+  const r = el.panel.getBoundingClientRect();
+  const x = e.clientX - r.left, y = e.clientY - r.top;
+  const nx = x / S.panelPx.w, ny = y / S.panelPx.h;
+  el.cursorInfo.innerHTML = `<b>${round(nx, 4)}, ${round(ny, 4)}</b> <span class="hint">normalised</span>`;
+  if (measureStart) updateMeasureBox(x, y);
+});
+
+el.panel.addEventListener("pointerup", e => {
+  if (measureStart) {
+    const r = el.panel.getBoundingClientRect();
+    finishMeasure(e.clientX - r.left, e.clientY - r.top);
+    measureStart = null;
+    return;
+  }
+  release();
+});
+el.panel.addEventListener("pointercancel", () => { measureStart = null; release(); });
+el.panel.addEventListener("pointerleave", () => {
+  el.cursorInfo.innerHTML = `<span class="hint">move over the panel for coordinates</span>`;
+});
+
+function updateMeasureBox(x, y) {
+  const [sx, sy] = measureStart;
+  const left = Math.min(sx, x), top = Math.min(sy, y);
+  const w = Math.abs(x - sx), h = Math.abs(y - sy);
+  el.measureBox.style.left = left + "px"; el.measureBox.style.top = top + "px";
+  el.measureBox.style.width = w + "px"; el.measureBox.style.height = h + "px";
+}
+
+/*
+ * A measuring tape, not an editor. This REPORTS a coordinate for the author to
+ * type into their layout; it never writes to the layout. Raster authoring needs
+ * every dynamic element's position measured by hand as 0–1 fractions, and a
+ * climate panel is twenty of them.
+ */
+function finishMeasure(x, y) {
+  const [sx, sy] = measureStart;
+  const w = Math.abs(x - sx) / S.panelPx.w, h = Math.abs(y - sy) / S.panelPx.h;
+  const left = Math.min(sx, x) / S.panelPx.w, top = Math.min(sy, y) / S.panelPx.h;
+  const text = (w < 0.004 && h < 0.004)
+    ? `"at": [${round(left, 4)}, ${round(top, 4)}]`
+    : `"at": [${round(left, 4)}, ${round(top, 4)}], "size": [${round(w, 4)}, ${round(h, 4)}]`;
+  el.measureInfo.innerHTML = `<b>${esc(text)}</b> <span class="hint">click to copy</span>`;
+  el.measureInfo.style.cursor = "pointer";
+  el.measureInfo.onclick = () => {
+    navigator.clipboard?.writeText(text);
+    el.measureInfo.innerHTML = `<b>copied</b>`;
+  };
+}
+
+// drag and drop, including whole folders
+let dragDepth = 0;
+window.addEventListener("dragenter", e => { e.preventDefault(); dragDepth++; document.getElementById("drop").classList.add("on"); });
+window.addEventListener("dragover", e => e.preventDefault());
+window.addEventListener("dragleave", e => { e.preventDefault(); if (--dragDepth <= 0) document.getElementById("drop").classList.remove("on"); });
+window.addEventListener("drop", async e => {
+  e.preventDefault();
+  dragDepth = 0;
+  document.getElementById("drop").classList.remove("on");
+  const items = Array.from(e.dataTransfer.items || []);
+  const entries = items.map(i => i.webkitGetAsEntry && i.webkitGetAsEntry()).filter(Boolean);
+  if (entries.length) ingest(await collect(entries));
+  else ingest(Array.from(e.dataTransfer.files || []));
+});
+
+async function collect(entries) {
+  const out = [];
+  for (const entry of entries) {
+    if (entry.isFile) {
+      out.push(await new Promise(res => entry.file(res)));
+    } else if (entry.isDirectory) {
+      const reader = entry.createReader();
+      let batch;
+      do {
+        batch = await new Promise(res => reader.readEntries(res));
+        out.push(...await collect(batch));
+      } while (batch.length);
+    }
+  }
+  return out;
+}
+
+let resizeTimer = null;
+window.addEventListener("resize", () => {
+  clearTimeout(resizeTimer);
+  resizeTimer = setTimeout(build, 120);
+});
+
+// ── helpers ───────────────────────────────────────────────────────────────
+
+function clamp(n, lo, hi) { return Math.min(hi, Math.max(lo, n)); }
+function round(n, places) { const f = Math.pow(10, places); return Math.round(n * f) / f; }
+function trimNumber(v) { const n = parseFloat(v); return String(Math.round(n * 1000) / 1000); }
+function esc(s) {
+  return String(s).replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
+}
+
+// ── boot ──────────────────────────────────────────────────────────────────
+/*
+ * The subset is fetched if the tool is being served over http — from GitHub
+ * Pages, or a local server. Opened straight off disk as a file:// URL the browser
+ * refuses, and the author drops it in with everything else.
+ *
+ * It is never embedded in this file. A second copy is exactly the failure the
+ * Prime Directive exists to prevent, and it would be silent.
+ */
+(async function boot() {
+  S.slot = ALL_SLOTS.find(s => s.name === "h_large_day");
+  refreshSlotPicker();
+  refreshAmbient();
+  refreshSubsetChip();
+  paintFiles();
+  paintData();
+  paintWarnings([]);
+
+  for (const path of ["../svg-subset.json", "svg-subset.json"]) {
+    try {
+      const res = await fetch(path);
+      if (!res.ok) continue;
+      S.subset = new Subset(await res.json());
+      S.files.push({ kind: "subset", name: "svg-subset.json", file: path, detail: "v" + S.subset.version + " · fetched" });
+      refreshSubsetChip();
+      paintFiles();
+      break;
+    } catch (e) { /* file:// — the author will drop it in */ }
+  }
+})();
+</script>
+</body>
+</html>

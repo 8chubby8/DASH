@@ -233,6 +233,10 @@ exists to prevent — see the Prime Directive above.
 
 ## Current Status
 
+> **Built — 2026-08-16. `index.html` exists and works.** The paragraph below is left as
+> written, per the additive rule; the section that follows it records what was built and what
+> building it taught. Everything else in this brief still stands unchanged.
+
 **Not started.** This document is the brief; no tool exists yet.
 
 **This is a side quest, and it holds no version hostage.** *(Roger, 2026-08-12.)* It has no
@@ -253,6 +257,99 @@ This tool is expected to *help settle them*, by making it cheap to try a shape, 
 and change it before anything is committed to the specification. That is worth stating
 plainly because it inverts the usual order: the previewer is not built to a finished spec,
 it is built alongside one, and what it teaches goes back into `module-layout.md`.
+
+> **Both halves of that paragraph have since closed.** *(2026-08-16.)* The JSON notation was
+> drafted 2026-08-06 and the subset was written as data on 2026-08-12 — `svg-subset.json` at
+> the repository root, the item `module-layout.md` had marked *blocking*. The tool was built
+> against a settled format rather than helping settle it, which is a better position than the
+> one anticipated here. What it still does is feed corrections back; see the findings below.
+
+---
+
+## What Was Built — 2026-08-16
+
+**`panel-preview/index.html`.** One file, roughly 106 kB, no dependencies, no build step, no
+network calls. Opened by double-clicking. Artwork and layouts are dropped onto the window —
+whole folders work.
+
+**Run it either way:**
+
+- **Off disk.** `firefox panel-preview/index.html`, then drop `svg-subset.json` *and* the
+  module's `assets/` folder. The subset must be dropped in because a `file://` page is not
+  permitted to read its own siblings.
+- **Served.** `python3 -m http.server` from the repository root, then
+  `/panel-preview/`. The subset is fetched automatically and only the artwork is dropped.
+  This is what GitHub Pages will be like.
+
+**The subset is never embedded in the HTML.** It is fetched or dropped, and the tool
+**refuses to draw a vector layer without it** rather than falling back to the browser's own
+rendering. A second copy compiled into this file would be exactly the divergence the Prime
+Directive exists to prevent, and it would be silent. Refusing is the honest failure.
+
+### What it does
+
+Draws the panel at its real slot ratio, in either orientation, with the six shapes selectable
+and day/night switching the active slot — including *no layout, no panel* when a module never
+drew the shape asked for. Stands in for the module with one control per variable, built from
+the layout's own `variables` board (§8a): declared lists get a stepper, ranged variables get a
+slider over the binding's own `from`, and everything has a **Not reported** state, because a
+binding whose variable never arrives is a case an author needs to be able to see. Presses do
+the optimistic update, including saying when a press at an end stop sends nothing at all.
+
+And it lints: the artwork is pruned against `svg-subset.json` *before* anything is drawn, so
+what reaches the screen is only what DASH would also draw, and everything removed is reported
+with **the reason and the advice taken from that file** — the same words the app would use.
+
+### Verified against both real modules
+
+All six climate slots; theme tokens resolving; cased styles firing; the 16×1 strip showing its
+cut-down four variables. The Tank Gauge for the rest — raster beneath vector, a needle rotating
+about a pivot in its own box, a threshold turning a readout red and a lamp pulsing, momentary
+controls. `reveal` and `translate` were tested against the **1.6.6** gauge layout pulled out of
+git, since 1.6.7 dropped them. On deliberately broken input the linter produced 36 warnings and
+the panel showed DASH's behaviour rather than the browser's: `<text>` absent, a dashed stroke
+drawn solid, `class="hot"` and an invented colour name drawing black.
+
+### What building it taught
+
+**One real fidelity bug, invisible without hardware to compare against.** The tool eased every
+binding in from the artwork's own colours on each build. Compose's `animate*AsState` **starts at
+its target on first composition**, so DASH arrives correct and animates only when a value
+afterwards changes. The preview was showing a 200 ms fade that never happens on the tablet.
+Fixed by suppressing transitions for the first frame. *This is the failure mode the Prime
+Directive warns about, arriving through the door it does not guard — see below.*
+
+**The Prime Directive covers the vocabulary, not the behaviour.** The subset is shared data and
+cannot drift. The **layout engine** is 3,324 lines of Kotlin across `panel/` and
+`ui/modulepanel/`, reproduced here by reading it — layer boxes, the merge rule, pivot
+resolution, reveal-as-clip, hit testing on bounding boxes rather than outlines, the step-from
+rule. Nothing keeps those in step. The mitigation is that **every behaviour in `index.html`
+names the Kotlin file it was copied from**, so the two can be diffed deliberately. That is the
+best available answer, not a solved problem, and it is worth re-checking at the 1.6.10 lock.
+
+**One documented approximation.** DASH composes a `translate` against an element's fully
+accumulated transform, so it acts in viewBox space however deeply the element is nested. The
+previewer leaves the element in the DOM, so a translate on something inside a transformed `<g>`
+would act in that group's space instead. No artwork does this today. The caveat is written at
+the line that would be wrong.
+
+### Corrections owed to `module-layout.md`
+
+Found by implementing it. None are urgent; all want settling before the spec locks at 1.6.10.
+
+| Where | What |
+|---|---|
+| §9, *The document* | Still says *"Two lists, and nothing else"* and shows `{ layers, bindings }`. §8a added a third top-level key, `variables`, and every shipped climate layout starts with it. The complete example has no `variables` either. |
+| §9, *The SVG subset* | The prose colour list gives hex, `rgb()`, named and `none`; `svg-subset.json` also carries `currentColor` and `url()`. The data is authoritative and both implementations read it, so nothing breaks — but it is the exact divergence the Prime Directive exists to prevent, now living inside one document. |
+| §3, *Targets* | *"In every major vector tool, a layer or object name becomes the SVG element's `id` on export."* Not true of Inkscape: renaming in the Objects panel writes `inkscape:label`, which DASH ignores entirely. The `id` is a separate field in Object Properties. This is a genuine trap for the most likely tool an author will use. |
+
+### Still untested
+
+**No artwork has yet come out of a drawing tool.** Both `gauge.svg` and the six climate files
+are hand-written — there is not one `inkscape:label` between them. The subset was drafted
+against real Inkscape output during the parser spike, but no *module* has been authored that
+way, so the first genuine export is new ground for the parser and for this tool. That is
+precisely the case the previewer was built for.
 
 ---
 
