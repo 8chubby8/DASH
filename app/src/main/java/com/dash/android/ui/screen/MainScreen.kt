@@ -14,6 +14,7 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.Crossfade
 import androidx.compose.animation.core.Spring
 import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.spring
@@ -82,7 +83,9 @@ import com.dash.android.ui.modulepanel.ModulePanelConfig
 import com.dash.android.ui.modulepanel.ModulePanelSpec
 import com.dash.android.ui.modulepanel.PanelEdge
 import com.dash.android.ui.modulepanel.effectiveEdge
-import com.dash.android.ui.modulepanel.rememberActivePanel
+import com.dash.android.ui.modulepanel.ModuleTabs
+import com.dash.android.ui.modulepanel.rememberPanelCandidates
+import com.dash.android.ui.modulepanel.rememberPanelDocument
 import com.dash.android.ui.modulepanel.slotFor
 import com.dash.android.ui.modulepanel.rememberPanelPresses
 import com.dash.android.ui.settings.SettingsShell
@@ -299,23 +302,47 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // a band that had been set aside for a king who never arrived.
             val barThickness = barConfig.heightDp.dp
             val panelEdge = effectiveEdge(modulePanelConfig.edge, barConfig.position)
-            val panelDocument = rememberActivePanel(
+            val panelSlot = slotFor(modulePanelConfig.size, panelEdge)
+
+            // Every installed module that can fill the slot gets a tab (roadmap 1.6.8). Database
+            // order — there is deliberately no ordering in this version, since the panel order, the
+            // dominant module and the return dwell are one story, told once at 1.6.11.
+            val panelCandidates = rememberPanelCandidates(controller.database, panelSlot)
+
+            // **Which module is on screen.** The user's tap wins; before there has been one, the
+            // module DASH was last left on; before there has ever been one, the first candidate. A
+            // stored id that is no longer installed — or can no longer fill the selected size — is
+            // simply not found here and falls back the same way, with nothing to clean up.
+            val lastPanelModule by prefs.modulePanelLastModule.collectAsState(initial = null)
+            var tappedModuleId by remember { mutableStateOf<String?>(null) }
+            val selectedModule = remember(panelCandidates, tappedModuleId, lastPanelModule) {
+                val wanted = tappedModuleId ?: lastPanelModule
+                panelCandidates.firstOrNull { it.id == wanted } ?: panelCandidates.firstOrNull()
+            }
+            val panelDocument = rememberPanelDocument(
                 database = controller.database,
-                slot = slotFor(modulePanelConfig.size, panelEdge),
+                module = selectedModule,
+                slot = panelSlot,
             )
-            // What the panel draws, and what a press on it does (1.6.7). The values are the
-            // module's own reports with any outstanding optimistic update laid over the top.
-            val panelPresses = rememberPanelPresses(
-                moduleData = controller.moduleData,
-                actions = controller.actions,
-                moduleId = panelDocument?.moduleId,
-                variables = panelDocument?.layout?.variables.orEmpty(),
-            )
+
             val panelLongEdge = if (panelEdge.horizontal) screenWidth else (maxHeight - barThickness)
             val panelThickness = if (panelDocument == null) 0.dp else
                 ModulePanelSpec.thicknessFor(modulePanelConfig.size, panelLongEdge)
             val panelWidth = if (panelEdge.horizontal) screenWidth else panelThickness
             val panelHeight = if (panelEdge.horizontal) panelThickness else panelLongEdge
+
+            // **The tab bar sits outside the panel and cuts into the viewport** (Roger, 1.6.8) — it
+            // is never taken out of the panel's own footprint, because the module's box would then
+            // be thinner than the slot ratio its author drew to. **It shows whenever the panel
+            // shows, including with a single module installed**: the viewport is then the same size
+            // on Monday as on Friday, installing a module changes what is *in* the panel rather than
+            // how much content area the screen has, and a lone tab is a label rather than a dead
+            // control. With no module able to fill the slot there is no panel (§6) and no bar.
+            // The user's, since 2026-08-26 — one read here and every measurement below follows it,
+            // because the bar's thickness is also the panel assembly's offset from the edge.
+            val tabThickness =
+                if (panelDocument == null) 0.dp else modulePanelConfig.tabThicknessDp.dp
+            val assemblyThickness = panelThickness + tabThickness
 
             // The diagnostic overlay is gone (roadmap 1.5.15). Four lines of grey 10sp — pixel size,
             // native dpi, the applied density preset and the old dashScale — pinned permanently over
@@ -339,14 +366,20 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // than the screen has; the vertical insets are clamped so the blind is never handed
             // negative space to lay out in. That guards the arithmetic only — the panel still draws
             // at its true ratio, so an overflowing shape stays visibly wrong rather than trimmed.
+            //
+            // **Settings conforms to the whole assembly, panel and tab bar together** (1.6.8). The
+            // bar is DASH's own chrome rather than the king's castle, so covering it would not break
+            // 1.6.2's rule — but it is also the only way to change modules, and a surface that can
+            // be covered by another DASH surface is the exact trap 1.6.9 exists to prevent. One
+            // inset around both is simpler than two rules and cannot drift apart.
             val panelVerticalInset =
-                if (panelEdge.horizontal) (panelThickness).coerceAtMost(maxHeight - barThickness) else 0.dp
+                if (panelEdge.horizontal) (assemblyThickness).coerceAtMost(maxHeight - barThickness) else 0.dp
             val settingsTopInset =
                 (if (barIsTop) barThickness else 0.dp) + (if (panelEdge == PanelEdge.TOP) panelVerticalInset else 0.dp)
             val settingsBottomInset =
                 (if (!barIsTop) barThickness else 0.dp) + (if (panelEdge == PanelEdge.BOTTOM) panelVerticalInset else 0.dp)
-            val settingsStartInset = if (panelEdge == PanelEdge.LEFT) panelThickness else 0.dp
-            val settingsEndInset = if (panelEdge == PanelEdge.RIGHT) panelThickness else 0.dp
+            val settingsStartInset = if (panelEdge == PanelEdge.LEFT) assemblyThickness else 0.dp
+            val settingsEndInset = if (panelEdge == PanelEdge.RIGHT) assemblyThickness else 0.dp
             BoxWithConstraints(
                 modifier = Modifier
                     .align(Alignment.TopStart)
@@ -557,13 +590,83 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 val panelW by animateDpAsState(panelWidth, moveSpec, label = "modulePanelW")
                 val panelH by animateDpAsState(panelHeight, moveSpec, label = "modulePanelH")
 
-                ModulePanel(
-                    document = panelDocument,
-                    values = panelPresses.values,
-                    width = panelW,
-                    height = panelH,
+                /*
+                 * **The switch is a cross-fade, and the outgoing panel is held until the incoming one
+                 * is ready** (roadmap 1.6.8). `Crossfade` gives that second half for free rather than
+                 * needing a gate: its target only changes when [rememberPanelDocument] has a document
+                 * in hand, so a panel still being read off disk simply has not arrived yet and the one
+                 * on screen stays drawn. There is never an empty box.
+                 *
+                 * Not a slide. Tapping a tab can jump from the first module to the fourth, so there is
+                 * nothing meaningful to slide past, and sliding would tell a story about modules
+                 * living side by side that the tab bar does not support.
+                 *
+                 * **This is DASH's transition, so it takes the user's speed setting** — the exact
+                 * opposite of anything *inside* a panel, where `module-layout.md` §5 gives the module's
+                 * own durations and DASH's setting never enters.
+                 */
+                Crossfade(
+                    targetState = panelDocument,
+                    animationSpec = tween(transitions.millis(TransitionId.MODULE_PANEL_SWITCH)),
                     modifier = Modifier.align(Alignment.TopStart).offset(x = panelX, y = panelY),
-                    onPress = panelPresses.press,
+                    label = "modulePanelSwitch",
+                ) { document ->
+                    /*
+                     * **The values and the press handler are per-panel, not per-screen** (1.6.8).
+                     * Both panels are composed during a cross-fade, and each draws its own module's
+                     * reports — so this moved down here from the screen, where a single call could
+                     * only ever describe one of them.
+                     *
+                     * Keying on the module also keeps 1.6.7's rule that switching panels retires the
+                     * outgoing module's outstanding presses with it. That is deliberate rather than
+                     * incidental: a prediction exists so the panel does not look dead under a finger,
+                     * and once the panel is not on screen there is nothing to draw ahead of.
+                     */
+                    val presses = rememberPanelPresses(
+                        moduleData = controller.moduleData,
+                        actions = controller.actions,
+                        moduleId = document.moduleId,
+                        variables = document.layout.variables,
+                    )
+                    ModulePanel(
+                        document = document,
+                        values = presses.values,
+                        width = panelW,
+                        height = panelH,
+                        onPress = presses.press,
+                    )
+                }
+
+                // The tab bar, on the panel's inboard edge — the side facing the content area. It
+                // moves and resizes with the panel on the same MODULE_PANEL_MOVE spec, because it is
+                // part of the same assembly and the two arriving at an edge separately would read as
+                // a fault.
+                val tabTargetX = when (panelEdge) {
+                    PanelEdge.RIGHT -> screenWidth - panelWidth - tabThickness
+                    PanelEdge.LEFT -> panelWidth
+                    else -> 0.dp
+                }
+                val tabTargetY = when (panelEdge) {
+                    PanelEdge.TOP -> panelHeight
+                    PanelEdge.BOTTOM -> maxHeight - panelHeight - tabThickness
+                    else -> if (barIsTop) barThickness else 0.dp
+                }
+                val tabW = if (panelEdge.horizontal) screenWidth else tabThickness
+                val tabH = if (panelEdge.horizontal) tabThickness else panelLongEdge
+                val tabX by animateDpAsState(tabTargetX, moveSpec, label = "moduleTabsX")
+                val tabY by animateDpAsState(tabTargetY, moveSpec, label = "moduleTabsY")
+
+                ModuleTabs(
+                    modules = panelCandidates,
+                    selectedId = panelDocument.moduleId,
+                    horizontal = panelEdge.horizontal,
+                    width = tabW,
+                    height = tabH,
+                    modifier = Modifier.align(Alignment.TopStart).offset(x = tabX, y = tabY),
+                    onSelect = { id ->
+                        tappedModuleId = id
+                        scope.launch { prefs.saveModulePanelLastModule(id) }
+                    },
                 )
             }
 

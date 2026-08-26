@@ -364,6 +364,85 @@ Installed modules are cycled by swiping within the panel:
 - Horizontal panel → swipe left and right
 - Vertical panel → swipe up and down
 
+> **Superseded — 2026-08-19 (roadmap 1.6.8), Roger's call. The swipe is dropped. Switching is the tab bar.**
+>
+> The three lines above are kept for the record and are not what DASH does. **The swipe belongs to
+> the module, not to DASH.**
+>
+> *Why:* everything inside the panel boundary is the module's box under the Module Mantra, and a
+> single-finger gesture inside it is the module's input to claim — hold-to-repeat on a stepper, a
+> drag slider, a swipe through a list of presets. None of those exist in `module-layout.md` today;
+> all of them are things an author will reasonably want. **Once DASH takes that gesture it cannot
+> give it back** without breaking every module built in the meantime, so it is not taken at all.
+> This is the same reasoning that keeps DASH out of the panel's colours and fonts, applied to input.
+>
+> The cost is real and was accepted knowingly: the in-panel swipe is free, and what replaces it
+> spends screen permanently.
+>
+> **What replaces it: a tab bar on the panel's inboard edge** — the side facing the content area.
+> DASH owns the walls; this makes one wall thick enough to touch. **One tab per module that can
+> fill the currently selected slot, and tapping a tab goes straight to that module** rather than
+> cycling — six modules are one tap apart, not five. It is also where the *which module am I on*
+> indicator honestly lives, because a pip drawn inside the panel would be DASH chrome in the
+> module's box. Tab labels come from the module's `HELLO` name, which the module already declares.
+>
+> **The tab bar and the floating peek strip are the same object.** The strip described under
+> Persistent and Floating Modes above — the few dp left on screen when a floating panel is hidden —
+> *is* the bar. It is built as the switcher at **1.6.8** and gains its reveal behaviour, its size and
+> its customisation at **1.6.9**, where both of its jobs are settled together rather than the same
+> strip being designed twice.
+>
+> **The bar is DASH's surface, so the user dresses it.** Thickness (bound to the UI Scale token),
+> tab style, alignment along the edge, and colour from the theme tokens — all at 1.6.9. Whether it
+> can be hidden entirely carries 1.6.9's own trap: hiding the only switch a user has strands them on
+> one module with no way off it, which is the reachability rule that version exists for, applied to
+> the bar rather than to the panel.
+>
+> **A second route in, which needs no screen at all:** `module_panel_left` and `module_panel_right`
+> are now standard system commands (`system_commands.md`, Controls). A SYSTEM module reports them
+> and DASH moves one module along the order — a steering-wheel button or a dash switch, which is
+> the best switch there is in a moving vehicle because it needs no eyes. **Left and right are the
+> direction of travel through the module order, not a screen direction**, so a vertical panel does
+> not get `up`/`down` twins.
+>
+> **This also supersedes one line of the 2026-07-30 reconciliation below**, which said *"cycling
+> between installed modules is already the in-panel swipe described above"* when it dropped the
+> Module Panel Reveal element. That element stays dropped and for the reason given — it is not an
+> element's job to operate another surface — but the behaviour it was said to duplicate is now the
+> tab bar. If a bar-mounted control is ever wanted in the Elements era (1.9.x), it drives the tab
+> bar, exactly as that note intended.
+>
+> **Where the bar physically goes (roadmap 1.6.8, Roger's call): outside the panel, cutting into the
+> viewport.** Not out of the panel's own footprint — the module's box would then be thinner than the
+> slot ratio it was authored to, and a module drawn for 8 × 3 must be drawn into 8 × 3. The panel
+> keeps its exact shape; the cost lands on content area. **The bar shows whenever the panel shows,
+> including with only one module installed**, so the viewport is the same size on Monday as on
+> Friday — installing a module changes what is *in* the panel, not how much content area the screen
+> has. A single tab is a label rather than a dead control, so 1.5.15's no-dead-controls rule does not
+> object. With no module able to fill the slot there is no panel at all (§6), and therefore no bar.
+>
+> **Which modules get a tab:** installed ACCESSORY, has a layout for the selected slot. SYSTEM and
+> LISTENER modules never appear — they have no panel to draw. **A silent module keeps its tab**: the
+> install record is the tenancy, §6 is a rule about layouts rather than liveness, and DASH does not
+> annotate a tab with the state of its board. **Different id, different module** — the same firmware
+> on two wires is two modules and gets two tabs, and DASH neither disambiguates them nor comments on
+> it.
+>
+> **The switch is a cross-fade**, with the outgoing panel held until the incoming one is ready so
+> there is never an empty box. Not a slide: tapping a tab can jump from the first module to the
+> fourth, so there is nothing meaningful to slide past. It is **DASH's** transition and takes the
+> user's INSTANT–CINEMATIC setting, unlike anything inside a panel.
+>
+> **Also settled here (roadmap 1.6.8):** there is **no tab ordering in this version** — tabs sit in
+> database order, and the panel order, the dominant module and the return dwell are one story told
+> once at 1.6.11 rather than half-built here. Which module was last shown **survives a restart**,
+> because DASH restarts every ignition cycle. And a module that cannot fill the selected size is
+> simply absent from the bar, per `module-layout.md` §6 — **and DASH says nothing about it**
+> (Roger). The rule is the whole answer; annotating the size tiles with a module count was proposed
+> and rejected, because it would be DASH narrating a choice the user made and can unmake by changing
+> the size back. What a module *did* ship is a different thing and is stated plainly against its
+> record in the Module Manager, at 1.6.11.
+
 > **Reconciliation — 2026-07-30 (roadmap 1.6.1).** Ahead of building the module panel, this section was walked against the 1.6.x plan and three things settled differently. The text above is kept for the record; the notes below are what 1.6.x implements.
 >
 > **1. Orientation is manual, not automatic.** The "orientation is automatic based on docking edge" rule above is **superseded**. There is no automatic flip, and therefore nothing to override — **the user sets the panel's orientation directly**, as its own setting, independently of which edge it is docked to. *Why:* deriving orientation from the docked edge is DASH deciding on the user's behalf what shape their panel should be, which is the one thing DASH does not do. A vertical panel on a bottom edge is a legitimate thing to want, and the automatic rule made it a fight with the system rather than a choice. The h_ / v_ layout slots are unaffected — a module still ships both variants; **which one DASH draws follows the panel's orientation setting**, not its docked edge.
@@ -561,8 +640,14 @@ DASH Settings
 │   │   ├── Module Panel
 │   │   │   ├── Docking edge
 │   │   │   ├── Persistent or floating
-│   │   │   ├── Peek strip size
-│   │   │   └── Default size (small / medium / large)
+│   │   │   ├── Peek strip size                          ← subsumed by Tab bar › Thickness
+│   │   │   ├── Default size (small / medium / large)
+│   │   │   └── Tab bar                                  ← added 2026-08-19 (1.6.9)
+│   │   │       ├── Thickness (UI Scale bound)
+│   │   │       ├── Tab style (pips / names / both)
+│   │   │       ├── Alignment along the edge
+│   │   │       ├── Colour
+│   │   │       └── Shown or hidden
 │   │   └── App Launcher
 │   │       ├── Persistent or floating
 │   │       ├── Docking edge

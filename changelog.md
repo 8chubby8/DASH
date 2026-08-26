@@ -47,6 +47,62 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.8
+
+**Status:** Complete — two modules, two transports, two tabs, and a cross-fade between them. Hardware-verified by Roger on the Tab S9 Ultra, 2026-08-26.
+
+**Scope:** More than one accessory module installed, and a way to get from one to the other. 1.6.7 made a panel a thing you can operate; this version makes it one of several.
+
+**Implemented:**
+
+- **The swipe was dropped before it was built, and the tab bar took its place** *(Roger, 2026-08-19)*. The inventory and interface.md had modules cycled by swiping *inside* the panel. **They are not: the swipe belongs to the module.** The panel boundary is the module's box under the Module Mantra, and a single-finger gesture inside it is the module's input to claim — hold-to-repeat on a stepper, a drag slider, a swipe through presets. **Once DASH takes that gesture it can never give it back** without breaking every module built in the meantime, so it is not taken at all. The concrete problem was already sitting in the code: `PanelContent`'s press fires on touch-*down* and consumes the event, so a swipe starting on a control would have sent an `ACTION` before the finger moved and no drag detector would ever have seen the gesture.
+- **So DASH's control lives outside the box** — a tab bar on the panel's inboard edge, the side facing the content area. DASH owns the walls; this makes one wall thick enough to touch. A tab per module that can fill the current slot, **tapped directly rather than cycled**, so six modules are one tap apart rather than five. Labels come from the module's `HELLO` name and needed no SDK change.
+- **The bar cuts into the viewport, not into the panel** *(Roger)*. Not out of the panel's own footprint: the module's box would then be thinner than the slot ratio it was authored to, and a module drawn for 8 × 3 must be drawn into 8 × 3. Not overlaid on it either, which would be DASH drawing on the module's box. The panel keeps its exact shape and the cost lands on content area.
+- **The bar shows whenever the panel shows, including with one module installed** *(Roger)* — so the viewport is the same size on Monday and Friday. Installing a module changes what is *in* the panel, not how much content area the screen has.
+- **Membership: installed ACCESSORY, has a layout for the selected slot, gets a tab.** SYSTEM and LISTENER modules never appear — they have no panel to draw. **A silent module keeps its tab** *(Roger)*: the install record is the tenancy, §6's rule is about layouts rather than liveness, and DASH does not annotate a tab with the state of its board. It also stops tabs appearing and vanishing every time a board brownouts. **Different id, different module, no exceptions** — `GaugeWifi` and `GaugeBt` are the same panel on two ids and get two identical tabs, and DASH neither disambiguates them nor comments on it.
+- **Load on demand, and no cache** — measured rather than assumed, and the measurement reversed the design. The Tank Gauge is a 1.4 KB layout, a 10.6 KB SVG and a 1600 × 600 PNG decoding to 3.7 MB: roughly 20–40 ms, one to three frames. Climate is a 14 KB layout and one 10 KB vector with no raster at all — under 10 ms. **There is no load to hide**, so only the panel on screen is held decoded, memory is bounded at one panel however many modules are installed, and the LRU cache first proposed here was machinery for a cost that does not exist.
+- **The switch is a cross-fade**, with the outgoing panel held until the incoming one is ready so there is never an empty box. Not a slide: sliding says Climate lives to the left of the Gauge, and a tap can jump from the first tab to the fourth, so there is nothing meaningful to slide past. **It is DASH's transition, so it takes the user's INSTANT–CINEMATIC setting** — the opposite of anything inside a panel, where §5 gives the module's own durations and DASH's never enters. Registered as `MODULE_PANEL_SWITCH`, and because the Motion page builds itself from the registry it appeared in Settings the moment it was added.
+- **`rememberPanelPresses` became per-panel rather than per-screen.** This is the real structural change of the version: a cross-fade composes two panels at once, and one call at the screen could only ever describe one of them.
+- **Which module was last shown survives a restart** — DASH restarts every ignition cycle, so losing the choice every time would be losing it daily.
+- **No ordering at all in this version** *(Roger)*. Tabs sit in database order. Panel order, the dominant module and the dwell are one story and are told once, at 1.6.11, rather than a small version of it here and a real one later.
+
+**Extended 2026-08-26 — the bar's colours and its size**
+
+*Both were 1.6.9 scope. They landed here because the version's own hardware test put the bar in front of Roger, and looking at a thing is what generates the notes about it.*
+
+- **The colour pairing was inverted** *(Roger)*. The bar took the *secondary* (dark) surface when first drawn, on the reasoning that the panel's floor is the primary surface and a bar in the same colour would read as part of the module's box. It now takes the **primary** (light) surface, with the selected tab a dark `backgroundColourSecondary` pill. Ink follows `DashTheme`'s own stated rule rather than eye — the primary surface carries black, the secondary carries light grey — which is 13.9:1 unselected and 11.1:1 selected on the default palette. **The mid-grey accent was dropped from both roles it held**: on a light bar it sits too close to the background to be read at a glance, which is precisely the trap 1.5.12 dug itself out of.
+- **The concern raised against the swap was real and turned out to be overstated.** The bar does now share a token with the panel floor — but that floor is only visible where a module leaves it bare, and against the dark viewport the light bar reads clearly as a bar. Recorded because the flag was worth raising and the answer was worth checking rather than assuming.
+- **Selector size became the user's** — Settings → Layout → Module Panel → **Selector**, 24–96dp in steps of 4, default 36. **The reasoning is Roger's and is the point of the entry:** asked how thick the bar should be, the answer is that it is not DASH's to choose. The cost lands on the content area, so the same 36dp is nearly free beside a large 8 × 3 panel and a real bite out of a 16 × 1 one — no single number serves both, and the person looking at the screen is the one who can see which case they are in. *"We don't get to choose that, the user chooses that. We just give them the tools."*
+- **Range chosen from numbers the system had already agreed to**, not invented here: 24dp is `SystemBarConfig.MIN_ELEMENT_HEIGHT_DP`, already the smallest DASH lets anything be; the step of 4 matches every other size stepper in DASH, because a different feel under the thumb on one control would read as a fault rather than a choice.
+- **No hard floor** — deliberately. 24dp is small for a gloved hand, and that is the user's call: interface.md reserves hard floors for safety-critical targets, and the reachability question the bar really raises — what happens when the only way off a module is made too small to hit, or hidden altogether — is 1.6.9's to answer rather than something to pre-empt with a floor here.
+- **The boundary is shown in the control itself**, per interface.md's v1.3.4 decision: at either end the caption under the number reads `MIN` or `MAX`. Carried in the stepper's existing caption slot so the shared component is untouched and no other setting in DASH changes behaviour.
+- **Stored in `ModulePanelConfig`** with the panel's edge and size — it belongs to that assembly, so it travels with it and needs no key of its own. **The serialised default is the literal `36`, not `ModuleTabsSpec.DEFAULT_DP`**: a default that moved when somebody edited a constant would silently reinterpret every config already written to disk without that field.
+- **The control sits at the bottom of the Module Panel page, and briefly did not.** It was first sited on Appearance → Size & Scale, where every other DASH surface size lives — Roger's suggestion, and a good one. He then went and looked at the menus and reversed it: the Module Panel page reads top to bottom as one continuous answer, and Size → Position → Selector is that answer. Recorded because the second look was the better one.
+
+**Regressions:**
+
+- **None.** The one behaviour that looked like a regression on paper was not: *switching away retires the outgoing module's outstanding presses.* `PanelPress.kt` already documented that as deliberate, and it is right — a prediction exists so the panel does not look dead under a finger, so once the panel is off screen there is nothing to draw ahead of. What 1.6.8 changed is only that the case now actually happens.
+
+**Fixes:**
+
+- None required. Nothing broke.
+
+**Outstanding:**
+
+- **The bar is not yet customisable beyond its size.** Tab style (pips / name / both), alignment along the edge, chosen colours, and whether it shows at all are 1.6.9. **Whether it shows at all carries that version's trap**: hiding the only switch a user has strands them on one module with no way off it.
+- **Module icons on tabs remain time-sensitive.** `MANIFEST` carries `blocks` and `bytes` and nothing else, so an icon is an SDK change that must be agreed before `module-sdk.md`'s neighbours lock at 1.6.10, or it waits for version 3.
+- **USB serial's large-payload corruption is unchanged** and still deferred to 1.6.10 with the per-block retry. It bit again during this version's setup, and the workaround is still to run the install a second time.
+- **Night slots are still unreachable**, the **panel warnings still only reach logcat**, **Bronze tier is still unmeasured**, and **number formatting is still `Locale.ROOT`** — all carried forward from 1.6.6 and 1.6.7 unchanged.
+
+**Notes:**
+
+- **The Tank Gauge sketch ran on an Arduino Uno R4 WiFi with no changes at all.** It was written for and commented for an ESP32 DevKitC; the second board was an R4 only because there was one spare power lead in the house. It compiled first time — 57% of flash, 20% of RAM, with 90 KB of that being panel artwork in `PROGMEM` — and answered `DISCOVER` with the right `HELLO` on the first attempt. **Nothing in the sketch is board-specific**: `Serial`, `millis()`, `strcmp`, and assets streamed from flash. That is a stronger statement about the SDK than the tab it enabled, and it was got for free.
+- **A Bluetooth accessory needs power, not a cable to the tablet.** Obvious in hindsight and not obvious at the bench, where the instinct is to plug everything into the head unit. The ESP32 running Climate over SPP will do its whole job from a phone charger. Worth knowing for anyone laying out a real installation.
+- **A board's identity can be read straight off the wire before deciding anything.** Resetting the ESP32 over DTR and listening at 115200 printed `DASH Climate (ACCESSORY over Bluetooth SPP)`, its payload size and its pairing name in one line — which settled what was on it, that it was a panel module, and that it would never answer `DISCOVER` down that cable, because the cable is only its debug console. Cheaper than guessing and much cheaper than reflashing to find out.
+- **`ModuleTabsSpec` now holds the range rather than the value.** The bar's dimensional rules and their reasoning stay with the bar; the number the user chose lives with the panel. Worth keeping straight when the rest of the bar's settings arrive at 1.6.9.
+
+---
+
 ## Version 1.6.7
 
 **Status:** Complete — a module's panel pressed, and both ends answering. Hardware-verified by Roger on the Tab S9 Ultra over WiFi and Bluetooth, 2026-08-14.

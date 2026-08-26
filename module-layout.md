@@ -449,6 +449,19 @@ supporting one shape in one ambient mode is a legitimate module.
 > user switches size needs to say why, or it simply looks broken. That belongs with the
 > Module Manager and the size selector, and hardens at 1.6.8 where several modules may
 > support different sets.
+>
+> > **Closed — 2026-08-19 (roadmap 1.6.8), Roger's ruling. It doesn't say why.**
+> >
+> > **The rule above is the whole answer.** The user selected a size; a module with no layout
+> > for it is not drawn. Annotating the panel size selector with a count of how many modules
+> > can fill each size was proposed and **rejected**: it would be DASH narrating a choice the
+> > user made and can unmake by changing the size back — which is DASH explaining its own
+> > behaviour rather than getting out of the way.
+> >
+> > **What a module actually shipped is a different question and is answered plainly.** The
+> > Module Manager states, against each module's record, how many layouts it has and which of
+> > the twelve slots they are (roadmap 1.6.11). That is a fact about the module, reported where
+> > a user goes to find out what a module is — not DASH accounting for its own decisions.
 
 ### Progressive disclosure
 
@@ -1162,7 +1175,6 @@ Recorded so that nobody re-proposes them without knowing they were considered.
 | Item | Blocking? |
 |---|---|
 | How many repeated action timeouts constitute a fault, and how it surfaces (§8) | No — tune against real hardware |
-| How DASH tells the user a module is hidden because it lacks the selected size (§6) | No — a Module Manager question, hardens at 1.6.8 |
 | Whether `translate` survives to the lock (§4.6) | No |
 | Whether `style` needs separate `fill` and `stroke` for vector, rather than one `colour` | No — deliberately minimal for now; the browser rule permits adding it later |
 
@@ -1170,6 +1182,7 @@ Recorded so that nobody re-proposes them without knowing they were considered.
 
 | Item | Closed by |
 |---|---|
+| **How DASH tells the user a module is hidden because it lacks the selected size (§6)** — open since this document was created | **Ruled 2026-08-19 (roadmap 1.6.8) — it doesn't.** §6's existing rule is the whole answer; a count on the panel size selector was proposed and rejected as DASH narrating a choice the user made and can unmake. What a module *shipped* is stated against its record in the Module Manager instead (roadmap 1.6.11). |
 | **Implementing `gradientTransform` (§9)** — admitted to the subset 2026-08-12, unimplemented by the spike, so a rotated Inkscape gradient drew along the wrong axis | **Built 2026-08-13 (roadmap 1.6.6).** Control points are taken through the gradient's own transform *before* being resolved against the shape — exact for translation, rotation and uniform scale, which is the case Inkscape actually writes. A non-uniform scale or skew is approximated, because Compose's `Brush` takes control points rather than a matrix and a radius is one number; the parser **warns** when it does so rather than leaving the author to find an elliptical gradient drawn round. |
 | **The subset as machine-readable data (§9)** — open since this document was created, and the one item marked *blocking* | **Written 2026-08-12 — `svg-subset.json` at the repository root.** Drafted against a working parser and real Inkscape output rather than from the prose, which is what caught the missing gradient contents and the id warning being backwards. |
 | The JSON notation | Drafted 2026-08-06 (§9) |

@@ -23,16 +23,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import com.dash.android.prefs.DashPreferences
 import com.dash.android.ui.common.SETTING_SPACING
+import com.dash.android.ui.common.controlWidth
 import com.dash.android.ui.common.TINY
 import com.dash.android.ui.common.TINY_LINE
 import com.dash.android.ui.modulepanel.ModulePanelConfig
 import com.dash.android.ui.modulepanel.ModulePanelSpec
+import com.dash.android.ui.modulepanel.ModuleTabsSpec
 import com.dash.android.ui.modulepanel.PanelSize
 import com.dash.android.ui.modulepanel.PanelEdge
 import com.dash.android.ui.modulepanel.effectiveEdge
@@ -144,6 +147,42 @@ fun ModulePanelContent() {
                 }
             }
         }
+
+        // Selector last, and last on purpose (Roger, 2026-08-26). The page reads as one continuous
+        // answer top to bottom — how big the panel is, where it sits, then the bar that hangs off it.
+        // The bar is the smallest of the three decisions and the only one that means nothing until
+        // there are two modules to switch between, so it earns the bottom rather than the top.
+        SettingsSectionHeader("Selector")
+
+        SettingBlock(
+            name = "Selector size",
+            // Said plainly because it is the one surprising thing about this control: the cost lands
+            // on the content area, not on the module. Someone dialling it up is spending viewport.
+            help = "How thick the module tab bar is. It sits outside the panel, so its thickness " +
+                "comes out of the content area rather than out of the module's box.",
+            control = {
+                val thickness = config.tabThicknessDp
+                val atMin = thickness <= ModuleTabsSpec.MIN_DP
+                val atMax = thickness >= ModuleTabsSpec.MAX_DP
+                Stepper(
+                    value = "$thickness dp",
+                    // interface.md's boundary model (the v1.3.4 decision that replaced the amber
+                    // soft-limit warning): the control itself says where the end is, at the moment
+                    // the user reaches it. Carried in the caption so the shared Stepper is untouched
+                    // and no other setting in DASH changes behaviour.
+                    sub = if (atMin) "min" else if (atMax) "max" else null,
+                    modifier = Modifier.width(controlWidth(LocalDensity.current.fontScale)),
+                    onMinus = {
+                        val v = (thickness - ModuleTabsSpec.STEP_DP).coerceAtLeast(ModuleTabsSpec.MIN_DP)
+                        scope.launch { prefs.saveModulePanelConfig(config.copy(tabThicknessDp = v)) }
+                    },
+                    onPlus = {
+                        val v = (thickness + ModuleTabsSpec.STEP_DP).coerceAtMost(ModuleTabsSpec.MAX_DP)
+                        scope.launch { prefs.saveModulePanelConfig(config.copy(tabThicknessDp = v)) }
+                    },
+                )
+            },
+        )
     }
 }
 

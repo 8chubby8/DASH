@@ -136,3 +136,23 @@ overridden only if the module needs different behaviour.
 | media_volume_down | event | — | event only |
 | voice_activate | event | — | event only |
 | button_home_pressed | event | — | event only |
+| module_panel_left | event | — | event only |
+| module_panel_right | event | — | event only |
+
+> **Added 2026-08-19 (roadmap 1.6.8) — Roger's call.** The module panel switch.
+> A SYSTEM module reports these and DASH moves one module along its panel order;
+> a steering-wheel button or a dash switch is the best switch there is in a moving
+> vehicle, because it needs no eyes at all.
+>
+> **Left and right are the direction of travel through the module order, not a
+> screen direction.** `module_panel_left` is the previous module and
+> `module_panel_right` the next one, whichever edge the panel is docked to and
+> whichever way its tab bar happens to run. Two signals, not four — a vertical
+> panel does not get `up`/`down` twins, because the user is choosing a *module*
+> rather than aiming at a place on the glass.
+>
+> **They are inert with nothing to switch to**, which is the ordinary case: one
+> installed module, or none able to fill the selected slot (`module-layout.md` §6).
+> A module firing these into a DASH with one panel is not an error and is not
+> reported as one — the same way a press on a control the firmware does not
+> recognise is ignored in silence.

@@ -1,5 +1,6 @@
 package com.dash.android.ui.modulepanel
 
+import android.util.Log
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
@@ -19,50 +20,86 @@ import com.dash.android.transport.ModuleDatabase
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 
+private const val TAG = "DashActivePanel"
+
 /**
- * The panel DASH is currently able to draw, or **null when there is none** (roadmap 1.6.6).
+ * The modules that could fill this slot right now — one tab each (roadmap 1.6.8).
  *
  * > **No layout, no panel.** *(`module-layout.md` §6, ruled 2026-08-12.)*
  *
  * DASH holds a record of every layout every installed module provided, so it always knows what it
  * can honestly draw. A module with no layout for the selected size is **simply not shown** — not
- * stretched, not substituted, not apologised for with a placeholder. And with no module able to
- * fill the panel, **no panel is drawn at all**.
+ * stretched, not substituted, not apologised for with a placeholder. And with nothing in this list,
+ * **no panel is drawn at all** and no tab bar with it.
  *
- * That last part supersedes the empty-box tenancy this surface was built with at 1.6.2, which held
- * that *"with no module installed there is no king in the castle, so DASH occupying the empty box
- * is the one tenancy it is entitled to."* It is not entitled to it. Reserving a strip of screen to
- * display nothing is the same failure as stretching artwork to fill a shape — DASH taking space it
- * has no content for. The screen reclaims that space until a module can fill it.
+ * **Membership is the whole rule: installed ACCESSORY, has a layout for the selected slot.**
+ * SYSTEM and LISTENER modules never appear — they have no panel to draw, so [InstalledModule.slots]
+ * is empty and [canFill] answers false without needing to know the module's type.
  *
- * **Which module, when several could.** The first installed module that can fill the slot, in the
- * database's own order. One panel is drawn at 1.6.6; swiping between several is 1.6.8, and this is
- * the point that grows into the selection it needs.
+ * **A silent module keeps its tab** *(Roger, 2026-08-19)*. The install record is the tenancy: §6 is a
+ * rule about layouts, not about liveness, and DASH does not annotate a tab with the state of its
+ * board. It also stops tabs appearing and vanishing every time a board brownouts or reconnects,
+ * which would move the tab the user was reaching for.
+ *
+ * **Different id, different module** *(Roger)*. `GaugeWifi` and `GaugeBt` are the same artwork on two
+ * ids and get two identical tabs. DASH neither disambiguates them nor comments on it.
+ *
+ * **No ordering in this version** *(Roger)*. The database's own order, which is arrival order. The
+ * panel order, the dominant module and the return dwell are one story and are told once, at 1.6.11.
  */
 @Composable
-fun rememberActivePanel(
+fun rememberPanelCandidates(
     database: ModuleDatabase,
+    slot: LayoutSlot,
+): List<InstalledModule> {
+    val modules by database.modules.collectAsState()
+    // Which modules *could* fill this slot is cheap — each record already says which slots it
+    // shipped, so answering it never touches the disk. Only the one on screen is ever loaded.
+    val candidates by remember(modules, slot) {
+        derivedStateOf { modules.values.filter { it.canFill(slot) } }
+    }
+    return candidates
+}
+
+/**
+ * The panel document for one module, read off disk (roadmap 1.6.6, per-module since 1.6.8).
+ *
+ * **Load on demand, and nothing is cached** *(roadmap 1.6.8, measured rather than assumed)*. The
+ * Tank Gauge is a 1.4 KB layout, a 10.6 KB vector and a 1600 × 600 PNG that decodes to 3.7 MB —
+ * roughly 20–40 ms all in, one to three frames. Climate is a 14 KB layout and one 10 KB vector with
+ * no raster at all, under 10 ms. **There is no load worth hiding**, so only the panel on screen is
+ * held decoded and memory is bounded at one panel however many modules are installed. An LRU cache
+ * was designed for this and thrown away when the numbers came in; it was machinery for a cost that
+ * does not exist.
+ *
+ * **A document that fails to load leaves the previous one on screen.** Not a nicety: the tab bar is
+ * drawn from the panel's own geometry, so letting a failed load collapse the panel would take the
+ * tab bar down with it and strand the user on a module they cannot switch away from. DASH cannot
+ * draw what it cannot read, but it can decline to throw away what it already has.
+ */
+@Composable
+fun rememberPanelDocument(
+    database: ModuleDatabase,
+    module: InstalledModule?,
     slot: LayoutSlot,
 ): PanelDocument? {
     val context = LocalContext.current
-    val modules by database.modules.collectAsState()
     val loader = remember(database) { PanelLoader(context, database) }
-
-    // Which module *could* fill this slot is cheap — the record already says which slots it shipped,
-    // so answering it never touches the disk. Only the winner is actually loaded.
-    val candidate by remember(modules, slot) {
-        derivedStateOf { modules.values.firstOrNull { it.canFill(slot) } }
-    }
 
     var document by remember { mutableStateOf<PanelDocument?>(null) }
 
-    LaunchedEffect(candidate?.id, candidate?.assets, slot) {
-        val module = candidate
-        document = if (module == null) null else {
-            // Reading a layout means reading files and decoding a PNG that may be several megabytes.
-            // The panel is the surface that must never hitch, so none of that happens on the main
-            // thread — and until it lands there is simply no panel, which is a state DASH now has.
-            withContext(Dispatchers.IO) { loader.load(module, slot) }
+    LaunchedEffect(module?.id, module?.assets, slot) {
+        if (module == null) {
+            document = null
+            return@LaunchedEffect
+        }
+        // Reading a layout means reading files and decoding a PNG that may be several megabytes. The
+        // panel is the surface that must never hitch, so none of that happens on the main thread.
+        val loaded = withContext(Dispatchers.IO) { loader.load(module, slot) }
+        if (loaded != null) {
+            document = loaded
+        } else {
+            Log.w(TAG, "${module.id} could not be drawn for $slot — keeping the panel already shown")
         }
     }
 

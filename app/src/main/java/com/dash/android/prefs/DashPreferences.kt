@@ -60,6 +60,11 @@ class DashPreferences(private val context: Context) {
     private val splashCropLandscapeKey = stringPreferencesKey("splash_crop_landscape")
     private val systemBarKey = stringPreferencesKey("system_bar_config")
     private val modulePanelKey = stringPreferencesKey("module_panel_config")
+    // Which module's panel was on screen when DASH last ran (roadmap 1.6.8). **Deliberately not part
+    // of ModulePanelConfig**, which holds the user's *settings* — this is DASH remembering where it
+    // was, written on every tab press, and folding it in would have the settings page and the tab bar
+    // writing the same record from two places.
+    private val modulePanelModuleKey = stringPreferencesKey("module_panel_last_module")
     private val manualLocationKey = stringPreferencesKey("manual_location")
 
     private fun transitionKey(id: TransitionId) = stringPreferencesKey("transition_" + id.key)
@@ -137,6 +142,18 @@ class DashPreferences(private val context: Context) {
     }
 
     /**
+     * The module whose panel was last on screen (roadmap 1.6.8).
+     *
+     * **A head unit restarts every ignition cycle**, so "the panel you left it on" is a thing DASH
+     * has to remember deliberately or lose several times a day. Null before anything has been
+     * chosen, and a stored id that is no longer installed — or can no longer fill the selected slot
+     * — is simply not found among the candidates and falls back to the first of them.
+     */
+    val modulePanelLastModule: Flow<String?> = context.dataStore.data.map { prefs ->
+        prefs[modulePanelModuleKey]
+    }
+
+    /**
      * The per-transition speeds (roadmap 1.5.5). Every [TransitionId] resolves to a stored speed or
      * its own default, so the map is always complete. A speed is stored by name, so relabelling the
      * millis of a preset never orphans a saved choice.
@@ -208,6 +225,10 @@ class DashPreferences(private val context: Context) {
 
     suspend fun saveModulePanelConfig(config: ModulePanelConfig) {
         context.dataStore.edit { it[modulePanelKey] = json.encodeToString(config) }
+    }
+
+    suspend fun saveModulePanelLastModule(id: String) {
+        context.dataStore.edit { it[modulePanelModuleKey] = id }
     }
 
     /** Sets one transition's speed — the per-transition breakout. Diverging from the rest makes the

@@ -49,6 +49,7 @@ enum class TransitionId(
     SPLASH_FADE_IN("splash_fade_in", "Splash — fade in"),
     SPLASH_FADE_OUT("splash_fade_out", "Splash — fade out"),
     MODULE_PANEL_MOVE("module_panel_move", "Module panel — move edge"),
+    MODULE_PANEL_SWITCH("module_panel_switch", "Module panel — switch module"),
 }
 
 /**

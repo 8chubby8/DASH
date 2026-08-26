@@ -71,6 +71,17 @@ enum class PanelSize(val label: String, val longUnits: Int, val thickUnits: Int)
 data class ModulePanelConfig(
     val edge: PanelEdge = PanelEdge.BOTTOM,
     val size: PanelSize = PanelSize.LARGE,
+    /**
+     * How thick the module selector bar is, in dp. Bounds and reasoning live with the bar itself, in
+     * [com.dash.android.ui.modulepanel.ModuleTabsSpec].
+     *
+     * **Stored here, controlled from the Module Panel page** — the bar is part of the panel assembly,
+     * so its size travels with the panel's edge and size rather than in a loose key of its own. The
+     * default is written as a literal rather than as `ModuleTabsSpec.DEFAULT_DP` on purpose: this is
+     * a serialised field, and a default that moves when a constant is edited would silently
+     * reinterpret every config already written to disk without that value.
+     */
+    val tabThicknessDp: Int = 36,
 ) {
     companion object {
         fun default() = ModulePanelConfig()
