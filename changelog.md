@@ -47,6 +47,227 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.9
+
+**Status:** In Progress — the reachability rule and the whole visibility / expansion model are built
+and hardware-verified. The tab bar's own customisation (style, spread, chosen colours, whether it
+shows at all) and compacting are still to come.
+
+**Scope:** The trap this version exists for. **Whatever the user configures, the settings panel must
+stay usable** — because the module panel's own setting lives inside it, and a panel large enough to
+crush the settings panel is a configuration you can enter and cannot leave.
+
+**Implemented — rule 2, the panel yields so settings can open**
+
+- **The 1.6.2 rule that settings never covers the module panel is superseded** *(Roger, 2026-08-27 —
+  "ive previously said that the settings panel does not overlap the module panel ever. i think this
+  is wrong")*. That rule was right about the Module Mantra and wrong about what happens when
+  honouring it makes DASH unusable. A large vertical slot on a 412dp-wide phone takes 358dp of it,
+  leaving the settings blind a **54dp band** — so the module panel's own setting became unreachable
+  *by the settings panel*, with no way out, because DASH sets its own `requestedOrientation` and no
+  Android rotation control gets round it. **The courtesy loses to the trap.** A user-initiated blind
+  temporarily occluding the panel is not DASH reaching into the module's box; the panel is untouched
+  and returns exactly as it was.
+- **The measure is the shape of what is left over, not the size of what was taken** *(Roger)*. DASH
+  already knows the screen, the bar and the assembly, so it knows the rectangle the settings blind
+  would get. If that rectangle is too far from a usable shape, the panel yields.
+- **The aspect is signed — width ÷ height — and that distinction is the finding.** Measured
+  unsigned the rule collapses immediately: a leftover space 2.41 : 1 **wide** is perfectly usable
+  and one 2.29 : 1 **tall** is not. Same ratio, opposite verdicts. A single unsigned bound cannot
+  separate them; a pair of signed bounds separates all 24 test cases cleanly.
+- **The two bounds are asymmetric — about 4 : 1 wide against about 2 : 1 tall — and that asymmetry
+  is structural rather than a taste.** A setting's control is a fixed `CONTROL_WIDTH` (190dp) and
+  cannot shrink, so **width is structural** and a narrow band simply breaks; the content box
+  scrolls, so **height is elastic** and a short band merely degrades. The same ~2 : 1 preference for
+  spending height over width arrived independently from Roger's device-by-device verdicts and from
+  the shell's own construction. Settled at **0.48** and **4.40** after testing on three devices.
+- **Two behaviours, and the distinction matters** *(Roger, 2026-08-27)*. **Retract is the guarantee;
+  step-down is the courtesy.** The guarantee is unconditional — with nothing to step down to, the
+  panel slides off its edge and settings gets a usable shape regardless of what a module shipped.
+  The step-down is the nicer version and is only available when the *author* drew more than one
+  slot. Climate fills all six day slots and shrinks gracefully; the Tank Gauge ships only the 8 × 3
+  and retracts. Both end with a working settings panel, which is the whole point.
+- **Step-down goes to the largest smaller slot the module on screen actually ships**, Large → Medium
+  → Small, **never crossing orientation** — orientation has been a manual setting independent of the
+  docked edge since 2026-07-30, so a vertical Large must not become a horizontal Small.
+- **Tab membership is judged on the user's chosen slot, never the yielded one.** This was found on
+  paper before it was built and is the version's one real structural trap: a module shipping only
+  Large would lose its tab mid-yield, and DASH would then have to put somebody else's module on
+  screen. **DASH never chooses a module on the user's behalf**, so the step-down is judged against
+  the module already on screen and changes only what that module draws.
+- **Retracting rather than covering** *(Claude's suggestion, Roger's call)*. Covering means the blind
+  rolls out on top of the king's castle; retracting means the castle visibly steps aside and visibly
+  comes back, which the user can read. It also costs no new machinery — floating mode needs the same
+  displacement — and it collapses the assembly to the tab bar alone, so settings gets nearly the
+  whole screen and **the bar stays exactly where it is**. The bar is DASH's own chrome, it is the
+  peek strip, and it is the one thing that must never become unreachable.
+- **The stored preference is never rewritten**, exactly as `effectiveEdge` does not rewrite the
+  user's edge when the system bar displaces the panel. **This is that decision applied to size
+  instead of position** — displace for as long as the collision lasts, and not one frame longer.
+  That precedent is why the shape of the rule was recognisable before it was written.
+- **The 302dp control-width floor is kept as a hard backstop** alongside the ratio. The aspect rule
+  fires first in practice, but a settings control is 190dp plus the shell's own `PANEL_GAP` and
+  `BOX_PAD` on both sides, and no ratio rescues a band narrower than that. It is a fact about how
+  the shell is built rather than a preference, so it is checked as a fact — and it moves with the
+  text scale, because `controlWidth()` does.
+
+**Extended 2026-08-27 — visibility, expansion and the dwell**
+
+*Designed and built the same day the reachability rule landed. The two are the same two motions —
+step down to a smaller slot, or retract off the edge — reached from different directions: rule 2 is
+DASH forcing them, and this is the user driving them. That they kept arriving independently is the
+main reason to believe the model is right.*
+
+- **The module panel now has four states, chosen as one setting** *(Roger)*: **Off**, **Full**,
+  **Retracted** (rests off screen, expands on a tap), **Shrunk** (rests at a smaller layout the
+  author drew, expands on a tap). The settings page is *built from* that choice rather than showing
+  four controls of which two are usually meaningless.
+- **The default is Off, and that is the point** *(Roger)*. DASH ships with no module panel until the
+  user asks for one. It has no opinion about how much of somebody's screen a head unit should spend,
+  so it spends none — which also retires the question of what a sensible default *size* would be,
+  since there is no default panel to size. **It also gives the user something they could not do
+  before: turn the panel off.** The size tiles had no off state, so installing an ACCESSORY module
+  got you a panel whether you wanted one or not.
+  *(Migration: existing configs have no `visibility` field, so they adopt the default and the panel
+  is absent until set once. `ignoreUnknownKeys` was already on, so the removed test fields are
+  ignored rather than throwing.)*
+- **The resting-size constraint is structural rather than validated.** Rest size is chosen first and
+  the full-size list is built from it, so a resting panel thicker than its full panel cannot be
+  expressed — and therefore never has to be detected, warned about, or corrected. Choosing a thicker
+  rest pulls the full size back to the thickest still legal in the same write, because there is no
+  error there, only a stale pairing.
+- **A one-item full-size list reads as a statement, not a control** *(Roger)*, per 1.5.15's
+  no-dead-controls rule. Hidden entirely, the user could not see what "full" actually is.
+- **Neither size list is filtered by what the installed modules ship** *(Roger)*. These are DASH's
+  own surfaces describing DASH's own capabilities, not a report on somebody's modules — the same
+  reasoning that rejected module counts on the size tiles at 1.6.8. A missing layout degrades at
+  runtime instead.
+- **The viewport is laid out for the resting state and never for the expanded one** *(Roger)*. The
+  expanded panel is drawn **over** the viewport rather than pushing it, so the running app never
+  relayouts — Maps and Spotify reflowing every time you glance at a climate module would be
+  intolerable, and it would get worse the more you used it. **The consequence is the whole point of
+  the feature: the user pays for the state the panel is usually in, not the state it is briefly in.**
+  A Large panel resting off screen costs the viewport nothing but the tab bar and covers the screen
+  only while you are looking at it — which is what makes a big panel reasonable on a device where a
+  permanent one never was. It also takes the pressure off the morning's sizing problem: *"Large is
+  too big everywhere"* was never about Large, it was about Large being permanent.
+- **The bar lists the modules that can fill *any* slot the panel can reach — resting or full.** This
+  is the version's third statement of one invariant and the reason to write it once: **the bar lists
+  what you can go to, and is never filtered by what happens to be on screen.** Judged on the drawn
+  slot, a module shipping only Large loses the very tab that is the only way to reach it; judged on
+  the full slot alone, a module shipping only Small sits on screen at rest with no tab, so the bar
+  names something other than what you are looking at.
+- **A tap means: show me this module, at the largest slot it can fill.** Tapping the module already
+  on screen toggles it, which is how the panel is folded away by hand rather than waiting out the
+  timer — and it means a module with no full layout is reached by a tap that returns the panel to
+  rest, so **no tab is ever a dead control.**
+- **The bar rides inward with the panel when it expands** *(Roger — "keep it simple and make it ride
+  with the motion")*, staying on the panel's inboard face per 1.6.8. The known cost is that the
+  control you just pressed slides away from your finger. Accepted knowingly; making the bar's
+  position its own setting was raised and deliberately deferred.
+- **Any touch inside the panel restarts the dwell — and observing a touch is not taking it.** A panel
+  that folded shut under a finger mid-adjustment would be a fault, so the timer resets on every
+  press. 1.6.8 gave every gesture inside the boundary to the module and that is untouched: the hook
+  sits in the existing press loop after `awaitFirstDown`, which already ran with
+  `requireUnconsumed = false`, and consumes nothing. **DASH learns that a finger landed and does not
+  take the finger.**
+- **At rest, a module with no resting layout is substituted, and the substitution is never stored.**
+  Tank ships only Large, so when the dwell folds the panel back Tank cannot be what rests there and
+  the first module that *can* is drawn. With one small-capable module installed this is arithmetic
+  rather than judgement — there is exactly one valid answer. **The user chooses the resting module by
+  choosing which module ships the resting layout** *(Roger)*: 1362 modules installed, one shipping
+  Small, and that one is the resting panel, with no "which module rests here" setting needed
+  anywhere. What DASH remembers you chose is written only on an actual tap, so it survives the rest
+  and survives a restart — the same discipline `effectiveEdge` applies to position and rule 2 applies
+  to size. **That is now three places where DASH displaces without ever rewriting.**
+- **Opening the settings panel puts the module panel at rest before anything else happens**, which is
+  what keeps rule 2 and this feature genuinely independent: the yield only ever measures a *resting*
+  assembly and never has to reason about an expanded one. Reversed, settings would measure an
+  expanded panel and retract things for no reason. It also means rule 2 fires far less often than in
+  the build it was tested in — a panel resting off screen never trips it at all.
+- **Naming settled** *(Roger)*: **shrinking** is the feature — a panel resting at a smaller layout its
+  author drew on purpose. **Compacting** is the mitigation — DASH scaling a panel that asked for more
+  screen than exists. *"The byproduct of a stupid user selecting the wrong panel layout size is
+  mitigation of that stupidity, not a feature."* Separately, the panel's docking control stays
+  **Position**, and the tab bar's alignment along its edge becomes **Spread**, so three different
+  things stop sharing one word.
+- **The tolerance steppers are gone and 0.48 / 4.40 are pinned** as constants in `SettingsFitSpec`,
+  after verification on the SM-X910, the SM-T710 and a Pixel. They were scaffolding for finding the
+  numbers; the numbers are found.
+- **The dwell moved from 1.6.11 to here** *(Roger — "i only decided it as ive started to work on it,
+  and its become apparant it needs to be added now")*. The roadmap's 1.6.8 note assigning the dwell
+  to 1.6.11 with the panel order and the dominant module is amended accordingly. The panel order and
+  the dominant module are unaffected and still land at 1.6.11.
+
+**Regressions:**
+
+- **None found.** Tab membership, the cross-fade, the press predictions and the module selection all
+  behave as they did at 1.6.8; the yield changes only which slot the module on screen draws at.
+
+**Fixes:**
+
+- None required.
+
+**Outstanding:**
+
+- **Compacting is designed but not built** — a panel that cannot fit at its true ratio scales down
+  uniformly, keeps its aspect exactly, and **centres** on its edge *(Roger)* with
+  `backgroundColourPrimary` either side. It matters most on a 1280 × 480 head unit, where a Large
+  horizontal panel asks for 108% of the screen.
+- **The tab bar's own customisation is still to come** — Style (pips / name / both), Spread (fill the
+  edge or gather to one end), the chosen colour pairing, and whether it shows at all.
+- **The bar's position when the panel expands may want to become a setting** *(Roger)*. It rides with
+  the motion for now, which is simple and consistent with 1.6.8, at the cost of the tap target moving.
+- **The step-down resizes the box before the new layout arrives.** The document reload takes 20–40ms,
+  during which the old artwork is drawn into the new shape — visible on a CINEMATIC transition
+  setting. Cosmetic, and deliberately not fixed in a build whose job was to test the principle.
+  Holding the resize until the document lands is the fix.
+- **Module icons on tabs remain time-sensitive**, unchanged from 1.6.8: `MANIFEST` carries `blocks`
+  and `bytes` and nothing else, so an icon is an SDK change that must be agreed before
+  `module-sdk.md`'s neighbours lock at 1.6.10, or it waits for version 3.
+- **USB serial's large-payload corruption**, **night slots unreachable**, **panel warnings only
+  reaching logcat**, **Bronze unmeasured** and **`Locale.ROOT` number formatting** all carry forward
+  from 1.6.8 unchanged.
+
+**Notes:**
+
+- **Verified on three devices, 2026-08-27** — Samsung SM-X910 (Tab S9 Ultra, 1242 × 1990dp at the
+  238 density override, R = 1.602), Samsung SM-T710 (Tab S2 8.0, 1024 × 768dp, **R = 1.333**) and a
+  Pixel phone. The T710 matters most as a check that the rule *does not over-fire*: on a 4 : 3 screen
+  a square-ish panel leaves a square-ish remainder, and only portrait-vertical-Large trips the
+  tolerance at all. A rule that yielded constantly on a well-proportioned screen would have been
+  wrong even if it never trapped anybody.
+- **The screen's own aspect ratio is the mechanism, and it was Roger's hunch before it was arithmetic.**
+  The fraction of screen a panel eats is `screen aspect ÷ slot aspect`. A tall narrow device has a
+  large R and R is the numerator, which is the entire reason a Pixel is punished where a tablet is
+  not — and why the same module, same slot, costs **R² more** lying along the screen's long edge than
+  across its short one. 4.9× on a Pixel, 2.6× on the Tab S9 Ultra.
+- **The thing people instinctively want is the expensive orientation.** A wide panel along the bottom
+  of a wide screen is the case the arithmetic punishes hardest. Worth knowing before the slot set
+  locks at 1.6.10 — though **adding slots does not fix it**: to clear the horizontal tolerance on a
+  Pixel you would need a slot aspect of 6.5 or thinner, and on a 1280 × 480 head unit 7.8 or thinner.
+  `% = R ÷ slot aspect` is arithmetic, so on an elongated screen a panel lying along the long edge
+  can only ever be thin. The six slots are not wrong and cannot be made right by addition.
+- **An open question was raised and deliberately not answered: does the panel have to span its edge?**
+  Rule 1's overflow behaviour — scale to fit, keep the ratio, centre it, fill the remainder with
+  `backgroundColourPrimary` — is already a panel that does not span. Making that the general case
+  would dissolve the sizing problem entirely and turn Small/Medium/Large into what they already are,
+  *shapes* rather than sizes, with thickness becoming the user's on a stepper. The cost is that the
+  panel stops being a **wall** and becomes an **island** on its edge. **Not decided.** Recorded here
+  because it is the real question under the whole sizing discussion and it wants settling before
+  1.6.10.
+- **Rule 1 (overflow) is designed but not built.** Agreed 2026-08-27: a panel that cannot fit at its
+  true ratio scales down uniformly, keeps its aspect exactly, and **centres** on its edge *(Roger)*
+  with `backgroundColourPrimary` either side. Never mis-drawn. It matters most on a 1280 × 480 head
+  unit, where a Large horizontal panel asks for 108% of the screen.
+- **The controls came before the constraints, on purpose.** Roger's four device verdicts turned out
+  to be a *taste* judgement about which slots look right on which screen — not a statement about
+  whether settings could open — and taste is the one thing DASH does not encode. What the exercise
+  produced instead was a mechanical rule about when the interface actually stops working, which is
+  DASH's business, and left the looks-right question where it belongs.
+
+---
+
 ## Version 1.6.8
 
 **Status:** Complete — two modules, two transports, two tabs, and a cross-fade between them. Hardware-verified by Roger on the Tab S9 Ultra, 2026-08-26.

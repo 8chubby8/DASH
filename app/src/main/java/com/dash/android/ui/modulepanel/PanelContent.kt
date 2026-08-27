@@ -64,13 +64,14 @@ fun PanelContent(
     values: Map<String, String>,
     modifier: Modifier = Modifier,
     onPress: (TouchBinding) -> Unit = {},
+    onTouch: () -> Unit = {},
 ) {
     val theme = LocalDashTheme.current
     var pressed by remember(document) { mutableStateOf<Int?>(null) }
     val dynamics = rememberDynamics(document.layout, values, theme, pressed)
     val measurer = rememberTextMeasurer()
 
-    BoxWithConstraints(modifier.panelPresses(document, onPress) { pressed = it }) {
+    BoxWithConstraints(modifier.panelPresses(document, onPress, onTouch) { pressed = it }) {
         val panelWidth = maxWidth
         val panelHeight = maxHeight
 
@@ -161,6 +162,7 @@ fun PanelContent(
 private fun Modifier.panelPresses(
     document: PanelDocument,
     onPress: (TouchBinding) -> Unit,
+    onTouch: () -> Unit,
     setPressed: (Int?) -> Unit,
 ): Modifier {
     /*
@@ -183,9 +185,17 @@ private fun Modifier.panelPresses(
      * which is a far worse cure than the disease.
      */
     val current by rememberUpdatedState(onPress)
+    // Same stale-capture trap as `onPress`, same cure — see above.
+    val touched by rememberUpdatedState(onTouch)
     return pointerInput(document) {
         awaitEachGesture {
             val down = awaitFirstDown(requireUnconsumed = false)
+            // **A finger landed. That is all this reports, and it consumes nothing** (roadmap
+            // 1.6.9). The dwell timer needs to know the panel is in use so it does not fold shut
+            // mid-adjustment — but 1.6.8 gave every gesture inside the boundary to the module, so
+            // DASH observes and does not claim. A press that hits no binding still returns below,
+            // still unconsumed, and still available to whatever is underneath.
+            touched()
             val hit = document.hitTest(size.toSize(), down.position) ?: return@awaitEachGesture
             down.consume()
             setPressed(hit.index)

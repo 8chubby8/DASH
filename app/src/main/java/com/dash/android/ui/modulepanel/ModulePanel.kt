@@ -65,6 +65,7 @@ fun ModulePanel(
     height: Dp,
     modifier: Modifier = Modifier,
     onPress: (TouchBinding) -> Unit = {},
+    onTouch: () -> Unit = {},
 ) {
     val theme = LocalDashTheme.current
     Box(
@@ -80,6 +81,7 @@ fun ModulePanel(
             values = values,
             modifier = Modifier.fillMaxSize(),
             onPress = onPress,
+            onTouch = onTouch,
         )
     }
 }

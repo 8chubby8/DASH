@@ -82,6 +82,11 @@ import com.dash.android.ui.modulepanel.ModulePanel
 import com.dash.android.ui.modulepanel.ModulePanelConfig
 import com.dash.android.ui.modulepanel.ModulePanelSpec
 import com.dash.android.ui.modulepanel.PanelEdge
+import com.dash.android.ui.modulepanel.PanelYield
+import com.dash.android.ui.modulepanel.PanelVisibility
+import com.dash.android.ui.modulepanel.rememberPanelExpansion
+import com.dash.android.ui.modulepanel.canFill
+import com.dash.android.ui.modulepanel.resolvePanelYield
 import com.dash.android.ui.modulepanel.effectiveEdge
 import com.dash.android.ui.modulepanel.ModuleTabs
 import com.dash.android.ui.modulepanel.rememberPanelCandidates
@@ -302,12 +307,48 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // a band that had been set aside for a king who never arrived.
             val barThickness = barConfig.heightDp.dp
             val panelEdge = effectiveEdge(modulePanelConfig.edge, barConfig.position)
-            val panelSlot = slotFor(modulePanelConfig.size, panelEdge)
 
-            // Every installed module that can fill the slot gets a tab (roadmap 1.6.8). Database
-            // order — there is deliberately no ordering in this version, since the panel order, the
-            // dominant module and the return dwell are one story, told once at 1.6.11.
-            val panelCandidates = rememberPanelCandidates(controller.database, panelSlot)
+            /*
+             * **The panel has two slots now: the one it rests at and the one it expands to**
+             * (roadmap 1.6.9). Under FULL they are the same slot; under RETRACTED the resting state
+             * is off screen and there is no resting slot at all; under SHRUNK the resting slot is a
+             * smaller layout the module's author drew on purpose.
+             */
+            val fullSlot = slotFor(modulePanelConfig.size, panelEdge)
+            val restSlot = modulePanelConfig.restingSize?.let { slotFor(it, panelEdge) }
+
+            /*
+             * **Expansion, and the timer that folds it back.** Opening settings puts the panel at
+             * rest first — which is what keeps rule 2 independent of this feature, since the yield
+             * then only ever measures a resting assembly.
+             */
+            val expansion = rememberPanelExpansion(
+                expandable = modulePanelConfig.visibility.expands,
+                dwellSeconds = modulePanelConfig.dwellSeconds,
+                forceRest = showSettings,
+            )
+
+            /*
+             * **The bar lists the modules that can fill *any* slot the panel can reach** — resting
+             * or full (roadmap 1.6.9, Roger). Not the slot currently drawn, which is the trap: at
+             * rest the drawn slot is the small one, so a module shipping only Large would lose the
+             * very tab that is the only way to reach it. And not the full slot alone either, which
+             * is the mirror of the same fault: a module shipping only Small sits on screen at rest
+             * with no tab of its own, so the bar names something other than what you are looking at.
+             *
+             * **The bar lists what you can go to. It is never filtered by what happens to be on
+             * screen.** That one sentence also covers 1.6.8's membership rule and rule 2's — the
+             * settings yield changes what a module draws, never who is in the bar.
+             *
+             * Database order — no ordering in this version, since the panel order and the dominant
+             * module are one story, told once at 1.6.11.
+             */
+            val fullCandidates = rememberPanelCandidates(controller.database, fullSlot)
+            val restCandidates = restSlot?.let { rememberPanelCandidates(controller.database, it) }
+                ?: emptyList()
+            val panelCandidates = remember(fullCandidates, restCandidates) {
+                (fullCandidates + restCandidates).distinctBy { it.id }
+            }
 
             // **Which module is on screen.** The user's tap wins; before there has been one, the
             // module DASH was last left on; before there has ever been one, the first candidate. A
@@ -315,19 +356,91 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // simply not found here and falls back the same way, with nothing to clean up.
             val lastPanelModule by prefs.modulePanelLastModule.collectAsState(initial = null)
             var tappedModuleId by remember { mutableStateOf<String?>(null) }
-            val selectedModule = remember(panelCandidates, tappedModuleId, lastPanelModule) {
+            val chosenModule = remember(panelCandidates, tappedModuleId, lastPanelModule) {
                 val wanted = tappedModuleId ?: lastPanelModule
                 panelCandidates.firstOrNull { it.id == wanted } ?: panelCandidates.firstOrNull()
             }
-            val panelDocument = rememberPanelDocument(
+
+            /*
+             * **The slot actually being drawn**, and with it the one place DASH puts a module on
+             * screen the user did not pick.
+             *
+             * At rest the drawn slot is the small one, and the chosen module may have no layout for
+             * it — Tank ships only Large, so when the dwell folds the panel back, Tank cannot be
+             * what rests there. DASH draws the first module that *can*, which with one small-capable
+             * module installed is not a judgement at all but arithmetic: there is exactly one valid
+             * answer. **The user chooses the resting module by choosing which module ships the
+             * resting layout** *(Roger)* — 1362 modules installed, one shipping Small, and that one
+             * is the resting panel, with no "which module rests here" setting needed anywhere.
+             *
+             * **The substitution is never stored.** [tappedModuleId] is written only when a tab is
+             * actually pressed, so what DASH remembers you chose survives the rest and survives a
+             * restart — the same discipline [effectiveEdge] applies when the system bar displaces
+             * the panel, and the same one rule 2 applies to size.
+             */
+            val drawSlot = if (expansion.expanded || restSlot == null) fullSlot else restSlot
+            val drawCandidates = if (drawSlot == fullSlot) fullCandidates else restCandidates
+            val selectedModule = remember(drawCandidates, chosenModule) {
+                chosenModule?.takeIf { m -> drawCandidates.any { it.id == m.id } }
+                    ?: drawCandidates.firstOrNull()
+            }
+            /*
+             * **Rule 2 — the panel yields so the settings panel can open (roadmap 1.6.9).**
+             *
+             * The measure is the *shape of what is left over* rather than the size of what was
+             * taken: DASH knows the screen, the bar and the assembly, so it knows the rectangle the
+             * settings blind would get, and it checks whether that rectangle is a usable shape. If
+             * it is not, the panel steps down to the largest smaller slot **the module on screen**
+             * actually ships, and retracts only when there is no such slot.
+             *
+             * **This supersedes the 1.6.2 rule that settings never covers the panel** (Roger). That
+             * rule was right about the Module Mantra and wrong about what happens when honouring it
+             * makes DASH unusable — a large vertical slot on a phone left the settings panel a 54dp
+             * band, so the module panel's own setting became unreachable *by the settings panel*,
+             * with no way out. The courtesy loses to the trap.
+             *
+             * **The stored preference is never rewritten**, exactly as [effectiveEdge] does not
+             * rewrite the user's edge when the bar displaces the panel. This is that same decision
+             * on a different axis, and the displacement lasts precisely as long as settings is open.
+             */
+            val drawnSize = if (drawSlot == fullSlot) modulePanelConfig.size
+                else modulePanelConfig.restingSize ?: modulePanelConfig.size
+            val panelYield = if (!showSettings || modulePanelConfig.visibility == PanelVisibility.OFF) {
+                PanelYield.Draw(drawnSize)
+            } else {
+                // Rule 2 measures the *resting* assembly, because opening settings put the panel at
+                // rest before this ran. It therefore fires far less often than it did when every
+                // panel was permanent — a panel resting off screen never trips it at all.
+                resolvePanelYield(
+                    chosen = drawnSize,
+                    edge = panelEdge,
+                    screenWidth = screenWidth,
+                    screenHeight = maxHeight,
+                    barThickness = barThickness,
+                    tabThickness = modulePanelConfig.tabThicknessDp.dp,
+                    fontScale = LocalDensity.current.fontScale,
+                    canDraw = { size ->
+                        selectedModule?.canFill(slotFor(size, panelEdge)) == true
+                    },
+                )
+            }
+            val drawSize = (panelYield as? PanelYield.Draw)?.size ?: drawnSize
+            // Off is off: no panel, and by the rule set at 1.6.8, no tab bar with it.
+            val panelOff = modulePanelConfig.visibility == PanelVisibility.OFF
+            // Retracted at rest is the same displacement rule 2 uses, reached by a different road.
+            val panelRetracted = panelYield is PanelYield.Retract ||
+                (!expansion.expanded && modulePanelConfig.visibility == PanelVisibility.RETRACTED)
+
+            val panelDocument = if (panelOff) null else rememberPanelDocument(
                 database = controller.database,
                 module = selectedModule,
-                slot = panelSlot,
+                slot = slotFor(drawSize, panelEdge),
             )
 
             val panelLongEdge = if (panelEdge.horizontal) screenWidth else (maxHeight - barThickness)
+            // The panel as it is drawn right now — full when expanded, resting otherwise.
             val panelThickness = if (panelDocument == null) 0.dp else
-                ModulePanelSpec.thicknessFor(modulePanelConfig.size, panelLongEdge)
+                ModulePanelSpec.thicknessFor(drawSize, panelLongEdge)
             val panelWidth = if (panelEdge.horizontal) screenWidth else panelThickness
             val panelHeight = if (panelEdge.horizontal) panelThickness else panelLongEdge
 
@@ -337,12 +450,42 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // shows, including with a single module installed**: the viewport is then the same size
             // on Monday as on Friday, installing a module changes what is *in* the panel rather than
             // how much content area the screen has, and a lone tab is a label rather than a dead
-            // control. With no module able to fill the slot there is no panel (§6) and no bar.
-            // The user's, since 2026-08-26 — one read here and every measurement below follows it,
-            // because the bar's thickness is also the panel assembly's offset from the edge.
+            // control. With no module able to fill the slot there is no panel (§6) and no bar — and
+            // since 1.6.9, no panel at all when the user has simply not asked for one.
             val tabThickness =
                 if (panelDocument == null) 0.dp else modulePanelConfig.tabThicknessDp.dp
-            val assemblyThickness = panelThickness + tabThickness
+
+            /*
+             * **The screen is laid out for the *resting* state and never for the expanded one**
+             * (Roger, 2026-08-27). An expanded panel is drawn *over* the viewport rather than
+             * pushing it, so the running app never relayouts when the panel opens — Maps and
+             * Spotify reflowing every time you glance at a climate module would be intolerable, and
+             * it would get worse the more you used it.
+             *
+             * **The consequence is the point of the whole feature: the user pays for the state the
+             * panel is usually in, not the state it is briefly in.** A Large panel resting off
+             * screen costs the viewport nothing but the tab bar, and covers the screen only while
+             * you are actually looking at it. That is what makes a big panel reasonable on a device
+             * where a permanent one never was.
+             *
+             * Rule 2's yield applies here rather than to the expanded panel, because opening
+             * settings put the panel at rest before any of this ran.
+             */
+            val restingSizeNow = when {
+                panelOff -> null
+                modulePanelConfig.visibility == PanelVisibility.RETRACTED -> null
+                showSettings -> (panelYield as? PanelYield.Draw)?.size
+                else -> modulePanelConfig.restingSize
+            }
+            val restingThickness =
+                if (panelDocument == null || restingSizeNow == null) 0.dp
+                else ModulePanelSpec.thicknessFor(restingSizeNow, panelLongEdge)
+
+            // The panel is off its edge when retracted, so it costs the screen nothing — but the tab
+            // bar is always paid for. It is DASH's own chrome rather than the king's castle, it is
+            // the peek strip, and it is the one thing that must never become unreachable.
+            val visiblePanelThickness = if (panelRetracted) 0.dp else panelThickness
+            val assemblyThickness = restingThickness + tabThickness
 
             // The diagnostic overlay is gone (roadmap 1.5.15). Four lines of grey 10sp — pixel size,
             // native dpi, the applied density preset and the old dashScale — pinned permanently over
@@ -578,10 +721,20 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             if (!editMode && panelDocument != null) {
                 // A vertical panel starts below a top bar and ends above a bottom one, so it always
                 // clears the bar rather than running under it.
-                val panelTargetX = if (panelEdge == PanelEdge.RIGHT) screenWidth - panelWidth else 0.dp
+                // Retraction is a displacement of exactly the panel's own thickness, off whichever
+                // edge it holds — so it rides the existing MODULE_PANEL_MOVE animation and slides
+                // rather than blinking out. Covering it with the settings blind was the alternative
+                // and reads worse: the panel would simply be gone, where this shows the castle
+                // stepping aside and visibly coming back.
+                val hide = if (panelRetracted) panelThickness else 0.dp
+                val panelTargetX = when (panelEdge) {
+                    PanelEdge.RIGHT -> screenWidth - panelWidth + hide
+                    PanelEdge.LEFT -> -hide
+                    else -> 0.dp
+                }
                 val panelTargetY = when {
-                    panelEdge == PanelEdge.TOP -> 0.dp
-                    panelEdge == PanelEdge.BOTTOM -> maxHeight - panelHeight
+                    panelEdge == PanelEdge.TOP -> -hide
+                    panelEdge == PanelEdge.BOTTOM -> maxHeight - panelHeight + hide
                     else -> if (barIsTop) barThickness else 0.dp
                 }
                 val moveSpec = tween<Dp>(transitions.millis(TransitionId.MODULE_PANEL_MOVE))
@@ -634,6 +787,9 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         width = panelW,
                         height = panelH,
                         onPress = presses.press,
+                        // Observed, never claimed — the dwell must not fold the panel shut under a
+                        // finger, and 1.6.8 gave the gesture itself to the module.
+                        onTouch = expansion::noteTouch,
                     )
                 }
 
@@ -642,13 +798,13 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 // part of the same assembly and the two arriving at an edge separately would read as
                 // a fault.
                 val tabTargetX = when (panelEdge) {
-                    PanelEdge.RIGHT -> screenWidth - panelWidth - tabThickness
-                    PanelEdge.LEFT -> panelWidth
+                    PanelEdge.RIGHT -> screenWidth - visiblePanelThickness - tabThickness
+                    PanelEdge.LEFT -> visiblePanelThickness
                     else -> 0.dp
                 }
                 val tabTargetY = when (panelEdge) {
-                    PanelEdge.TOP -> panelHeight
-                    PanelEdge.BOTTOM -> maxHeight - panelHeight - tabThickness
+                    PanelEdge.TOP -> visiblePanelThickness
+                    PanelEdge.BOTTOM -> maxHeight - visiblePanelThickness - tabThickness
                     else -> if (barIsTop) barThickness else 0.dp
                 }
                 val tabW = if (panelEdge.horizontal) screenWidth else tabThickness
@@ -664,6 +820,27 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     height = tabH,
                     modifier = Modifier.align(Alignment.TopStart).offset(x = tabX, y = tabY),
                     onSelect = { id ->
+                        /*
+                         * **A tap means: show me this module, at the largest slot it can fill.**
+                         *
+                         * Tapping the module already on screen toggles it, which is how the panel is
+                         * folded away by hand rather than waiting out the timer. Tapping a different
+                         * one selects it and opens it — unless it has no full layout to open into,
+                         * in which case it simply becomes what rests there. That last case is what
+                         * keeps every tab a live control: a module shipping only a small layout is
+                         * reached by a tap that returns the panel to rest, rather than by a tab that
+                         * does nothing.
+                         */
+                        val target = panelCandidates.firstOrNull { it.id == id }
+                        val canExpand = modulePanelConfig.visibility.expands &&
+                            target?.canFill(fullSlot) == true
+                        if (id == selectedModule?.id && expansion.expanded) {
+                            expansion.collapse()
+                        } else if (canExpand) {
+                            expansion.expand()
+                        } else {
+                            expansion.collapse()
+                        }
                         tappedModuleId = id
                         scope.launch { prefs.saveModulePanelLastModule(id) }
                     },

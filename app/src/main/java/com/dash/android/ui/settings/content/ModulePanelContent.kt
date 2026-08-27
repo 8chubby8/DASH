@@ -37,6 +37,8 @@ import com.dash.android.ui.modulepanel.ModulePanelConfig
 import com.dash.android.ui.modulepanel.ModulePanelSpec
 import com.dash.android.ui.modulepanel.ModuleTabsSpec
 import com.dash.android.ui.modulepanel.PanelSize
+import com.dash.android.ui.modulepanel.PanelDwellSpec
+import com.dash.android.ui.modulepanel.PanelVisibility
 import com.dash.android.ui.modulepanel.PanelEdge
 import com.dash.android.ui.modulepanel.effectiveEdge
 import com.dash.android.ui.systembar.BarPosition
@@ -88,35 +90,37 @@ fun ModulePanelContent() {
         SettingsContentHeader("Module Panel")
 
         val barAtTop = barConfig.position == BarPosition.TOP
-        val barEdge = if (barAtTop) PanelEdge.TOP else PanelEdge.BOTTOM
         val drawnNow = effectiveEdge(config.edge, barConfig.position)
 
-        // Size before position (Roger, 1.6.4). Size is the larger decision, and the position tiles
-        // below draw the panel at whatever size is chosen here — so the page reads top to bottom as
-        // one continuous answer rather than two unrelated controls.
-        SettingsSectionHeader("Size")
+        /*
+         * **The page is built from the visibility choice** (Roger, 2026-08-27). Picking one of the
+         * four decides which other controls exist at all, rather than showing four controls of which
+         * two are meaningless most of the time. The pay-off is that the resting-size constraint
+         * becomes *structural*: the full-size list is built from the resting size, so a resting
+         * panel thicker than its full panel cannot be expressed, and therefore never has to be
+         * detected, warned about, or corrected.
+         */
+        SettingsSectionHeader("Visibility")
 
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
         ) {
-            PanelSize.entries.forEach { size ->
-                PanelTile(
-                    label = size.label,
-                    selected = config.size == size,
-                    unavailable = false,
-                    ratio = ratio,
-                    barAtTop = barAtTop,
-                    // Drawn on the edge the panel is actually on, at this tile's own size, so each
-                    // tile previews the real result rather than a generic diagram.
-                    drawnEdge = drawnNow,
-                    panelSize = size,
+            PanelVisibility.entries.forEach { mode ->
+                VisibilityTile(
+                    label = mode.label,
+                    selected = config.visibility == mode,
                     modifier = Modifier.weight(1f),
                 ) {
-                    scope.launch { prefs.saveModulePanelConfig(config.copy(size = size)) }
+                    scope.launch { prefs.saveModulePanelConfig(config.copy(visibility = mode)) }
                 }
             }
         }
+
+        // Off needs nothing else. DASH has no panel and no opinion about one, which is the default
+        // state of a fresh install (Roger) — the whole screen is the user's until they ask for a
+        // panel, and there is therefore no default *size* for DASH to have picked on their behalf.
+        if (config.visibility == PanelVisibility.OFF) return@Column
 
         SettingsSectionHeader("Position")
 
@@ -125,18 +129,10 @@ fun ModulePanelContent() {
             horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
         ) {
             PanelEdge.entries.forEach { edge ->
-                // The edge the bar holds cannot be chosen (Roger, 1.6.3) — the two never share an
-                // edge, so offering it would be offering something DASH would immediately undo.
-                val unavailable = edge == barEdge
                 PanelTile(
                     label = edge.label,
-                    // Selection tracks the stored *preference*, even when that edge is currently
-                    // unavailable — a tile that is both selected and greyed says "this is still your
-                    // choice, it just cannot apply while the bar is there", which is the truth. The
-                    // panel meanwhile sits on its displaced edge. Reachable by choosing an edge and
-                    // then moving the bar onto it; greying only prevents choosing it anew.
                     selected = config.edge == edge,
-                    unavailable = unavailable,
+                    unavailable = edge == (if (barAtTop) PanelEdge.TOP else PanelEdge.BOTTOM),
                     ratio = ratio,
                     barAtTop = barAtTop,
                     drawnEdge = effectiveEdge(edge, barConfig.position),
@@ -148,16 +144,124 @@ fun ModulePanelContent() {
             }
         }
 
+        /*
+         * **Resting size first, then full size** — the order matters, because it is what keeps both
+         * lists non-empty. Choosing the rest first leaves at least one thicker size to expand into;
+         * choosing the full first could leave nothing thinner to rest at.
+         *
+         * **Neither list is filtered by what the installed modules actually ship** *(Roger)*. These
+         * are DASH's own surfaces describing DASH's own capabilities, not a report on somebody's
+         * modules — the same reasoning that rejected putting module counts on the size tiles at
+         * 1.6.8, where it would have been DASH narrating a choice the user made and can unmake.
+         * Install a module tomorrow that ships the missing layout and the setting starts working
+         * with nothing changed. Until then it degrades at runtime, silently and safely.
+         */
+        if (config.visibility == PanelVisibility.SHRUNK) {
+            SettingsSectionHeader("Rest size")
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
+            ) {
+                ModulePanelConfig.restChoices().forEach { size ->
+                    PanelTile(
+                        label = size.label,
+                        selected = config.restSize == size,
+                        unavailable = false,
+                        ratio = ratio,
+                        barAtTop = barAtTop,
+                        drawnEdge = drawnNow,
+                        panelSize = size,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        // Choosing a thicker rest can invalidate the full size, so it is pulled back
+                        // to the thickest that is still legal in the same write. The alternative is
+                        // an error state, and there is no error here — only a stale pairing.
+                        val full = ModulePanelConfig.fullChoices(size)
+                        val keep = if (config.size in full) config.size else full.first()
+                        scope.launch {
+                            prefs.saveModulePanelConfig(config.copy(restSize = size, size = keep))
+                        }
+                    }
+                }
+            }
+        }
+
+        val fullChoices = if (config.visibility == PanelVisibility.SHRUNK)
+            ModulePanelConfig.fullChoices(config.restSize) else PanelSize.entries.toList()
+
+        SettingsSectionHeader(if (config.visibility == PanelVisibility.FULL) "Size" else "Full size")
+
+        if (fullChoices.size == 1) {
+            // **A one-item list is not a control** (1.5.15's no-dead-controls rule). It is still
+            // worth showing — hide it and the user cannot see what "full" actually is — so it reads
+            // as a statement of the only remaining pairing rather than as a choice to make.
+            Text(
+                text = "${fullChoices.first().label} — the only size larger than the resting size",
+                color = LocalDashTheme.current.textColourPrimary,
+                fontFamily = LocalDashTheme.current.font,
+                fontSize = TINY,
+                lineHeight = TINY_LINE,
+                modifier = Modifier.padding(top = 4.dp),
+            )
+        } else {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
+            ) {
+                fullChoices.forEach { size ->
+                    PanelTile(
+                        label = size.label,
+                        selected = config.size == size,
+                        unavailable = false,
+                        ratio = ratio,
+                        barAtTop = barAtTop,
+                        drawnEdge = drawnNow,
+                        panelSize = size,
+                        modifier = Modifier.weight(1f),
+                    ) {
+                        scope.launch { prefs.saveModulePanelConfig(config.copy(size = size)) }
+                    }
+                }
+            }
+        }
+
+        if (config.visibility.expands) {
+            SettingsSectionHeader("Timer")
+            SettingBlock(
+                name = "Folds back after",
+                help = "How long the panel stays expanded once you tap a tab. Touching anything " +
+                    "inside the panel starts the count again, so it never folds away while you are " +
+                    "using it.",
+                control = {
+                    val v = config.dwellSeconds
+                    Stepper(
+                        value = "$v s",
+                        sub = if (v <= PanelDwellSpec.MIN_SECONDS) "min"
+                        else if (v >= PanelDwellSpec.MAX_SECONDS) "max" else null,
+                        modifier = Modifier.width(controlWidth(LocalDensity.current.fontScale)),
+                        onMinus = {
+                            val n = (v - PanelDwellSpec.STEP_SECONDS)
+                                .coerceAtLeast(PanelDwellSpec.MIN_SECONDS)
+                            scope.launch { prefs.saveModulePanelConfig(config.copy(dwellSeconds = n)) }
+                        },
+                        onPlus = {
+                            val n = (v + PanelDwellSpec.STEP_SECONDS)
+                                .coerceAtMost(PanelDwellSpec.MAX_SECONDS)
+                            scope.launch { prefs.saveModulePanelConfig(config.copy(dwellSeconds = n)) }
+                        },
+                    )
+                },
+            )
+        }
+
         // Selector last, and last on purpose (Roger, 2026-08-26). The page reads as one continuous
-        // answer top to bottom — how big the panel is, where it sits, then the bar that hangs off it.
-        // The bar is the smallest of the three decisions and the only one that means nothing until
-        // there are two modules to switch between, so it earns the bottom rather than the top.
+        // answer top to bottom — what the panel does, where it sits, how big it is, then the bar
+        // that hangs off it. The bar is the smallest of the decisions and the only one that means
+        // nothing until there are two modules to switch between, so it earns the bottom.
         SettingsSectionHeader("Selector")
 
         SettingBlock(
             name = "Selector size",
-            // Said plainly because it is the one surprising thing about this control: the cost lands
-            // on the content area, not on the module. Someone dialling it up is spending viewport.
             help = "How thick the module tab bar is. It sits outside the panel, so its thickness " +
                 "comes out of the content area rather than out of the module's box.",
             control = {
@@ -166,10 +270,6 @@ fun ModulePanelContent() {
                 val atMax = thickness >= ModuleTabsSpec.MAX_DP
                 Stepper(
                     value = "$thickness dp",
-                    // interface.md's boundary model (the v1.3.4 decision that replaced the amber
-                    // soft-limit warning): the control itself says where the end is, at the moment
-                    // the user reaches it. Carried in the caption so the shared Stepper is untouched
-                    // and no other setting in DASH changes behaviour.
                     sub = if (atMin) "min" else if (atMax) "max" else null,
                     modifier = Modifier.width(controlWidth(LocalDensity.current.fontScale)),
                     onMinus = {
@@ -182,6 +282,47 @@ fun ModulePanelContent() {
                     },
                 )
             },
+        )
+    }
+}
+
+/**
+ * One visibility choice — the control the rest of the page is built from.
+ *
+ * Deliberately a plain labelled tile rather than a miniature like [PanelTile]: what these four
+ * describe is *behaviour over time*, and a still picture of a screen cannot show a panel that folds
+ * away after ten seconds. Drawing one would suggest a difference in shape where the difference is
+ * in motion. The word is the honest control here.
+ */
+@Composable
+private fun VisibilityTile(
+    label: String,
+    selected: Boolean,
+    modifier: Modifier = Modifier,
+    onClick: () -> Unit,
+) {
+    val theme = LocalDashTheme.current
+    val shape = RoundedCornerShape(11.dp)
+    Box(
+        modifier = modifier
+            .clip(shape)
+            .background(if (selected) theme.textColourSecondary.copy(alpha = 0.14f) else Color.Transparent)
+            .border(
+                if (selected) 2.dp else 1.dp,
+                theme.textColourSecondary.copy(alpha = if (selected) 0.75f else 0.18f),
+                shape,
+            )
+            .clickable { onClick() }
+            .padding(vertical = 14.dp, horizontal = 8.dp),
+        contentAlignment = Alignment.Center,
+    ) {
+        Text(
+            label,
+            color = theme.textColourSecondary.copy(alpha = if (selected) 1f else 0.72f),
+            fontSize = TINY,
+            lineHeight = TINY_LINE,
+            textAlign = TextAlign.Center,
+            fontFamily = theme.font,
         )
     }
 }

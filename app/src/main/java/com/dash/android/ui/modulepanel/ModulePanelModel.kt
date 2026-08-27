@@ -61,6 +61,53 @@ enum class PanelSize(val label: String, val longUnits: Int, val thickUnits: Int)
 }
 
 /**
+ * What the module panel does with itself (roadmap 1.6.9).
+ *
+ * **The default is [OFF], and that is the whole point** *(Roger, 2026-08-27)*. DASH ships with no
+ * module panel until the user asks for one. It has no opinion about how much of somebody's screen a
+ * head unit should spend, so it spends none until told — which also retires the question of what a
+ * sensible default *size* would be, since there is no default panel to size.
+ *
+ * **The four states are one choice, and the settings page is built from it.** Picking one decides
+ * which other controls exist at all: [OFF] needs nothing, [FULL] needs a size, [RETRACTED] adds a
+ * timer, [SHRUNK] adds a resting size as well. The constraint that a resting size must be thinner
+ * than the full size is therefore *structural* — the second list is built from the first, so an
+ * invalid pairing cannot be expressed and never has to be detected, warned about or corrected.
+ *
+ * **[SHRUNK] is shrinking; the overflow mitigation is *compacting*** *(Roger, 2026-08-27)*. The two
+ * were briefly the same word and are not the same thing. Shrinking is a feature: a panel resting at
+ * a smaller layout its author drew on purpose. Compacting is mitigation: DASH scaling a panel that
+ * asked for more screen than exists, so a bad choice degrades instead of drawing wrong. *"The
+ * byproduct of a stupid user selecting the wrong panel layout size is mitigation of that stupidity,
+ * not a feature."*
+ */
+@Serializable
+enum class PanelVisibility(val label: String) {
+    /** No panel at all, and therefore no tab bar. The screen is entirely the user's. */
+    OFF("Off"),
+
+    /** Always drawn at its full size. Never expands, never retracts — the 1.6.2–1.6.8 behaviour. */
+    FULL("Full"),
+
+    /** Rests off screen behind its own edge. A tap on the tab bar draws it out; the timer folds it back. */
+    RETRACTED("Retracted"),
+
+    /** Rests at a smaller layout the module shipped. A tap expands it to full; the timer shrinks it back. */
+    SHRUNK("Shrunk");
+
+    /** Whether a tap on the tab bar has a larger state to open into. */
+    val expands: Boolean get() = this == RETRACTED || this == SHRUNK
+}
+
+/** How long the panel stays expanded before folding back. Seconds, on a stepper like every other size in DASH. */
+object PanelDwellSpec {
+    const val DEFAULT_SECONDS = 10
+    const val MIN_SECONDS = 5
+    const val MAX_SECONDS = 60
+    const val STEP_SECONDS = 5
+}
+
+/**
  * The module panel's configuration (roadmap 1.6.3).
  *
  * [edge] is the user's **preference**, not necessarily where the panel is drawn — see
@@ -70,7 +117,20 @@ enum class PanelSize(val label: String, val longUnits: Int, val thickUnits: Int)
 @Serializable
 data class ModulePanelConfig(
     val edge: PanelEdge = PanelEdge.BOTTOM,
+    /**
+     * What the panel does with itself, and the control every other control on the page hangs off.
+     * **Defaults to [PanelVisibility.OFF]** — DASH draws no panel until asked.
+     */
+    val visibility: PanelVisibility = PanelVisibility.OFF,
+    /** The panel's **full** size — what it is when expanded, or simply what it is when [PanelVisibility.FULL]. */
     val size: PanelSize = PanelSize.LARGE,
+    /**
+     * The size it rests at under [PanelVisibility.SHRUNK]. Always thinner than [size], which the
+     * settings page enforces by construction rather than by validation.
+     */
+    val restSize: PanelSize = PanelSize.SMALL,
+    /** Seconds expanded before folding back to rest. Bounds in [PanelDwellSpec]. */
+    val dwellSeconds: Int = 10,
     /**
      * How thick the module selector bar is, in dp. Bounds and reasoning live with the bar itself, in
      * [com.dash.android.ui.modulepanel.ModuleTabsSpec].
@@ -83,8 +143,34 @@ data class ModulePanelConfig(
      */
     val tabThicknessDp: Int = 36,
 ) {
+    /**
+     * The size the panel **rests** at, or null when nothing rests — [PanelVisibility.OFF] has no
+     * panel and [PanelVisibility.RETRACTED] rests off screen behind its edge.
+     *
+     * **This is the size the viewport is laid out for, always** *(Roger, 2026-08-27)*. The expanded
+     * panel is drawn *over* the viewport rather than pushing it, so the running app never relayouts
+     * when the panel opens — and the user pays for the state the panel is usually in rather than the
+     * state it is briefly in.
+     */
+    val restingSize: PanelSize?
+        get() = when (visibility) {
+            PanelVisibility.OFF -> null
+            PanelVisibility.FULL -> size
+            PanelVisibility.RETRACTED -> null
+            PanelVisibility.SHRUNK -> restSize
+        }
+
     companion object {
         fun default() = ModulePanelConfig()
+
+        /** Resting sizes that have something thicker to expand into — everything but the thickest. */
+        fun restChoices(): List<PanelSize> =
+            PanelSize.entries.filter { r -> PanelSize.entries.any { it.aspect < r.aspect } }
+                .sortedByDescending { it.aspect }
+
+        /** Full sizes thicker than [rest]. A higher aspect is a thinner panel, so thicker means lower. */
+        fun fullChoices(rest: PanelSize): List<PanelSize> =
+            PanelSize.entries.filter { it.aspect < rest.aspect }.sortedByDescending { it.aspect }
     }
 }
 

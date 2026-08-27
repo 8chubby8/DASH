@@ -352,6 +352,27 @@ The module panel never overwrites or overruns the system bar. If the system bar 
 
 The Module Panel Reveal element on the system bar provides an alternative reveal mechanism. Tapping it reveals the panel. Tapping again cycles through installed modules. This is optional — the user places it on the system bar if they want it.
 
+> **Superseded — 2026-08-27 (roadmap 1.6.9). Persistent and Floating are replaced by four visibility states.** The two paragraphs above are kept for the record. *(Roger.)*
+>
+> **The panel has one setting with four values, and the settings page is built from it:**
+>
+> - **Off** — no panel at all, and therefore no tab bar. **This is the default on a fresh install.** DASH has no opinion about how much of somebody's screen a head unit should spend, so it spends none until asked — which also retires the question of what a default *size* would be, since there is no default panel to size. It is also a capability the user did not previously have: the size tiles had no off state, so installing an ACCESSORY module got you a panel whether you wanted one or not.
+> - **Full** — always drawn at its size. This is the 1.6.2–1.6.8 behaviour, and what "Persistent" meant above.
+> - **Retracted** — rests off screen behind its own edge. A tap on the tab bar draws it out; a timer folds it back. This is what "Floating" meant above, with the peek strip now named as what it is: the tab bar.
+> - **Shrunk** — rests at a *smaller layout the module's author drew*, and expands to full on a tap. New at 1.6.9 and the reason the model needed four values rather than two.
+>
+> **Shrinking is the feature; compacting is the mitigation.** They are deliberately different words. Shrinking is a panel resting at a smaller authored layout on purpose. **Compacting** is DASH scaling a panel that asked for more screen than exists, so a bad choice degrades instead of drawing wrong.
+>
+> **The viewport is laid out for the resting state and never for the expanded one.** An expanded panel is drawn **over** the viewport rather than pushing it, so the running app never relayouts when the panel opens. *Why it matters:* **the user pays for the state the panel is usually in, not the state it is briefly in.** A Large panel resting off screen costs the viewport nothing but the tab bar and covers the screen only while it is being looked at — which is what makes a large panel reasonable on a device where a permanent one never was.
+>
+> **The tab bar is the reveal control, and it rides inward with the panel** as it expands, staying on the panel's inboard face per 1.6.8. **A tap means: show me this module, at the largest slot it can fill.** Tapping the module already on screen folds the panel back by hand rather than waiting out the timer.
+>
+> **The bar lists the modules that can fill any slot the panel can reach — resting or full.** Stated once because it is the same invariant three separate rules needed: **the bar lists what you can go to, and is never filtered by what happens to be on screen.**
+>
+> **Any touch inside the panel restarts the timer, and observing a touch is not taking it.** A panel that folded shut under a finger mid-adjustment would be a fault. 1.6.8's rule that every gesture inside the boundary belongs to the module is untouched — DASH learns that a finger landed and consumes nothing.
+>
+> **At rest, a module with no resting layout is substituted, and the substitution is never stored.** A module shipping only a large layout cannot be what rests in a small band, so the first module that *can* is drawn there. **The user chooses the resting module by choosing which module ships the resting layout** — however many modules are installed, the one that ships the small layout is the one that rests. What DASH remembers the user chose is written only on an actual tap, so it survives the rest and survives a restart. This is the third place DASH displaces without ever rewriting a preference, alongside `effectiveEdge` for position and the settings yield for size.
+
 ### Stacking and Floating Rules
 
 **If both the module panel and app launcher are persistent** they may share the same edge and stack. On a bottom edge the app launcher sits above the module panel, closer to the content area.
@@ -809,6 +830,29 @@ DASH Settings
 > **The panel rolls out from the bar.** It grows from the bar's edge like a blind — an explicitly animated height, not a fade — on the same `backgroundColourPrimary` fill so there is no seam, with the bar floating above it and staying reachable. Open and close both take the **user-configurable transition length**: a new Appearance setting (`LocalTransitionMillis`, presets INSTANT → CINEMATIC), because DASH has no opinion on how fast the user's interface should move. The **settings button toggles** the panel — a press opens it, a second press closes it — and is now a real vector icon that fills its cell, tinted from `iconColourPrimary`.
 >
 > **Panel bounds — the panel is not always full screen.** It covers the launcher and the viewport, sits **below** the bar (never over it), and **conforms to the module panel**: it yields to a persistent (non-retractable) module panel, keeping it fully visible, and covers a retracted one. This is the Module Mantra as layout — DASH's own settings chrome never sits on top of the king's castle.
+
+> **Amendment — 2026-08-27 (roadmap 1.6.9). The settings panel no longer always yields to the module panel.** The paragraph above is kept for the record; what follows is what DASH does. *(Roger — "ive previously said that the settings panel does not overlap the module panel ever. i think this is wrong.")*
+>
+> **Why it changed.** The rule was right about the Module Mantra and wrong about what happens when honouring it makes DASH unusable. The module panel is a fixed aspect ratio anchored to its docked edge, so its thickness is a *consequence* of the screen rather than a number anybody chose — and on a tall narrow device that consequence is brutal. A large vertical slot on a 412dp-wide phone takes 358dp of it, leaving the settings blind a **54dp band**. **The module panel's own setting therefore became unreachable by the settings panel**, with no way out, because DASH sets its own `requestedOrientation` and no Android rotation control gets round it. `module-layout.md` §6 explicitly permits a module to ship the layout that springs that trap, so it is not an edge case. **The courtesy loses to the trap.**
+>
+> **This does not weaken the Module Mantra.** The Mantra forbids DASH reaching *into* the module's box to alter, style, override or offer settings for what the module drew. A user-initiated surface temporarily occluding the panel reaches into nothing: the panel is untouched, and it returns exactly as it was.
+>
+> **What DASH does instead.** When the settings panel opens, DASH measures **the rectangle it would get** — the screen, less the system bar, less the whole assembly (panel *and* tab bar) on whichever edge it holds. That rectangle must be a usable shape:
+>
+> - **The tolerance is the rectangle's signed aspect ratio, width ÷ height** — no narrower than **0.48**, no wider than **4.40**. Signed rather than long-edge-over-short, and that distinction is the finding: a leftover space 2.41 : 1 *wide* is perfectly usable and one 2.29 : 1 *tall* is not, so one unsigned bound cannot separate them.
+> - **The bounds are asymmetric — roughly 4 : 1 wide against 2 : 1 tall — and structurally so.** A setting's control is a fixed 190dp and cannot shrink, so **width is structural** and a narrow band breaks; the content box scrolls, so **height is elastic** and a short band merely degrades.
+> - **A hard 302dp minimum width** is kept as a backstop, moving with the text scale. No ratio rescues a band too narrow to hold one control.
+>
+> Outside the tolerance the panel yields, in this order:
+>
+> 1. **Step down** to the largest smaller slot **the module currently on screen** actually ships — Large → Medium → Small, **never crossing orientation**.
+> 2. **Retract** off its edge if there is no such slot. Retracting rather than covering: the castle visibly steps aside and visibly comes back, which the user can read, where a blind drawn over the top would simply make the panel vanish.
+>
+> **Retract is the guarantee; step-down is the courtesy** *(Roger)*. The guarantee is unconditional and holds against any layout a module ships. The step-down is only available when the author drew more than one slot — which is an incentive for module authors, not a requirement on them; §6's *partial support is normal* is unchanged.
+>
+> **The tab bar never moves.** It is DASH's own chrome rather than the king's castle, it is the peek strip, and it is the one surface that must never become unreachable — so the assembly collapses to the bar alone and the bar stays exactly where it was.
+>
+> **The user's stored preference is never rewritten.** The displacement lasts as long as the settings panel is open and not one frame longer — the same discipline `effectiveEdge` applies when the system bar displaces the panel, now applied to *size* instead of *position*.
 
 > **Appearance › Transitions — 2026-07-23 (roadmap 1.5.5).** DASH's motion controls were built as their own Appearance subcategory. The reconciled Appearance list above (2026-07-20) named Density, Splash Screen, Colours, Fonts, Presets, Ambient Mode; **add Transitions** to it as a live subcategory. Recorded here per the additive-docs rule; the 1.5.2 rollout note above is superseded on two points, called out below.
 >
