@@ -216,12 +216,21 @@ main reason to believe the model is right.*
   horizontal panel asks for 108% of the screen.
 - **The tab bar's own customisation is still to come** — Style (pips / name / both), Spread (fill the
   edge or gather to one end), the chosen colour pairing, and whether it shows at all.
+- **"Whether the bar shows at all" no longer carries this version's trap, and the reason should not
+  have to be re-derived.** The roadmap warns that hiding the only switch a user has strands them on
+  one module with no way off it. **Rule 2 already answers it.** The system bar can never be hidden,
+  the settings button lives on it, and rule 2 now guarantees the settings panel a usable shape
+  whatever the user has configured — so **Layout › Module Panel is reachable from any configuration,
+  and the way back always exists.** Hiding the bar, resting a panel off screen, a 96dp bar on a
+  phone: none of them can strand anybody. That is the whole reason the reachability rule was built
+  first, and it means the remaining bar settings can be built as plain preferences with no special
+  guarding. *(The same argument covers the app launcher's version of this at 1.8.x.)*
 - **The bar's position when the panel expands may want to become a setting** *(Roger)*. It rides with
   the motion for now, which is simple and consistent with 1.6.8, at the cost of the tap target moving.
 - **The step-down resizes the box before the new layout arrives.** The document reload takes 20–40ms,
   during which the old artwork is drawn into the new shape — visible on a CINEMATIC transition
-  setting. Cosmetic, and deliberately not fixed in a build whose job was to test the principle.
-  Holding the resize until the document lands is the fix.
+  setting. Cosmetic, and shipped knowingly — it was left out of the build whose job was to test the
+  principle, and then the principle held. Holding the resize until the document lands is the fix.
 - **Module icons on tabs remain time-sensitive**, unchanged from 1.6.8: `MANIFEST` carries `blocks`
   and `bytes` and nothing else, so an icon is an SDK change that must be agreed before
   `module-sdk.md`'s neighbours lock at 1.6.10, or it waits for version 3.
