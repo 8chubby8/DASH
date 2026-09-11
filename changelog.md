@@ -199,6 +199,63 @@ main reason to believe the model is right.*
   to 1.6.11 with the panel order and the dominant module is amended accordingly. The panel order and
   the dominant module are unaffected and still land at 1.6.11.
 
+**Corrected 2026-09-11 — the version number on disk had gone four versions stale**
+
+*Found on a catch-up read rather than by anything failing, which is the point: nothing failed, it
+just quietly said the wrong thing everywhere it was read.*
+
+- **`versionName` was still `1.6.5` and `versionCode` still `39`.** Corrected to **1.6.9 / 43**
+  *(Roger — "it needs to not happen again")*. The bump had been unbroken for twenty consecutive
+  versions, from code 20 at 1.4.16 to 39 at 1.6.5. It broke at **1.6.6**, in a commit that *did*
+  edit `app/build.gradle.kts` — to add the `copySvgSubset` task — and missed the line sixty above
+  it. 1.6.7, 1.6.8 and 1.6.9 never opened the file at all, so there was nothing to notice.
+- **Three user-facing surfaces read it, and all three were wrong for a fortnight:** Settings ›
+  About DASH (`AboutContent.kt`), the copyable `DeviceReport`, and — the sharp one — **the nightly
+  GitHub release title**, which `.github/workflows/nightly.yml` greps straight out of the
+  `versionName` line. Every nightly published since 13 August was titled *DASH Nightly (v1.6.5)* on
+  the public repository.
+- **The rule is that the bump lands in the commit that ships the version**, which is what the
+  twenty-version run was already doing, so the number on disk always matches the newest committed
+  work. 1.6.9 is In Progress, and the disk carries 1.6.9 because 1.6.9 work is committed and
+  hardware-verified — the number describes what is built, not what is finished.
+- **The cause is that the discipline was never written down.** CLAUDE.md requires a changelog entry
+  before a version is complete and says nothing about the build file, so the bump survived twenty
+  versions on habit — and habit is exactly what fails when the file is opened for an unrelated
+  reason. It is now stated in a comment on the line itself.
+- **The number is no longer written in the build file at all — it is read from this document**
+  *(Roger — "do it now")*. `app/build.gradle.kts` already contained two tasks, `copyLicence` and
+  `copySvgSubset`, whose stated reason for existing is that *"a subset kept in two places diverges
+  silently, and in the direction that hurts most."* **The version number was a third such list,
+  kept in two places, and it diverged in exactly that direction** — the copy nobody edits going
+  quietly wrong while the copy everybody edits stayed right. `dashVersionName` now finds the
+  topmost `## Version n.n.n` heading in changelog.md and `versionName` is that. The project rule
+  that *"a version number is not complete until a changelog entry exists for it"* stops being a
+  convention and becomes the build's own precondition.
+- **The digits in the pattern are load-bearing, and this document is why.** changelog.md documents
+  its own entry format with a literal `## Version X.x.x` template inside a fenced block, twenty-six
+  lines above the first real entry. A pattern matching the words alone finds the template and ships
+  a build called *X.x.x*. Requiring `\d+\.\d+\.\d+` walks past it — **the file that is now the
+  source of truth contains a decoy, and it is the first line a careless reader would have hit.**
+- **A missing heading is a hard build failure, deliberately.** A fallback value would restore
+  exactly the silent-wrong-number behaviour the change exists to end. A build that stops is a
+  problem that gets fixed; a build that quietly says 1.6.5 is not.
+- **The nightly workflow reads the same source rather than the build file.** `nightly.yml` used to
+  grep `versionName` out of `app/build.gradle.kts`, which is *how* the wrong title got published —
+  and that grep took the **first** line containing the word, so even a comment mentioning it above
+  the real line would have hijacked the release title. It now reads changelog.md with the same
+  digit-anchored pattern and fails the job if it finds nothing. **One source, two readers, and the
+  release title cannot disagree with the APK inside it.**
+- **`versionCode` stays by hand, and that is not an oversight.** Nothing in the changelog records
+  it — it is Android's install-ordering counter, one per *built* version, and 1.6.1 was
+  documentation-only and never got one. It is also far less dangerous stale: a wrong code blocks an
+  in-place nightly update and is noticed at once, where a wrong name says the wrong thing quietly
+  and forever.
+- **Verified three ways, 2026-09-11:** a clean `generateDebugBuildConfig` produces
+  `VERSION_NAME = "1.6.9"` / `VERSION_CODE = 43`; temporarily retitling the top entry `9.9.9` moves
+  the generated constant to `9.9.9`, proving the changelog is genuinely tracked as a build input
+  rather than read once; and removing every version heading fails the build with the intended
+  message instead of falling back.
+
 **Regressions:**
 
 - **None found.** Tab membership, the cross-fade, the press predictions and the module selection all

@@ -9,6 +9,45 @@ plugins {
     alias(libs.plugins.kotlin.serialization)
 }
 
+/**
+ * The version DASH reports is read from changelog.md, not written here (roadmap 1.6.11).
+ *
+ * **Because it was written here, and it went stale.** `versionName` sat at 1.6.5 for four versions
+ * and a fortnight, wrong in About DASH, wrong in the copyable `DeviceReport`, and wrong in the
+ * title of every public nightly release. It had been bumped faithfully for twenty consecutive
+ * versions and then broke at 1.6.6, in a commit that edited this very file to add [copySvgSubset]
+ * below — which is the whole lesson: it was not forgotten by someone who never looked at the file,
+ * it was missed by someone looking straight at it.
+ *
+ * Same discipline and same reasoning as [copyLicence] and [copySvgSubset]: **one file, in git, read
+ * by everything that needs it.** A version number kept in two places diverges silently, and it
+ * diverged in exactly the direction those two tasks exist to prevent — the copy nobody edits going
+ * quietly wrong while the copy everybody edits stays right. changelog.md is already the source of
+ * truth by project rule (*"a version number is not complete until a changelog entry exists for
+ * it"*), so it is now the source of truth in fact.
+ *
+ * **The digits in the pattern are load-bearing.** changelog.md documents its own entry format with
+ * a literal `## Version X.x.x` template inside a fenced block, twenty-six lines above the first
+ * real entry — so a pattern matching the words alone finds the template and ships a build named
+ * "X.x.x". Requiring `\d+\.\d+\.\d+` is what walks past it.
+ *
+ * Read through [providers] rather than with `File.readText()` so Gradle tracks changelog.md as a
+ * build input and a configuration-cache run re-reads it when it changes. Missing heading is a hard
+ * failure, deliberately: a fallback would restore the silent-wrong-number behaviour this exists to
+ * end, and a build that stops is a problem that gets fixed.
+ */
+val dashVersionName: String = run {
+    val changelog = rootProject.layout.projectDirectory.file("changelog.md")
+    val text = providers.fileContents(changelog).asText.orNull
+        ?: error("changelog.md is unreadable — versionName is derived from it (roadmap 1.6.11).")
+    Regex("""^## Version (\d+\.\d+\.\d+)\s*$""", RegexOption.MULTILINE)
+        .find(text)?.groupValues?.get(1)
+        ?: error(
+            "No '## Version <n.n.n>' heading found in changelog.md — versionName is derived from " +
+                "the topmost one (roadmap 1.6.11). Add the entry before building.",
+        )
+}
+
 android {
     namespace = "com.dash.android"
     compileSdk = 35
@@ -17,8 +56,14 @@ android {
         applicationId = "com.dash.android"
         minSdk = 24
         targetSdk = 35
-        versionCode = 39
-        versionName = "1.6.5"
+        versionName = dashVersionName
+
+        // The one number with no source to derive it from, so it stays by hand. It is not the
+        // version — it is Android's install-ordering counter, one per *built* version (1.6.1 was
+        // documentation only and never got one), and nothing in the changelog records that. It is
+        // also far less dangerous stale: a wrong code blocks an in-place nightly update and is
+        // noticed immediately, where a wrong name says the wrong thing quietly and forever.
+        versionCode = 43
 
         // Stamped so About DASH can say when this build was made — a sideloaded head unit has no
         // store listing to read a date from, and "which build is on the tablet" is the first

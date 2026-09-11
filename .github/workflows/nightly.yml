@@ -46,7 +46,17 @@ jobs:
       - name: Stage the APK
         run: |
           mkdir -p out
-          VERSION=$(grep 'versionName' app/build.gradle.kts | head -1 | sed 's/.*"\(.*\)".*/\1/')
+          # Read from changelog.md — the same single source app/build.gradle.kts derives
+          # versionName from (roadmap 1.6.11), so the release title and the APK inside it cannot
+          # disagree. It used to grep the build file, which is how nightlies were published as
+          # v1.6.5 for a fortnight after the project had reached 1.6.9.
+          # The digits are load-bearing: changelog.md carries a literal '## Version X.x.x' format
+          # template above the first real entry, and a looser pattern matches that instead.
+          VERSION=$(sed -n 's/^## Version \([0-9][0-9]*\.[0-9][0-9]*\.[0-9][0-9]*\) *$/\1/p' changelog.md | head -1)
+          if [ -z "$VERSION" ]; then
+            echo "No '## Version <n.n.n>' heading found in changelog.md" >&2
+            exit 1
+          fi
           cp app/build/outputs/apk/debug/app-debug.apk "out/dash-nightly.apk"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "BUILT=$(date -u '+%Y-%m-%d %H:%M UTC')" >> "$GITHUB_ENV"
