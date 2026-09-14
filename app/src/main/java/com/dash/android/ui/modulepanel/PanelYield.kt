@@ -116,7 +116,13 @@ private fun settingsFits(
 ): Boolean {
     val longEdge = if (edge.horizontal) screenWidth else screenHeight - barThickness
     if (longEdge <= 0.dp) return false
-    val assembly = ModulePanelSpec.thicknessFor(size, longEdge) + tabThickness
+    // Measured through the same compacting rule the screen draws by, so there is one place that
+    // knows a panel can be capped and not two that might drift. It changes no verdict — an
+    // overflowing panel leaves settings a zero band where it used to leave a negative one, and both
+    // fail — but it means this reads the geometry that will actually be on screen.
+    val available =
+        (if (edge.horizontal) screenHeight - barThickness else screenWidth) - tabThickness
+    val assembly = ModulePanelSpec.boxFor(size, longEdge, available).thickness + tabThickness
 
     val w = if (edge.horizontal) screenWidth else screenWidth - assembly
     val h = if (edge.horizontal) screenHeight - barThickness - assembly else screenHeight - barThickness

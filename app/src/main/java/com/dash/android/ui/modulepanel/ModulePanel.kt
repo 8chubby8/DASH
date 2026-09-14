@@ -40,6 +40,53 @@ object ModulePanelSpec {
      * the long edge rather than against width — a vertical panel is the same shape stood on its end.
      */
     fun thicknessFor(size: PanelSize, longEdge: Dp): Dp = longEdge / size.aspect
+
+    /**
+     * The box a panel actually gets, once the screen has had its say.
+     *
+     * [compacted] is false in the ordinary case, where the panel spans its edge at the exact
+     * thickness [thicknessFor] asks for. It is true when the screen could not give that thickness
+     * and the panel was scaled down to fit — see [boxFor].
+     */
+    data class PanelBox(val longEdge: Dp, val thickness: Dp, val compacted: Boolean)
+
+    /**
+     * The panel's box on an edge of [longEdge], given [availableThickness] to grow into.
+     *
+     * **Compacting: the mitigation, not the feature** *(Roger, 2026-08-27)*. A panel is a shape
+     * rather than a measurement, so its thickness is derived from the edge it is docked to — and on
+     * an elongated screen that derivation can ask for more thickness than the screen has. A Large
+     * 8 × 3 panel along the bottom of a 1280 × 480 head unit asks for 480dp of a 388dp band: 124%,
+     * running clean under the system bar. **The shape is not wrong; the screen is the wrong shape
+     * for it.** Every other combination DASH supports fits — on a Tab S9 Ultra the same panel takes
+     * 65% — so this is the arithmetic of one honest bad pairing rather than a common case.
+     *
+     * When it happens the panel **scales down uniformly, keeps its aspect exactly, and centres on
+     * its edge** *(Roger)*, with `backgroundColourPrimary` either side. Thickness is capped at what
+     * exists and the long edge follows the ratio down, so the panel stops spanning its edge and
+     * becomes an island on it. **The author's shape is never distorted** — a compacted panel is the
+     * drawing the module shipped, smaller. That is the entire point: *"the byproduct of a stupid
+     * user selecting the wrong panel layout size is mitigation of that stupidity, not a feature."*
+     *
+     * **The bands either side are DASH's own surface, not the module's box.** The castle walls are
+     * the returned rectangle; what DASH paints outside them is its own floor, so the Module Mantra
+     * is untouched — nothing reaches inside the boundary, the boundary simply moved inward.
+     *
+     * **Compacting never trades away the long edge to keep thickness**, which is the other way this
+     * could have been solved. Thickness is what the user chose a size *for*, and a panel that kept
+     * its 480dp by spanning only half its edge would be obeying the letter of the ratio while
+     * ignoring what was asked for. Capping thickness and letting the ratio pull the length in is the
+     * same decision `PanelYield` makes: give the user as much of what they asked for as the screen
+     * allows, and never silently rewrite the request.
+     */
+    fun boxFor(size: PanelSize, longEdge: Dp, availableThickness: Dp): PanelBox {
+        val asked = thicknessFor(size, longEdge)
+        // A band with nothing in it is not a panel. Guarded rather than clamped so the caller gets
+        // an honestly empty box instead of a sliver, and the screen's arithmetic stays sane.
+        if (availableThickness <= 0.dp || longEdge <= 0.dp) return PanelBox(0.dp, 0.dp, true)
+        if (asked <= availableThickness) return PanelBox(longEdge, asked, false)
+        return PanelBox(availableThickness * size.aspect, availableThickness, true)
+    }
 }
 
 /**

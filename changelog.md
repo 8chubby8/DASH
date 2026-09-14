@@ -49,9 +49,9 @@ Each version entry follows this structure:
 
 ## Version 1.6.9
 
-**Status:** In Progress — the reachability rule and the whole visibility / expansion model are built
-and hardware-verified. The tab bar's own customisation (style, spread, chosen colours, whether it
-shows at all) and compacting are still to come.
+**Status:** In Progress — the reachability rule, the whole visibility / expansion model and
+compacting are built and hardware-verified. The tab bar's own customisation (style, spread, chosen
+colours, whether it shows at all) is all that remains.
 
 **Scope:** The trap this version exists for. **Whatever the user configures, the settings panel must
 stay usable** — because the module panel's own setting lives inside it, and a panel large enough to
@@ -256,6 +256,69 @@ just quietly said the wrong thing everywhere it was read.*
   rather than read once; and removing every version heading fails the build with the intended
   message instead of falling back.
 
+**Built 2026-09-14 — compacting, the overflow mitigation**
+
+*The last of the three motions. Rule 2 forces a step-down or a retract; the visibility model lets the
+user drive them; compacting is what happens when neither applies and the shape simply does not fit.*
+
+- **A panel that cannot fit at its true ratio scales down uniformly, keeps its aspect exactly, and
+  centres on its edge** *(Roger, agreed 2026-08-27)*, with `backgroundColourPrimary` either side.
+  `ModulePanelSpec.boxFor(size, longEdge, availableThickness)` caps thickness at what exists and lets
+  the ratio pull the long edge in with it. **The author's shape is never distorted** — a compacted
+  panel is the drawing the module shipped, smaller.
+- **The panel stops being a wall and becomes an island, and this is the first place that happens.**
+  Recorded deliberately, because the open question below — *does the panel have to span its edge?* —
+  now has one built answer in the overflow case. That is evidence for the general case, not a
+  decision on it; the question still wants settling before 1.6.10.
+- **Compacting never trades the long edge away to keep thickness**, which was the other way to solve
+  it. Thickness is what a user chooses a *size* for, so capping thickness and letting the ratio pull
+  the length in is the same decision `PanelYield` makes: give the user as much of what they asked for
+  as the screen allows, and never silently rewrite the request.
+- **The band either side is DASH's own surface, not the module's box.** It is a sibling of the panel
+  rather than padding inside it — the castle walls are the panel rectangle, and what DASH paints
+  outside them is its own floor. It takes the panel's own offsets so it retracts with it, and is
+  composed only when the panel actually compacted, so a device that never needs it pays no overdraw.
+- **`PanelYield` now measures through the same function.** One place knows a panel can be capped
+  rather than two that might drift. It changes no verdict — an overflowing panel used to leave
+  settings a *negative* band and now leaves it a *zero* one, and both fail — but rule 2 now reads the
+  geometry that will actually be on screen.
+- **The resting thickness compacts too**, since that is what the viewport is laid out for. Reserving
+  space nothing occupies would have been a separate bug hiding behind a correct-looking panel.
+
+**The finding: compacting is not a head-unit curiosity.** It was scoped as arithmetic for one honest
+bad pairing — a Large panel along the long edge of a 1280 × 480 head unit, which at the default 40dp
+bar and 36dp tab asks for **480dp of a 404dp band, 119%**, and compacts to 1077 × 404 with 101dp of
+background each side. **But a Pixel 8 Pro held in landscape is 997 × 448dp, which is head-unit
+shaped, and it overflows at default settings too** — asking 374dp of 372. The first estimate said one
+combination in twenty-four could ever trip it, and that was portrait-only for the phone. **The
+mitigation is reachable on ordinary hardware turned sideways**, which is a far better reason for it
+to exist than a board nobody has yet.
+
+**Hardware-verified 2026-09-14, Pixel 8 Pro, both docks, with a negative control.**
+
+- **Horizontal dock, landscape** (997.33 × 448dp, bar 40, tab 36). Large asks 374.0dp of 372.0dp
+  available. Predicted box 992.00 × 372.00dp, band 2.67dp each side; **measured 992.00 × 372.00dp,
+  band 2.67dp each side.** Drawn ratio 2.66667 against a target of 2.66667 — **error 0.00000**.
+- **Vertical dock, portrait, two tab-bar settings.** Panel long edge 957.33dp, so vertical Large asks
+  359.0dp in both. At a **96dp** bar, available is 352dp → compacts to 938.67 × 352. At a **32dp**
+  bar, available is 416dp → fits untouched at 957.33 × 359. Measured panel thickness **352.00dp** and
+  **359.00dp** respectively: exactly the cap in one case and exactly the request in the other.
+- **The differential is the real proof** *(Roger's suggestion — "how about i make the tab bar smaller,
+  then you can compare both screenshots")*. Two shots of one screen cancel out the display insets and
+  the density, leaving only what changed. The module artwork's height ratio between them measured
+  **0.98094** against a predicted long-edge ratio of **0.98050** — 0.045%, about one pixel in 2,700.
+  **The panel did not merely get thinner when the bar grew; it got shorter in proportion**, which is
+  the ratio being held rather than the box being squashed. The 32dp case is the negative control: the
+  rule does not fire when it should not.
+- **A module dressed in DASH's tokens compacts invisibly.** Climate paints its own background with
+  `backgroundColourPrimary`, the same token the band uses, so its 9.33dp bands are genuinely present
+  and genuinely correct and cannot be seen. Not a fault — the system working — but it means the band
+  can only be judged against a module that brings its own colours, such as the Tank Gauge.
+- **A measurement note worth keeping:** `wm density` reported an override of 408 while DASH was
+  laying out at **3 px/dp (density 480)**. Absolute dp read off a screenshot are not trustworthy
+  without deriving the scale from a known quantity first — here, a tab pill plus its padding coming
+  to exactly 96px at a 32dp setting.
+
 **Regressions:**
 
 - **None found.** Tab membership, the cross-fade, the press predictions and the module selection all
@@ -267,10 +330,6 @@ just quietly said the wrong thing everywhere it was read.*
 
 **Outstanding:**
 
-- **Compacting is designed but not built** — a panel that cannot fit at its true ratio scales down
-  uniformly, keeps its aspect exactly, and **centres** on its edge *(Roger)* with
-  `backgroundColourPrimary` either side. It matters most on a 1280 × 480 head unit, where a Large
-  horizontal panel asks for 108% of the screen.
 - **The tab bar's own customisation is still to come** — Style (pips / name / both), Spread (fill the
   edge or gather to one end), the chosen colour pairing, and whether it shows at all.
 - **"Whether the bar shows at all" no longer carries this version's trap, and the reason should not
@@ -322,10 +381,11 @@ just quietly said the wrong thing everywhere it was read.*
   panel stops being a **wall** and becomes an **island** on its edge. **Not decided.** Recorded here
   because it is the real question under the whole sizing discussion and it wants settling before
   1.6.10.
-- **Rule 1 (overflow) is designed but not built.** Agreed 2026-08-27: a panel that cannot fit at its
-  true ratio scales down uniformly, keeps its aspect exactly, and **centres** on its edge *(Roger)*
-  with `backgroundColourPrimary` either side. Never mis-drawn. It matters most on a 1280 × 480 head
-  unit, where a Large horizontal panel asks for 108% of the screen.
+- **Rule 1 (overflow) is built — 2026-09-14**, as *compacting*, above. Agreed 2026-08-27 and
+  unchanged in the building: scale down uniformly, keep the aspect exactly, centre on the edge
+  *(Roger)*, `backgroundColourPrimary` either side, never mis-drawn. **The 108% figure quoted here
+  for a 1280 × 480 head unit was understated** — it counted the tab bar but not the system bar. At
+  the default 40dp bar and 36dp tab the true figure is **119%**.
 - **The controls came before the constraints, on purpose.** Roger's four device verdicts turned out
   to be a *taste* judgement about which slots look right on which screen — not a statement about
   whether settings could open — and taste is the one thing DASH does not encode. What the exercise

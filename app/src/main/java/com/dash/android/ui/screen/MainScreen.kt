@@ -438,11 +438,6 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             )
 
             val panelLongEdge = if (panelEdge.horizontal) screenWidth else (maxHeight - barThickness)
-            // The panel as it is drawn right now — full when expanded, resting otherwise.
-            val panelThickness = if (panelDocument == null) 0.dp else
-                ModulePanelSpec.thicknessFor(drawSize, panelLongEdge)
-            val panelWidth = if (panelEdge.horizontal) screenWidth else panelThickness
-            val panelHeight = if (panelEdge.horizontal) panelThickness else panelLongEdge
 
             // **The tab bar sits outside the panel and cuts into the viewport** (Roger, 1.6.8) — it
             // is never taken out of the panel's own footprint, because the module's box would then
@@ -452,8 +447,44 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // how much content area the screen has, and a lone tab is a label rather than a dead
             // control. With no module able to fill the slot there is no panel (§6) and no bar — and
             // since 1.6.9, no panel at all when the user has simply not asked for one.
+            //
+            // It is measured here, above the panel's own geometry, because compacting has to know
+            // what the bar has already taken before it can say what is left for the panel.
             val tabThickness =
                 if (panelDocument == null) 0.dp else modulePanelConfig.tabThicknessDp.dp
+
+            /*
+             * **What the assembly has to grow into, perpendicular to the docked edge.** The bar is
+             * subtracted only where it takes from *this* axis: docked left or right the system bar
+             * spans the top or bottom and eats the panel's long edge instead, which [panelLongEdge]
+             * has already accounted for, so subtracting it here as well would charge for it twice.
+             * The tab bar is always paid, on either axis, because it is always drawn.
+             */
+            val panelAvailableThickness =
+                (if (panelEdge.horizontal) maxHeight - barThickness else screenWidth) - tabThickness
+
+            /*
+             * **Compacting** (roadmap 1.6.9). A panel is a shape, so its thickness is derived from
+             * the edge it is docked to — and on an elongated screen that can ask for more than the
+             * screen has. [ModulePanelSpec.boxFor] caps it and pulls the long edge in with it, so
+             * the panel keeps its exact ratio and becomes an island on its edge rather than a wall
+             * across it. Exactly one combination DASH supports needs this — a Large panel along the
+             * long edge of a 1280 × 480 head unit — which is why it is mitigation and not a feature.
+             */
+            val panelBox = if (panelDocument == null) ModulePanelSpec.PanelBox(0.dp, 0.dp, false)
+                else ModulePanelSpec.boxFor(drawSize, panelLongEdge, panelAvailableThickness)
+            // The panel as it is drawn right now — full when expanded, resting otherwise.
+            val panelThickness = panelBox.thickness
+            val panelWidth = if (panelEdge.horizontal) panelBox.longEdge else panelThickness
+            val panelHeight = if (panelEdge.horizontal) panelThickness else panelBox.longEdge
+
+            /*
+             * **A compacted panel centres on its edge** *(Roger)*. Half the shortfall on each side,
+             * and zero whenever the panel spans its edge normally — so the ordinary case pays
+             * nothing and needs no branch. The band this leaves either side is DASH's own surface,
+             * outside the castle walls, and DASH paints its own floor there.
+             */
+            val panelLongInset = (panelLongEdge - panelBox.longEdge) / 2
 
             /*
              * **The screen is laid out for the *resting* state and never for the expanded one**
@@ -477,9 +508,13 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 showSettings -> (panelYield as? PanelYield.Draw)?.size
                 else -> modulePanelConfig.restingSize
             }
+            // Compacted on the same rule as the drawn panel: this is what the viewport is actually
+            // laid out for, so if the resting panel had to be scaled down the screen must be told
+            // the smaller number or it would reserve space nothing occupies.
             val restingThickness =
                 if (panelDocument == null || restingSizeNow == null) 0.dp
-                else ModulePanelSpec.thicknessFor(restingSizeNow, panelLongEdge)
+                else ModulePanelSpec.boxFor(restingSizeNow, panelLongEdge, panelAvailableThickness)
+                    .thickness
 
             // The panel is off its edge when retracted, so it costs the screen nothing — but the tab
             // bar is always paid for. It is DASH's own chrome rather than the king's castle, it is
@@ -727,21 +762,52 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 // and reads worse: the panel would simply be gone, where this shows the castle
                 // stepping aside and visibly coming back.
                 val hide = if (panelRetracted) panelThickness else 0.dp
+                // [panelLongInset] centres a compacted panel on its edge and is zero otherwise, so
+                // the ordinary full-width case is unchanged and needs no branch of its own.
                 val panelTargetX = when (panelEdge) {
                     PanelEdge.RIGHT -> screenWidth - panelWidth + hide
                     PanelEdge.LEFT -> -hide
-                    else -> 0.dp
+                    else -> panelLongInset
                 }
                 val panelTargetY = when {
                     panelEdge == PanelEdge.TOP -> -hide
                     panelEdge == PanelEdge.BOTTOM -> maxHeight - panelHeight + hide
-                    else -> if (barIsTop) barThickness else 0.dp
+                    else -> (if (barIsTop) barThickness else 0.dp) + panelLongInset
                 }
                 val moveSpec = tween<Dp>(transitions.millis(TransitionId.MODULE_PANEL_MOVE))
                 val panelX by animateDpAsState(panelTargetX, moveSpec, label = "modulePanelX")
                 val panelY by animateDpAsState(panelTargetY, moveSpec, label = "modulePanelY")
                 val panelW by animateDpAsState(panelWidth, moveSpec, label = "modulePanelW")
                 val panelH by animateDpAsState(panelHeight, moveSpec, label = "modulePanelH")
+
+                /*
+                 * **The band either side of a compacted panel** *(Roger — `backgroundColourPrimary`
+                 * either side)*. It spans the full edge behind the panel, so what a compacted panel
+                 * leaves uncovered reads as DASH's own floor rather than a hole onto the app behind.
+                 *
+                 * **It is not part of the module's box.** The castle walls are the panel rectangle
+                 * itself; this is DASH painting its own surface outside them, which is why it is a
+                 * sibling of the panel rather than padding inside it — the Module Mantra is about
+                 * what DASH puts *within* the boundary, and nothing here crosses it.
+                 *
+                 * It takes the panel's own offsets so it retracts with it, and is drawn only when
+                 * the panel actually compacted — otherwise the panel covers it exactly and it would
+                 * be pure overdraw on every device that never needed it.
+                 */
+                if (panelBox.compacted) {
+                    Box(
+                        modifier = Modifier
+                            .align(Alignment.TopStart)
+                            .offset(
+                                x = if (panelEdge.horizontal) 0.dp else panelX,
+                                y = if (panelEdge.horizontal) panelY else
+                                    (if (barIsTop) barThickness else 0.dp),
+                            )
+                            .width(if (panelEdge.horizontal) panelLongEdge else panelW)
+                            .height(if (panelEdge.horizontal) panelH else panelLongEdge)
+                            .background(LocalDashTheme.current.backgroundColourPrimary)
+                    )
+                }
 
                 /*
                  * **The switch is a cross-fade, and the outgoing panel is held until the incoming one
