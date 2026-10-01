@@ -38,7 +38,7 @@ BluetoothSerial SerialBT;
 #include "ClimateModule.h"
 
 ClimateModule dash("0000DA58AC05", "Climate BT",
-                   "Single-zone cabin climate over Bluetooth", "v1.8");
+                   "Single-zone cabin climate over Bluetooth", "v1.9");
 
 bool linkUp = false;           // RFCOMM client currently connected?
 
@@ -67,5 +67,4 @@ void loop() {
   linkUp = clientNow;
 
   dash.loop();
-  dash.service();
 }

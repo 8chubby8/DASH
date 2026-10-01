@@ -4,7 +4,14 @@
 
 ## Status
 
-**Provisional. Locks at roadmap 1.6.10.**
+**Locked — 2026-10-01, roadmap 1.6.10.** Drawn through by two real modules (the Tank Gauge and
+Climate), across WiFi, Bluetooth and USB, bidirectionally, with multi-module switching — which
+is the condition this section set for the lock. From here it carries Bible weight and changes
+only by explicit, considered decision. Additions that old modules never see — the browser rule,
+§9 — remain the way it grows. *The text below is the status as first written, kept for the
+record.*
+
+~~**Provisional. Locks at roadmap 1.6.10.**~~
 
 This document is the authoritative specification for how an ACCESSORY module describes the
 panel it wants DASH to draw. It is **not yet locked** — a spec is not frozen before it has
@@ -1175,7 +1182,8 @@ Recorded so that nobody re-proposes them without knowing they were considered.
 | Item | Blocking? |
 |---|---|
 | How many repeated action timeouts constitute a fault, and how it surfaces (§8) | No — tune against real hardware |
-| Whether `translate` survives to the lock (§4.6) | No |
+| ~~Whether `translate` survives to the lock (§4.6)~~ | **Closed 2026-08-14 — it stays** (Roger). The test at a lock is whether a binding was ever proven, not whether something happens to use it today; it was proven at 1.6.6. |
+| **Module icons on tabs** — `MANIFEST` carries `blocks` and `bytes` only, so an icon is an SDK change | **Deferred to version 3** (Roger, 2026-10-01). Not added at the lock; tabs carry the `HELLO` name and/or a pip. |
 | Whether `style` needs separate `fill` and `stroke` for vector, rather than one `colour` | No — deliberately minimal for now; the browser rule permits adding it later |
 
 **Closed since this document was created:**
@@ -1222,7 +1230,7 @@ building something entirely different, will need the same tools to do.*
 
 ---
 
-*This document is the authoritative panel specification. It is provisional until roadmap
-1.6.10. Read `arduino/arduino.md` for the reasoning behind these decisions, `module-sdk.md`
+*This document is the authoritative panel specification. It locked at roadmap 1.6.10
+(2026-10-01). Read `arduino/arduino.md` for the reasoning behind these decisions, `module-sdk.md`
 for how a module talks to DASH, and `panel-preview/CLAUDE.md` for the tool that checks a
 layout against this spec.*

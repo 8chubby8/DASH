@@ -137,7 +137,7 @@ The authoritative definition of how an ACCESSORY module describes the panel it w
 
 Created 2026-08-06 (roadmap 1.6.x) by promoting the panel spec out of `arduino/arduino.md` §11 — the same move that produced `module-sdk.md` at 1.4.15. The spec lives here; the reasoning stays in the working record. Every other document now points here rather than keeping its own copy.
 
-**Provisional until roadmap 1.6.10.** A spec is not locked before it has been built against. It locks once real modules have been drawn through it — at which point it gains Bible weight and changes only by explicit, considered decision.
+**Provisional until roadmap 1.6.10.** A spec is not locked before it has been built against. It locks once real modules have been drawn through it — at which point it gains Bible weight and changes only by explicit, considered decision. *(**Locked 2026-10-01, roadmap 1.6.10** — it now carries Bible weight.)*
 
 ### interface.md — The Interface Bible
 Defines everything about how DASH looks and behaves. The three layer architecture, density and scale, the system bar and zone system, elements and the element SDK, the viewport and its three modes, the module panel, the app launcher, overlays and the overlay SDK, the navigation model, the settings panel and its full tree, soft limits and hard floors, and the eight design principles. If it involves anything the user sees or interacts with, the answer is in interface.md.

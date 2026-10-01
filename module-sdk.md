@@ -617,6 +617,13 @@ The wireless sibling of WiFi, over a Bluetooth serial link. Four builder duties:
 
 ## Not locked — see `module-layout.md`
 
+> **2026-10-01, roadmap 1.6.10 — `module-layout.md` is now locked too**, and the `DashAccessory`
+> library class has joined `DashSystem` and `DashListener` in `arduino/DashModule/` (library
+> 1.1.0). Nothing in *this* document changed at that lock: the ACCESSORY messages it already
+> defines (`MANIFEST`, `BLOCK`, `REPORT`, `ACTION`, `TRIGGER`) are exactly what the library speaks.
+> The per-block USB retry (`RESEND`) discussed for 1.6.10 was **deferred** (Roger) and is not part
+> of this SDK. The note below is kept as written.
+
 Two areas remain live design and are **not** part of this locked reference. They lock at
 **roadmap 1.6.10**, once real modules have been drawn through them:
 

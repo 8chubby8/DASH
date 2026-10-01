@@ -1,6 +1,7 @@
 /* ===========================================================================
    DASH Module — Tank Gauge (WiFi)        |  module type: ACCESSORY
    Board: Espressif ESP32 DevKitC (WROOM-32, classic)  |  transport: WiFi TCP
+          or Arduino Uno R4 WiFi — the same sketch builds for both (2026-10-01)
    Built on the DashModule library.       |  roadmap 1.6.5
    ---------------------------------------------------------------------------
    THE FIRST ACCESSORY. Every module before this one was invisible — a SYSTEM
@@ -69,131 +70,19 @@
    DASH_PORT (3274). Your copy is gitignored; the .example is not.
    =========================================================================== */
 #include <Dash.h>
+#if defined(ARDUINO_UNOR4_WIFI)
+#include <WiFiS3.h>            // Uno R4 WiFi radio (onboard ESP32-S3), as BodyWifi uses
+#else
 #include <WiFi.h>              // ESP32 core radio
+#endif
 #include "arduino_secrets.h"   // SECRET_SSID / SECRET_PASS / DASH_HOST / DASH_PORT
 #include "gauge_assets.h"      // GENERATED — run make_assets.py after changing assets/
 
 WiFiClient client;
 #define DBG Serial
 
-/* ---------------------------------------------------------------------------
-   The ACCESSORY face — the 1.6.10 helper in draft.
-
-   Everything type-specific an ACCESSORY does lives here: announce the payload,
-   stream it, and report values while active. The base class already handles the
-   framing, HELLO, the INSTALL_END that closes the handshake, and the SILENT ->
-   ACTIVE -> SILENT lifecycle with its ROGERs.
-   --------------------------------------------------------------------------- */
-class DashAccessoryDraft : public DashModule {
- public:
-  DashAccessoryDraft(const char* id, const char* name, const char* description,
-                     const char* version)
-      : DashModule(id, "ACCESSORY", name, description, version) {}
-
-  // REPORT|id|variable|value — this panel's own data, addressed to this module.
-  // Sourceful: DASH keeps the id as the store key, because `tank_pressure` from
-  // this module is this panel's data and is never merged with anybody else's.
-  void report(const char* variable, float value, int decimals) {
-    startMsg(F("REPORT"));
-    field(variable);
-    fieldFloat(value, decimals);
-    endMsg();
-  }
-
-  // A control on the panel was pressed. The builder gets the control name and
-  // the value the layout attached to it — an empty string for a momentary one.
-  void onAction(void (*cb)(const char* control, const char* value)) { _onAction = cb; }
-
-  // Just went ACTIVE. **Send everything you have here** (§8): the panel is drawn
-  // from DASH's store, and until something arrives there is nothing in it, so a
-  // module that waits for its next change leaves the panel blank until then.
-  void onActivate(void (*cb)()) { _onActivate = cb; }
-
- protected:
-  void onActivated() override {
-    Serial.println(F("[dash] ACTIVE — dumping state"));
-    if (_onActivate) _onActivate();
-  }
-
-  /* ACTION|id|control|value — the inbound half of the specific column, and the
-     only message an ACCESSORY receives that is about its own panel.
-
-     The base class has already checked the id, so anything arriving here was
-     addressed to this module. A control this module does not recognise is
-     ignored in silence: the layout on the tablet may be newer than the firmware
-     on the board, and refusing a press with an error would turn an ordinary
-     version skew into a fault. */
-  void onCommand(int argc, char** argv) override {
-    if (strcmp(argv[0], "ACTION") != 0) return;
-    if (argc < 3) return;
-    if (_onAction) _onAction(argv[2], argc > 3 ? argv[3] : "");
-  }
-
-  void onDeactivated() override {
-    Serial.println(F("[dash] SILENT"));
-  }
-
-  /* The install payload. MANIFEST first as a table of contents, so DASH can show
-     a real progress bar rather than an indeterminate one, then the blocks. The
-     base sends INSTALL_END after this returns. */
-  void onInstall() override {
-    startMsg(F("MANIFEST"));
-    fieldInt(DASH_ASSET_COUNT);
-    fieldInt((long)DASH_ASSET_TOTAL_BYTES);
-    endMsg();
-
-    for (uint8_t i = 0; i < DASH_ASSET_COUNT; i++) sendBlock(DASH_ASSETS[i]);
-  }
-
- private:
-  /* One asset: the header line, then exactly `length` raw bytes.
-
-     THE BYTE COUNT IS THE FRAMING. Once the header is out, the next `length`
-     bytes are payload and nothing else — a 0x0A inside a PNG is data, not a line
-     ending. DASH switches to a counted read on seeing the header and switches
-     back when the count is met, which is what lets binary travel down a wire that
-     is otherwise line-based.
-
-     A MODULE NEVER PARSES ITS OWN LAYOUT. This copies bytes from flash to a
-     socket and understands none of them; making sense of the payload is entirely
-     DASH's job. That is why an eight-bit board with an SD card could ship a panel
-     it could not begin to render itself. */
-  void sendBlock(const DashAsset& asset) {
-    startMsg(F("BLOCK"));
-    fieldRaw(asset.name);        // generated constants — no stripping needed
-    fieldInt((long)asset.length);
-    fieldRaw(asset.crc);
-    endMsg();
-
-    uint8_t chunk[CHUNK];
-    uint32_t sent = 0;
-    while (sent < asset.length) {
-      uint16_t n = (asset.length - sent > CHUNK) ? CHUNK : (uint16_t)(asset.length - sent);
-      for (uint16_t i = 0; i < n; i++) chunk[i] = pgm_read_byte(asset.bytes + sent + i);
-
-      // Write the chunk out completely before moving on. A Stream may accept fewer
-      // bytes than offered when its buffer is full, and a block that is even one
-      // byte short is a length mismatch at the far end — after the whole payload
-      // has been sent. So push the remainder rather than assuming it went.
-      //
-      // Deliberately NOT flush(): on the ESP32 core that drains the *receive*
-      // buffer, which would quietly eat inbound DASH messages mid-install.
-      uint16_t written = 0;
-      while (written < n) {
-        size_t w = _io->write(chunk + written, n - written);
-        if (w == 0) { yield(); continue; }   // socket busy — let the stack breathe
-        written += w;
-      }
-      sent += n;
-      yield();
-    }
-  }
-
-  static const uint16_t CHUNK = 512;   // one working buffer, reused for every asset
-
-  void (*_onAction)(const char*, const char*) = nullptr;
-  void (*_onActivate)() = nullptr;
-};
+/* The ACCESSORY face is the library's DashAccessory since 1.6.10 — extracted
+   from the draft class this sketch, and its two twins, carried until then. */
 
 /* -------- the module ---------------------------------------------------------- */
 // A distinct id from the SYSTEM modules on the bench so all of them can coexist.
@@ -202,8 +91,8 @@ class DashAccessoryDraft : public DashModule {
 // module whose artwork or bindings have moved on while its version stands still would keep
 // being drawn from the layout already on the tablet's disk. Bumping it is what makes DASH
 // quarantine the stale record and offer the update that re-runs the handshake.
-DashAccessoryDraft dash("0000DA58AC01", "Tank Gauge",
-                        "Air-ride tank pressure panel over WiFi", "v1.3");
+DashAccessory dash("0000DA58AC01", "Tank Gauge",
+                        "Air-ride tank pressure panel over WiFi", "v1.4");
 
 /* -------- this board's own pretend tank --------------------------------------- */
 // No sensor wired up (the roadmap here is about the path, not the plumbing), so the
@@ -211,9 +100,8 @@ DashAccessoryDraft dash("0000DA58AC01", "Tank Gauge",
 float pressure = 0.0;
 const float PRESSURE_MIN = 0.0, PRESSURE_MAX = 11.0, PRESSURE_STEP = 1.0;
 
-unsigned long lastHeartbeat = 0;
 unsigned long lastLinkTry   = 0;
-const unsigned long HEARTBEAT_MS = 2000, LINK_RETRY_MS = 3000;
+const unsigned long LINK_RETRY_MS = 3000;
 
 // Everything this module knows, said out loud. One variable today; a real one
 // would say all of them here, because the panel is drawn from what DASH has been
@@ -245,7 +133,6 @@ void onPanelAction(const char* control, const char* value) {
   DBG.print(F("[dash] ")); DBG.print(control);
   DBG.print(F(" -> ")); DBG.println(pressure);
   dash.report("tank_pressure", pressure, 1);
-  lastHeartbeat = millis();
 }
 
 bool linkUp = false;
@@ -291,26 +178,17 @@ void setup() {
   DBG.print(F("payload: ")); DBG.print(DASH_ASSET_COUNT);
   DBG.print(F(" blocks, ")); DBG.print(DASH_ASSET_TOTAL_BYTES); DBG.println(F(" bytes"));
 
-  WiFi.mode(WIFI_STA);
+#if !defined(ARDUINO_UNOR4_WIFI)
+  WiFi.mode(WIFI_STA);           // ESP32 only — the R4's radio is a station already
+#endif
   dash.onAction(onPanelAction);  // a button on the panel was pressed
-  dash.onActivate(dumpState);    // §8: the panel is correct from its first frame
+  dash.setAssets(DASH_ASSETS, DASH_ASSET_COUNT);  // the install payload, from flash
+  dash.onReport(dumpState);      // §8: on activation, and every heartbeat after
+  dash.setHeartbeat(2000);
   dash.begin(client);            // a WiFiClient is a Stream; the library drives it
 }
 
 void loop() {
   maintainLink();
-  dash.loop();
-
-  if (!dash.isActive()) return;  // SILENT until DASH says otherwise (§6)
-
-  // The heartbeat (§4b). Nothing here changes a value — presses do that, the
-  // moment they arrive — this only re-states what is already true, so that a
-  // DASH which somehow missed a report is corrected within a couple of seconds
-  // rather than for ever. DASH drops an unchanged value before it reaches the
-  // store, so a resend is free and disturbs nothing.
-  unsigned long now = millis();
-  if (now - lastHeartbeat >= HEARTBEAT_MS) {
-    lastHeartbeat = now;
-    dumpState();
-  }
+  dash.loop();   // the library runs the heartbeat while active
 }

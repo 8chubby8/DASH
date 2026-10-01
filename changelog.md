@@ -47,6 +47,81 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.10
+
+**Status:** Complete — 2026-10-01. Hardware-verified by Roger on the Tab S9 Ultra (SM-X910): the
+Tank Gauge on an Uno R4 WiFi over USB and Climate on an ESP32 over Bluetooth, both reinstalled
+through the new library, both panels drawing and answering presses, switching between them on
+the tab bar.
+
+**Scope:** The module SDK for panels — how to write an ACCESSORY — and the lock of
+`module-layout.md`.
+
+**Decisions taken before building** *(Roger, 2026-10-01)*
+
+- **Wall, not island.** The panel spans its edge. Compacting stays what 1.6.9 built it as — a
+  mitigation for a panel that asked for more screen than exists — and does not become a general
+  shape option. Small / Medium / Large stay as they are.
+- **Module icons on tabs wait for version 3.** `MANIFEST` is unchanged; tabs carry the `HELLO`
+  name and/or a pip (1.6.9).
+- **The per-block USB retry (`RESEND`) is deferred.** It was designed in the roadmap for this
+  version and would have been an amendment to the locked `module-sdk.md`; Roger chose not to make
+  it now. USB stays sound for line traffic and a coin-toss for large panel payloads, exactly as
+  before — a failed install is simply tried again.
+- **`translate` stays** — settled 2026-08-14 and not reopened.
+
+**Implemented**
+
+- **`DashAccessory` joins the module library** (`arduino/DashModule/src/DashAccessory.*`, library
+  1.1.0), beside `DashSystem` and `DashListener` — extracted from the draft class the three Gauge
+  sketches carried since 1.6.5. The builder writes three things: `setAssets()` (the generated
+  payload), `onReport()` (say every current value) and `onAction()` (a control was pressed). The
+  library sends the `MANIFEST`, streams every `BLOCK` from flash a chunk at a time, reports on
+  activation and on a heartbeat, routes `ACTION`, and offers `trigger()` for `TRIGGER`. Every send
+  is gated on ACTIVE. A module with more state subclasses it and overrides `handleAction()` /
+  `reportAll()` instead — Climate does.
+- **`DashAsset` moved into the library.** The six `make_assets.py` generators and their generated
+  headers include `<Dash.h>` instead of each defining the struct.
+- **All six panel sketches ported** — Gauge and Climate, over WiFi, Bluetooth and USB — each
+  losing its copy of the install and heartbeat code. Firmware versions bumped (Climate v1.9, Gauge
+  WiFi v1.4, Gauge BT / USB v1.2) so DASH re-runs the handshake through the library.
+- **The Tank Gauge runs on an Uno R4 WiFi.** `GaugeUsb` builds for it unchanged; `GaugeWifi` now
+  builds for it too (`WiFiS3` on the R4, `WiFi` on the ESP32) — compiled, not hardware-tested.
+- **`module-layout.md` is locked**, with Bible weight from here. Its Status section records the
+  lock and keeps the provisional text struck through; Open Items closes `translate` and records
+  the icon deferral. §8's control/variable rule and §9's `touch` table were given their last read
+  and stand as amended at 1.6.7 — the library speaks them exactly (a momentary control arrives
+  with an empty value).
+- **Dated notes, nothing rewritten:** `module-sdk.md` (the layout lock, the library, the
+  deferred `RESEND` — its own rules untouched), `arduino.md` Open Items (where each sub-decision
+  landed), and CLAUDE.md's `module-layout.md` entry.
+- No DASH app code changed. `versionCode` 43 → 44; `versionName` follows this heading.
+
+**Regressions:**
+
+- None found.
+
+**Fixes:**
+
+- None required.
+
+**Outstanding:**
+
+- **USB large-payload corruption** carries forward, now by decision rather than by schedule.
+- **`TRIGGER` reaches DASH but goes nowhere** — the library can raise one; DASH shows it only in
+  the Serial Monitor. The system-bar alert area is not built.
+- `GaugeWifi` on the R4 is untested on hardware.
+- Night slots unreachable, panel warnings only reaching logcat, Bronze unmeasured and
+  `Locale.ROOT` number formatting carry forward from 1.6.8 unchanged.
+
+**Notes:**
+
+- The draft-in-the-sketch-first discipline paid off again, as it did for SYSTEM and LISTENER at
+  1.4.15: three transports carrying one unchanged class was the evidence it belonged in the
+  library, and the extraction changed no behaviour.
+
+---
+
 ## Version 1.6.9
 
 **Status:** Complete — 2026-10-01. The reachability rule, the whole visibility / expansion model,

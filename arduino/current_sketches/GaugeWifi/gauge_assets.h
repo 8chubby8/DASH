@@ -7,14 +7,7 @@
 #ifndef GAUGE_ASSETS_H
 #define GAUGE_ASSETS_H
 
-#include <Arduino.h>
-
-struct DashAsset {
-  const char*    name;    // the BLOCK name — a slot name means it is a layout
-  const uint8_t* bytes;   // in PROGMEM: read with pgm_read_byte
-  uint32_t       length;  // exact byte count, sent in the BLOCK header
-  const char*    crc;     // CRC32, lowercase hex, unpadded (§8)
-};
+#include <Dash.h>   // DashAsset lives in the library (DashAccessory.h)
 
 // h_large_day — 1394 bytes, crc32 3267c8f7
 static const uint8_t ASSET_0[] PROGMEM = {

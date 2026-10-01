@@ -48,58 +48,43 @@
 #define CLIMATE_VALUE_MAX 12      // longest value on any list, plus room ("16.5", "lvl1")
 #endif
 
-class ClimateModule : public DashModule {
+class ClimateModule : public DashAccessory {
  public:
+  /* The library (DashAccessory, 1.6.10) streams the install payload, runs the
+     heartbeat (§4b) and routes ACTIONs here. A 2 s heartbeat means a DASH that
+     somehow missed a report is corrected within a couple of seconds rather
+     than for ever; DASH drops an unchanged value before it reaches its store,
+     so it is free and disturbs no outstanding prediction. */
   ClimateModule(const char* id, const char* name, const char* description,
                 const char* version)
-      : DashModule(id, "ACCESSORY", name, description, version) {}
+      : DashAccessory(id, name, description, version) {
+    setAssets(DASH_ASSETS, DASH_ASSET_COUNT);
+    setHeartbeat(2000);
+  }
 
-  /* Called every loop, after dash.loop(). Reports anything that changed, and
-     re-states everything on a slow heartbeat (§4b) so a DASH that somehow
-     missed a report is corrected within a couple of seconds rather than for
-     ever. DASH drops an unchanged value before it reaches its store, so the
-     heartbeat is free and disturbs no outstanding prediction. */
-  void service() {
-    if (!isActive()) return;
-    unsigned long now = millis();
-    if (now - _lastHeartbeat >= HEARTBEAT_MS) {
-      _lastHeartbeat = now;
-      dump();
-      return;
-    }
+ protected:
+  // Activation and every heartbeat: everything this module knows, said out loud.
+  void reportAll() override { dump(); }
+
+  /* ACTION|id|control|value — a control on the panel was operated.
+
+     A control this firmware does not recognise is ignored in silence: the
+     layout on the tablet may be newer than the firmware on the board, and
+     answering an unknown control with an error would turn ordinary version
+     skew into a fault. Otherwise everything that changed — including the side
+     effects — is reported straight away. */
+  void handleAction(const char* control, const char* value) override {
+    if (!*value) return;                     // every climate control carries a value
+    if (slotFor(control) < 0) return;        // not ours — stay quiet
+    apply(control, value);
     for (uint8_t i = 0; i < COUNT; i++) {
       if (strcmp(_state[i], _sent[i]) != 0) reportOne(i);
     }
   }
 
- protected:
-  void onActivated() override {
-    CLIMATE_LOGLN(F("[dash] ACTIVE — dumping state"));
-    dump();
-  }
-
-  void onDeactivated() override { CLIMATE_LOGLN(F("[dash] SILENT")); }
-
-  /* ACTION|id|control|value — a control on the panel was operated.
-
-     The base class has already checked the id. A control this firmware does
-     not recognise is ignored in silence: the layout on the tablet may be
-     newer than the firmware on the board, and answering an unknown control
-     with an error would turn ordinary version skew into a fault. */
-  void onCommand(int argc, char** argv) override {
-    if (strcmp(argv[0], "ACTION") != 0) return;
-    if (argc < 4) return;                    // every climate control carries a value
-    apply(argv[2], argv[3]);
-  }
-
-  /* The install payload: MANIFEST as a table of contents so DASH can draw a
-     real progress bar, then the blocks. The base sends INSTALL_END after. */
-  void onInstall() override {
-    startMsg(F("MANIFEST"));
-    fieldInt(DASH_ASSET_COUNT);
-    fieldInt((long)DASH_ASSET_TOTAL_BYTES);
-    endMsg();
-    for (uint8_t i = 0; i < DASH_ASSET_COUNT; i++) sendBlock(DASH_ASSETS[i]);
+  void onDeactivated() override {
+    DashAccessory::onDeactivated();
+    CLIMATE_LOGLN(F("[dash] SILENT"));
   }
 
  private:
@@ -194,50 +179,9 @@ class ClimateModule : public DashModule {
   }
 
   void reportOne(uint8_t i) {
-    startMsg(F("REPORT"));
-    field(nameOf(i));
-    field(_state[i]);
-    endMsg();
+    report(nameOf(i), _state[i]);
     strncpy(_sent[i], _state[i], CLIMATE_VALUE_MAX);
   }
-
-  /* One asset: the header line, then exactly `length` raw bytes.
-
-     THE BYTE COUNT IS THE FRAMING. Once the header is out, the next `length`
-     bytes are payload and nothing else. Streamed straight out of PROGMEM a
-     chunk at a time, never held whole in RAM.
-
-     Deliberately NOT flush(): on the ESP32 core that drains the *receive*
-     buffer and would quietly eat inbound DASH messages mid-install. */
-  void sendBlock(const DashAsset& asset) {
-    startMsg(F("BLOCK"));
-    fieldRaw(asset.name);
-    fieldInt((long)asset.length);
-    fieldRaw(asset.crc);
-    endMsg();
-
-    uint8_t chunk[CHUNK];
-    uint32_t sent = 0;
-    while (sent < asset.length) {
-      uint16_t n = (asset.length - sent > CHUNK) ? CHUNK : (uint16_t)(asset.length - sent);
-      for (uint16_t i = 0; i < n; i++) chunk[i] = pgm_read_byte(asset.bytes + sent + i);
-
-      // A Stream may accept fewer bytes than offered when its buffer is full,
-      // and a block one byte short is a length mismatch at the far end after
-      // the whole payload has gone. Push the remainder rather than assume it.
-      uint16_t written = 0;
-      while (written < n) {
-        size_t w = _io->write(chunk + written, n - written);
-        if (w == 0) { yield(); continue; }
-        written += w;
-      }
-      sent += n;
-      yield();
-    }
-  }
-
-  static const uint16_t CHUNK = 512;
-  static const unsigned long HEARTBEAT_MS = 2000;
 
   // Startup state. Every one of these must appear on its variable's list in
   // the layout, spelled identically, or DASH has no index to step from and
@@ -250,7 +194,6 @@ class ClimateModule : public DashModule {
   // than tracking a dirty flag, so a report that never went out is retried.
   char _sent[TOTAL][CLIMATE_VALUE_MAX] = { "", "", "", "", "", "", "", "", "", "" };
 
-  unsigned long _lastHeartbeat = 0;
 };
 
 #endif  // CLIMATE_MODULE_H

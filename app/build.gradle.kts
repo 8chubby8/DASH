@@ -63,7 +63,7 @@ android {
         // documentation only and never got one), and nothing in the changelog records that. It is
         // also far less dangerous stale: a wrong code blocks an in-place nightly update and is
         // noticed immediately, where a wrong name says the wrong thing quietly and forever.
-        versionCode = 43
+        versionCode = 44
 
         // Stamped so About DASH can say when this build was made — a sideloaded head unit has no
         // store listing to read a date from, and "which build is on the tablet" is the first

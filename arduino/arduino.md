@@ -1103,6 +1103,14 @@ Still to settle before the SDK is fully locked:
   framing for VARIABLES and per-trigger icons (likely the same `BLOCK`
   mechanism). *(was Gap 7 sub-decisions)*
 
+> **2026-10-01, roadmap 1.6.10 — where these landed at the lock.** Asset caps: none
+> (`module-layout.md` §2). CRC32 stands. VARIABLES framing: the layout *is* the declaration
+> (`module-layout.md` §9). Mismatch recovery: still abort-the-install — the per-block `RESEND`
+> retry for USB was designed in the roadmap and **deferred** by Roger rather than built.
+> Per-trigger and per-tab icons: **deferred to version 3** (Roger). The layout spec locked the
+> same day, and `DashAccessory` joined the library, extracted from the draft class the three
+> Gauge sketches carried.
+
 ### Future additions (DASH-side — roadmap 1.4.x, not the module SDK)
 
 - **Transport log / serial monitor.** Because every message is pipe-separated

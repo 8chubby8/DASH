@@ -10,7 +10,7 @@
    two sketches log their lifecycle to a spare UART; here there isn't one, so
    ClimateModule's Serial.print calls are compiled out by DASH_SILENT below.
 
-   USB DELIVERS LARGE PAYLOADS UNRELIABLY — see roadmap 1.6.10. An 88 KB Tank
+   USB DELIVERS LARGE PAYLOADS UNRELIABLY — the retry is deferred (roadmap 1.6.10). An 88 KB Tank
    Gauge payload arrived corrupt roughly two installs in five; this panel is a
    fraction of that size, being one SVG and no PNG, so it should fare better.
    The per-block CRC catches it either way and nothing corrupt ever reaches
@@ -26,7 +26,7 @@
 #include "ClimateModule.h"
 
 ClimateModule dash("0000DA58AC06", "Climate USB",
-                   "Single-zone cabin climate over USB serial", "v1.8");
+                   "Single-zone cabin climate over USB serial", "v1.9");
 
 void setup() {
   // 115200 — the project's one serial rate, matched by DASH's UsbSerialTransport and every
@@ -35,12 +35,11 @@ void setup() {
   //
   // **57600 was tried and rejected** (2026-08-13, roadmap 1.6.6). Halving the rate changed
   // nothing measurable — one failure in four against two in five, the same coin. The cause is
-  // neither throughput nor bit time, and the remedy is a per-block retry (1.6.10).
+  // neither throughput nor bit time, and the remedy is a per-block retry (designed for 1.6.10, deferred).
   Serial.begin(115200);
   dash.begin(Serial);            // Serial IS the wire — nothing else may write to it
 }
 
 void loop() {
   dash.loop();
-  dash.service();
 }
