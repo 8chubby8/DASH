@@ -311,7 +311,7 @@ Every version increment — including third number refinements — must have a c
 
 #### 1.7.x — Viewport
 
-**(Up next — 2026-10-01. Work begins at 1.7.1.)**
+**(In progress — 1.7.1 complete 2026-10-01, a test build. Next: 1.7.2, Draw on top.)**
 
 **What it is:** Formal definition and control of the application display area.
 
@@ -327,6 +327,35 @@ Every version increment — including third number refinements — must have a c
 - Viewport mode selector added to Settings — Appearance tab, Viewport section
 
 **Why seventh:** Viewport boundaries depend on knowing where all bars and panels are. Implementing this after the system bar and module panel ensures the calculation is complete and correct.
+
+*(**2026-10-01 — the build sequence, set after the 1.7.1 test build, Roger's call.** The list above
+assumed the viewport was a layout job. 1.7.1 found the real problem: **an ordinary Android app cannot
+tell another app where to draw**, and each way round that works on some hardware and not on others.
+So 1.7.x is built as a **ladder** — System app → Shizuku → Windowed → Draw on top → Full screen — with
+DASH using the highest rung that works on the device it is on, and falling back on its own. The list
+above still stands as what the viewport must end up doing; this is the order it gets there in. One
+version per rung, **bottom up**, each made properly usable before the next. Full screen — the floor,
+where nothing works and the app takes the screen — needs no version of its own.)*
+
+- **1.7.1** — **Test build: which rungs work, on which hardware.** Hand tests on the Tab S9 Ultra and
+  the Pixel 8 Pro, then a test build in DASH that measured the viewport, checked each rung, and opened
+  apps into it. **(Complete — 2026-10-01. A test build only: the code is on the branch
+  `viewport-test-1.7.1`, not on `main`. Findings in changelog.md.)**
+- **1.7.2** — **Draw on top, made properly usable.** The app runs full screen; DASH's bar and panel
+  float over it, and DASH comes forward whenever it needs its whole screen (settings, Home), handing
+  back to the app afterwards. The swap between the two must be seamless; the floating chrome must
+  follow rotation and layout changes; the panel must be able to expand while floating; and a way to
+  open an app is needed until the launcher arrives. *This rung is Passive mode by nature — see the
+  interface.md conflict recorded in the 1.7.1 changelog.*
+- **1.7.3** — **Windowed.** Samsung-style: the app opens in the viewport's rectangle. Open problems
+  carried from 1.7.1: settings rolls out underneath a windowed app, and an app cannot be moved once
+  open.
+- **1.7.4** — **Shizuku.** Full window control on consumer hardware — places apps and keeps them in
+  the box when the layout or rotation changes.
+- **1.7.5** — **System app.** The ideal. Cannot be verified until DASH runs as a system app on real
+  hardware (the Orange Pi), so it sits last and waits for it.
+- **Then** — the look (Flush / Dominant / Passive, corner radius, frosted glass) and the Viewport
+  settings home, once apps reliably land in the box. To be numbered when reached.
 
 ---
 

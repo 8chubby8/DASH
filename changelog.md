@@ -47,6 +47,100 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.7.1
+
+**Status:** Complete — 2026-10-01. **A test build only.** Nothing from it is on `main`: the code
+is kept on the branch `viewport-test-1.7.1` (pushed to GitHub), and `main` is back to 1.6.12's code.
+*(Roger: "let's write code that we know will work with the Samsung tablet… see what it looks like and
+then make decisions. After that we can call it 1.7.1 and in the road map it will be marked as a test
+build only.")*
+
+**Scope:** Find out whether DASH can put another app inside the viewport at all — and if so, how, on
+which hardware.
+
+**The problem 1.7.x turns on.** The roadmap's 1.7.x list assumed the viewport was a layout job: work
+out the rectangle, tell the app to live in it. Working out the rectangle is the easy half — DASH has
+always known it, since it is exactly the space the settings blind rolls into. The hard half is that
+**an ordinary Android app cannot tell another app where to draw.** A launcher opens Maps and Maps
+takes the whole screen. So 1.7.1 set out to test every way round that, by hand first and then in DASH.
+
+**Implemented — the hand tests** (adb, a throwaway probe app, the Tab S9 Ultra on Android 16 and the
+Pixel 8 Pro on Android 17):
+
+| Way of doing it | Tab S9 Ultra (Samsung) | Pixel 8 Pro |
+|---|---|---|
+| **Windowed** — an ordinary app asks Android to open the app at a given rectangle | ✅ placed exactly | ❌ ignored, opens full screen — even with freeform switched on and the phone restarted |
+| **Shizuku** — the same, using shell powers; also moves a window that is already open | ✅ | ✅ |
+| **Draw on top** — the app runs full screen, DASH draws its bar and panel over it | ✅ but the app is partly covered | ✅ but the app is partly covered, and Android's status bar sits above DASH |
+| **System app** | not testable | not testable |
+| **Full screen** — none of the above; the app takes the screen | always | always |
+
+That gave **the ladder**, best first: **System app → Shizuku → Windowed → Draw on top → Full screen.**
+DASH uses the highest rung that actually works on the device it is running on — the CLAUDE.md
+capability-detection pattern, applied to the viewport.
+
+**Implemented — the test build** (on the branch):
+- **The viewport rectangle**, measured from the resting layout in screen pixels.
+- **The windowed check.** DASH opens a blank window of its own at a known rectangle, reads back where
+  Android actually put it, and closes it. The device's own "I support freeform windows" flag cannot be
+  trusted — the Pixel says yes and then ignores every request — so the only honest test is to ask and
+  look.
+- **Windowed and Draw on top, both driven**, plus a stand-in grid of apps drawn in the viewport (the
+  real launcher is 1.8.x), and a **Layout › Viewport** page reporting every rung, the rung in use, and
+  a test-only method picker.
+
+**Achieved:**
+- **On the Tab S9 Ultra, Maps opened in the viewport to the pixel** — 0,119 → 1848,2190, the
+  rectangle DASH measured. Verified on the device.
+- **On the Pixel, the same build tested Windowed, found it did not work, and fell back to full screen
+  on its own.** Verified on the device. One build, two devices, two different answers, nothing told.
+- **Draw on top was built and installed but never seen running** — the tablet dropped off wireless adb
+  partway through the test.
+
+**Found along the way:**
+- **Samsung keeps windowed apps above everything an ordinary app can do.** DASH bringing itself
+  forward, a "go home" request, even launching a full-screen app — all leave Maps on top. Only the
+  user's own Home key tucks windowed apps away. So **settings opened while an app is in the viewport
+  rolls out underneath it.** Shizuku or a system app can solve this; Draw on top sidesteps it.
+- **An ordinary app cannot move a window once it is open.** Opening the same app again with a new
+  rectangle is ignored. So a rotation or a layout change leaves the app where it was first put. Only
+  Shizuku and the system-app rung can keep an app in the box when things change.
+- **Samsung will not let a window cover the top 45px** — its status bar's strip — even with the bar
+  hidden. Not a problem with the bar at the top; it would be with the bar at the bottom.
+- **Samsung puts a thin drag handle on each window**, so the user can drag or resize the app out of
+  its box. The Pixel, through Shizuku, shows none.
+- **DASH's first measurement of the viewport is wrong** — before its saved layout loads it briefly
+  thinks the whole screen is free. Anything that acts on the rectangle must wait for it to settle.
+
+**Decided** *(Roger, 2026-10-01)*:
+- **System app is the ideal; everything below it is a fallback**, and DASH falls back on its own.
+- **1.7.x is rebuilt rung by rung, from the bottom up** — one version per rung, each made properly
+  usable before the next. Full screen needs no version of its own. **1.7.2 is Draw on top.** See
+  roadmap.md.
+- **The test code stays off `main`.** Each rung is built properly in its own version; the branch is
+  there to borrow from, not to merge.
+
+**Outstanding:**
+- **A conflict with interface.md, not resolved here.** The Viewport section says *"apps always fill
+  the viewport completely"* and *"apps receive correct inset information so interactive content
+  respects bar areas even in Passive mode."* Draw on top cannot do either — the app fills the whole
+  screen and is never told about DASH's chrome. **Draw on top is, by nature, Passive mode** ("the
+  viewport extends underneath floating bars"), and it can honestly offer nothing else. Whether
+  interface.md is amended, or Flush and Dominant are offered only on the rungs that can deliver them,
+  is a Bible conversation still to have.
+- **Each rung version needs a way to open an app.** The launcher is 1.8.x; 1.7.2 will need a stand-in.
+- **The System app rung cannot be checked on any hardware DASH has.** It waits for the Orange Pi.
+- The throwaway probe app (`dash.probe`) is still installed on the Tab S9 Ultra and the Pixel.
+- DASH is set as the home app on the Tab S9 Ultra (it was the Samsung launcher before testing).
+
+**Notes:**
+- `versionName` is derived from this file, so a `main` build now reports 1.7.1 while carrying 1.6.12's
+  code. That is accurate — 1.7.1 changed no code on `main`.
+- **Testing on a phone mid-call is fine.** Roger took a call during the Pixel tests and saw two Maps
+  windows; both were the tests' own. The clean re-run after a restart gave identical answers.
+
+---
+
 ## Version 1.6.12
 
 **Status:** Complete — 2026-10-01. Hardware-verified on the Tab S9 Ultra: 20 installs from a classic
