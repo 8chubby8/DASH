@@ -100,6 +100,11 @@ you've described, the procedure as you've described")*
 
 - None from this version. 1.6.12 stays open as the home for any further 1.6.x clean-up Roger
   brings to it; this entry closes the `RESEND` work.
+- *(Later the same day — Roger: "we're now done with 1.6".)* **1.6.12 closes, and with it the
+  1.6.x era — the Module Panel.** Development moves to **1.7.1**, the first version of the
+  Viewport (roadmap 1.7.x). Carried out of 1.6.x unbuilt: `TRIGGER` → the system bar's alerts
+  area, night slots, panel warnings beyond logcat, Bronze measurement, `Locale.ROOT` formatting,
+  the step-down resize ordering, and `GaugeWifi` on the R4 untested.
 
 ---
 

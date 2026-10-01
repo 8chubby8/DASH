@@ -198,6 +198,8 @@ Every version increment — including third number refinements — must have a c
 
 #### 1.6.x — Module Panel
 
+**(Complete — 2026-10-01. The 1.6.x era closed at 1.6.12, Roger's call. Next: 1.7.1, the first version of the Viewport.)**
+
 **What it is:** The display area for installed accessory modules. The core DASH differentiator.
 
 **What gets built:**
@@ -308,6 +310,8 @@ Every version increment — including third number refinements — must have a c
 ---
 
 #### 1.7.x — Viewport
+
+**(Up next — 2026-10-01. Work begins at 1.7.1.)**
 
 **What it is:** Formal definition and control of the application display area.
 
