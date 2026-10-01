@@ -47,6 +47,66 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.11
+
+**Status:** Complete — 2026-10-01. Hardware-verified by Roger on the Pixel 8 Pro with the Tank
+Gauge (Uno R4, USB) and Climate (ESP32, Bluetooth). **This closes the 1.6.x era — the Module
+Panel.**
+
+**Scope:** The panel questions deferred across 1.6.8–1.6.10, answered together in the Module
+Manager: the order, a main module, handing the panel back, and what each module shipped.
+
+**Decisions** *(Roger, 2026-10-01)*
+
+- **The main module is optional and off by default.** With none, DASH reopens on the last module
+  shown — 1.6.8's rule, unchanged. With one set, DASH starts on it every time. That settles the
+  roadmap's question of whether the two rules collide: they don't, because one only applies when
+  the other is switched off.
+- **Return to main defaults to Never.** DASH does nothing until asked.
+- **Order by up / down arrows**, not drag — simpler, and dependable with a gloved finger.
+- **`TRIGGER` never takes the module panel.** *"There will never be a trigger that takes control
+  of a module panel. The triggers will go in the alerts area on the system bar only."* This
+  retires the roadmap's speculation that a module raising its hand and the dwell handing the panel
+  back were the same mechanism, and the reversing-camera case that joined them.
+
+**Implemented**
+
+- **Modules › Module Management lists installed modules in tab order.** Select a panel module and
+  the top bar offers **▲ / ▼** and **SET MAIN / CLEAR MAIN** beside UPDATE / UNINSTALL. The main
+  module wears a neutral **MAIN** chip. Order and main appear only for modules that ship a layout.
+  The first move writes the whole visible order, so modules never placed get a position at once.
+- **The layouts a module shipped, on its card** — the count and the slot names
+  (`2 layouts — h_large_day · h_small_day`), in the canonical slot order. A plain fact about the
+  module, stated against its record; never on the size tiles, per 1.6.8's ruling.
+- **The tab bar follows the order.** `ModulePanelConfig.order` holds the ids; anything unlisted
+  follows in name order, so a newly installed module simply joins the end.
+- **Layout › Module Panel › Main module › Return to main after** — Never, 10 s … 5 min. A touch
+  inside the panel restarts the count, as the fold-back dwell already does. It sits with the
+  panel's other timer because it is panel behaviour; the main module itself is chosen in the
+  Module Manager, against the module's record, as the roadmap placed it.
+- **The switch transition** (`MODULE_PANEL_SWITCH`, 1.6.8) was already surfacing in Transitions
+  on its own, as the self-growing registry intended — checked, nothing built.
+- `versionCode` 44 → 45.
+
+**Regressions:**
+
+- None found.
+
+**Fixes:**
+
+- None required.
+
+**Outstanding (carried out of 1.6.x):**
+
+- **`TRIGGER` → the system bar's alert area** — still unbuilt; it reaches only the Serial Monitor.
+- **USB large-payload corruption** — the per-block retry stays deferred (1.6.10).
+- Night slots unreachable, panel warnings only reaching logcat, Bronze unmeasured,
+  `Locale.ROOT` number formatting, the step-down resizing before the new layout arrives, and
+  `GaugeWifi` on the R4 untested — all carry forward.
+- Stacking against the app launcher goes with the launcher (1.8.x), as decided 2026-07-30.
+
+---
+
 ## Version 1.6.10
 
 **Status:** Complete — 2026-10-01. Hardware-verified by Roger on the Tab S9 Ultra (SM-X910): the

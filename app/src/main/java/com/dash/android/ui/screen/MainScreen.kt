@@ -43,6 +43,7 @@ import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -107,6 +108,7 @@ import com.dash.android.ui.systembar.DashAction
 import com.dash.android.ui.systembar.EditRuler
 import com.dash.android.ui.systembar.SystemBar
 import com.dash.android.ui.systembar.SystemBarConfig
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 @Composable
@@ -343,9 +345,11 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
              * Database order — no ordering in this version, since the panel order and the dominant
              * module are one story, told once at 1.6.11.
              */
+            // In the user's tab order (roadmap 1.6.11) — Modules › Module Management's arrows.
             val fullCandidates = rememberPanelCandidates(controller.database, fullSlot)
-            val restCandidates = restSlot?.let { rememberPanelCandidates(controller.database, it) }
-                ?: emptyList()
+                .let { list -> modulePanelConfig.inOrder(list, { it.id }, { it.name }) }
+            val restCandidates = (restSlot?.let { rememberPanelCandidates(controller.database, it) }
+                ?: emptyList()).let { list -> modulePanelConfig.inOrder(list, { it.id }, { it.name }) }
             val panelCandidates = remember(fullCandidates, restCandidates) {
                 (fullCandidates + restCandidates).distinctBy { it.id }
             }
@@ -356,9 +360,31 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // simply not found here and falls back the same way, with nothing to clean up.
             val lastPanelModule by prefs.modulePanelLastModule.collectAsState(initial = null)
             var tappedModuleId by remember { mutableStateOf<String?>(null) }
-            val chosenModule = remember(panelCandidates, tappedModuleId, lastPanelModule) {
-                val wanted = tappedModuleId ?: lastPanelModule
-                panelCandidates.firstOrNull { it.id == wanted } ?: panelCandidates.firstOrNull()
+            //
+            // **A main module replaces "last shown" as the starting point** (roadmap 1.6.11, Roger):
+            // with one set, DASH starts on it every ignition; with none, 1.6.8's rule stands.
+            val mainId = modulePanelConfig.mainModuleId
+            val chosenModule = remember(panelCandidates, tappedModuleId, lastPanelModule, mainId) {
+                val wanted = tappedModuleId ?: mainId ?: lastPanelModule
+                panelCandidates.firstOrNull { it.id == wanted }
+                    ?: panelCandidates.firstOrNull { it.id == mainId }
+                    ?: panelCandidates.firstOrNull()
+            }
+
+            /*
+             * **The panel hands itself back to the main module** after [returnSeconds] on another
+             * one (roadmap 1.6.11). Never by default. A touch inside the panel restarts the count, so
+             * it never leaves while you are using it — the same courtesy the fold-back dwell gives.
+             */
+            var panelTouchTick by remember { mutableIntStateOf(0) }
+            val returnSeconds = modulePanelConfig.returnSeconds
+            LaunchedEffect(chosenModule?.id, mainId, returnSeconds, panelTouchTick) {
+                if (returnSeconds <= 0 || mainId == null) return@LaunchedEffect
+                if (chosenModule == null || chosenModule.id == mainId) return@LaunchedEffect
+                if (panelCandidates.none { it.id == mainId }) return@LaunchedEffect
+                delay(returnSeconds * 1000L)
+                tappedModuleId = mainId
+                prefs.saveModulePanelLastModule(mainId)
             }
 
             /*
@@ -855,7 +881,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                         onPress = presses.press,
                         // Observed, never claimed — the dwell must not fold the panel shut under a
                         // finger, and 1.6.8 gave the gesture itself to the module.
-                        onTouch = expansion::noteTouch,
+                        onTouch = { expansion.noteTouch(); panelTouchTick++ },
                     )
                 }
 

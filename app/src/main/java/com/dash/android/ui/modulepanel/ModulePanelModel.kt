@@ -189,6 +189,20 @@ data class ModulePanelConfig(
     val tabSpread: TabSpread = TabSpread.FILL,
     /** Which way round the bar takes the theme's two surfaces. */
     val tabColour: TabColour = TabColour.LIGHT,
+    /**
+     * The tab order, as module ids (roadmap 1.6.11). Set from Modules › Module Management with up /
+     * down arrows. Ids not listed — a module installed since — follow in name order, so a new
+     * module simply joins the end and nothing has to be written for it.
+     */
+    val order: List<String> = emptyList(),
+    /**
+     * The main module, or null for none — **none is the default** *(Roger, 2026-10-01)*. With none,
+     * DASH reopens on whichever module was last shown (1.6.8). With one, DASH starts on it, and
+     * [returnSeconds] can hand the panel back to it.
+     */
+    val mainModuleId: String? = null,
+    /** Seconds another module stays up before the main one returns. **0 is Never, the default.** */
+    val returnSeconds: Int = 0,
 ) {
     /**
      * The bar's thickness as the layout pays for it — zero when hidden. Every measurement of the
@@ -214,8 +228,18 @@ data class ModulePanelConfig(
             PanelVisibility.SHRUNK -> restSize
         }
 
+    /** [modules] in the user's tab order, unlisted ones after in name order. */
+    fun <T> inOrder(modules: List<T>, id: (T) -> String, name: (T) -> String): List<T> =
+        modules.sortedWith(
+            compareBy<T> { m -> order.indexOf(id(m)).let { if (it < 0) Int.MAX_VALUE else it } }
+                .thenBy { name(it).lowercase() }
+        )
+
     companion object {
         fun default() = ModulePanelConfig()
+
+        /** The return timer's stops, in seconds. 0 is Never. */
+        val RETURN_STOPS = listOf(0, 10, 20, 30, 45, 60, 90, 120, 180, 300)
 
         /** Resting sizes that have something thicker to expand into — everything but the thickest. */
         fun restChoices(): List<PanelSize> =

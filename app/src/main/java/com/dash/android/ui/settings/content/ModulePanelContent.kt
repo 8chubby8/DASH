@@ -257,6 +257,43 @@ fun ModulePanelContent() {
             )
         }
 
+        /*
+         * **Return to main** (roadmap 1.6.11). The main module itself is chosen in Modules › Module
+         * Management, against the module's own record; this is panel behaviour, so it sits with the
+         * panel's other timer. Never by default (Roger) — DASH does nothing here until asked.
+         */
+        SettingsSectionHeader("Main module")
+        SettingBlock(
+            name = "Return to main after",
+            help = "How long another module stays on the panel before the main module comes back. " +
+                "Touching the panel starts the count again. Choose the main module in Modules › " +
+                "Module Management.",
+            control = {
+                val stops = ModulePanelConfig.RETURN_STOPS
+                val v = config.returnSeconds
+                val i = stops.indexOfFirst { it >= v }.let { if (it < 0) stops.lastIndex else it }
+                Stepper(
+                    value = when {
+                        v <= 0 -> "Never"
+                        v < 60 -> "$v s"
+                        v % 60 == 0 -> "${v / 60} min"
+                        else -> "${v / 60} min ${v % 60} s"
+                    },
+                    sub = if (config.mainModuleId == null) "no main set"
+                        else if (i == stops.lastIndex) "max" else null,
+                    modifier = Modifier.width(controlWidth(LocalDensity.current.fontScale)),
+                    onMinus = {
+                        val n = stops[(i - 1).coerceAtLeast(0)]
+                        scope.launch { prefs.saveModulePanelConfig(config.copy(returnSeconds = n)) }
+                    },
+                    onPlus = {
+                        val n = stops[(i + 1).coerceAtMost(stops.lastIndex)]
+                        scope.launch { prefs.saveModulePanelConfig(config.copy(returnSeconds = n)) }
+                    },
+                )
+            },
+        )
+
         // Selector last, and last on purpose (Roger, 2026-08-26). The page reads as one continuous
         // answer top to bottom — what the panel does, where it sits, how big it is, then the bar
         // that hangs off it. The bar is the smallest of the decisions and the only one that means

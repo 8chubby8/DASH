@@ -24,6 +24,12 @@ import androidx.compose.runtime.collectAsState
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
+import androidx.compose.ui.platform.LocalContext
+import com.dash.android.panel.LayoutSlot
+import com.dash.android.prefs.DashPreferences
+import com.dash.android.ui.modulepanel.ModulePanelConfig
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -120,11 +126,17 @@ fun ModulesContent() {
     // in the pinned top bar beside REFRESH. Tap the same card again to clear the selection.
     var selectedId by remember { mutableStateOf<String?>(null) }
 
-    // The merged list: installed modules first (alphabetical — they're what you own), then this
-    // session's discovered-but-not-installed modules in the order they answered.
-    val rows = remember(discovered, installed) {
-        installed.values
-            .sortedBy { it.name.lowercase() }
+    // The panel's order and main module (roadmap 1.6.11) live with the panel's own settings.
+    val context = LocalContext.current
+    val prefs = remember { DashPreferences(context.applicationContext) }
+    val scope = rememberCoroutineScope()
+    val panelConfig by prefs.modulePanelConfig.collectAsState(initial = ModulePanelConfig.default())
+
+    // The merged list: installed modules first, **in the panel's tab order** since 1.6.11 — so this
+    // list is the order, and the arrows move a module within it. Modules never placed fall back to
+    // name order. Then this session's discovered-but-not-installed modules in the order they answered.
+    val rows = remember(discovered, installed, panelConfig.order) {
+        panelConfig.inOrder(installed.values.toList(), { it.id }, { it.name })
             .map { ModuleRow(it.id, it.type, it.name, it.description, it.version, installedRecord = it) } +
         discovered
             .filterNot { installed.containsKey(it.id) }
@@ -171,6 +183,22 @@ fun ModulesContent() {
                     // 1.4.13: a firmware update is a reinstall — the controller forgets the stale record
                     // and re-runs the handshake, re-capturing the contract from the new firmware.
                     onUpdate = { desk.onUpdate(selectedRow.id) },
+                    isMain = selectedRow.id == panelConfig.mainModuleId,
+                    onMove = { step ->
+                        // Re-write the whole order from what is on screen, so a module never
+                        // placed before gets a position the moment anything moves.
+                        val ids = rows.filter { it.installedRecord != null }.map { it.id }.toMutableList()
+                        val from = ids.indexOf(selectedRow.id)
+                        val to = from + step
+                        if (from >= 0 && to in ids.indices) {
+                            ids.add(to, ids.removeAt(from))
+                            scope.launch { prefs.saveModulePanelConfig(panelConfig.copy(order = ids)) }
+                        }
+                    },
+                    onToggleMain = {
+                        val next = if (selectedRow.id == panelConfig.mainModuleId) null else selectedRow.id
+                        scope.launch { prefs.saveModulePanelConfig(panelConfig.copy(mainModuleId = next)) }
+                    },
                 )
             }
         }
@@ -199,6 +227,7 @@ fun ModulesContent() {
                             reportedVersion = mismatch[row.id],
                             transport = desk.reconciliation.transportTag(row.id),
                             selected = row.id == selectedId,
+                            isMain = row.id == panelConfig.mainModuleId,
                             onSelect = { selectedId = if (selectedId == row.id) null else row.id },
                         )
                     }
@@ -232,6 +261,9 @@ private fun SelectedActions(
     onDismiss: () -> Unit,
     onUninstall: () -> Unit,
     onUpdate: () -> Unit,
+    isMain: Boolean,
+    onMove: (Int) -> Unit,
+    onToggleMain: () -> Unit,
 ) {
     Row(
         horizontalArrangement = Arrangement.spacedBy(10.dp, Alignment.End),
@@ -244,6 +276,12 @@ private fun SelectedActions(
             }
             is InstallState.Failed -> FailedContent(state.reason, Modifier, onRetry, onDismiss)
             null -> if (row.installedRecord != null) {
+                // Order and main only mean something for a module that can be drawn in the panel.
+                if (row.installedRecord.slots.isNotEmpty()) {
+                    ActionButton("▲", INACTIVE) { onMove(-1) }
+                    ActionButton("▼", INACTIVE) { onMove(1) }
+                    ActionButton(if (isMain) "CLEAR MAIN" else "SET MAIN", INACTIVE, onToggleMain)
+                }
                 if (reportedVersion != null) ActionButton("UPDATE", UPDATE_FILL, onUpdate)
                 ActionButton("UNINSTALL", UNINSTALL_ACCENT, onUninstall)
             } else {
@@ -279,6 +317,7 @@ private fun ModuleCard(
     reportedVersion: String?,
     transport: String?,
     selected: Boolean,
+    isMain: Boolean,
     onSelect: () -> Unit,
 ) {
     val theme = LocalDashTheme.current
@@ -322,6 +361,7 @@ private fun ModuleCard(
                 )
             }
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalAlignment = Alignment.CenterVertically) {
+                if (isMain) MainChip()
                 if (isInstalled && reportedVersion != null) MismatchChip()
                 if (isInstalled) ActivityChip(activity ?: ModuleActivity.DORMANT)
                 if (transport != null) TransportChip(transport)
@@ -347,6 +387,25 @@ private fun ModuleCard(
             if (row.version.isNotBlank()) {
                 Text(row.version, color = inkFaint, fontSize = TINY, fontFamily = theme.font, maxLines = 1, softWrap = false)
             }
+        }
+        /*
+         * **What the author shipped, stated against the module's record** (roadmap 1.6.11, Roger) —
+         * the count and which of the twelve slots, since "three layouts" does not tell you whether
+         * you will see this module at small. A plain fact about the module, not DASH explaining
+         * its own behaviour, which is why it lives here and never on the panel size tiles.
+         */
+        val slots = row.installedRecord?.slots.orEmpty()
+        if (slots.isNotEmpty()) {
+            Text(
+                "${slots.size} layout${if (slots.size == 1) "" else "s"} — " +
+                    slots.sortedBy { LayoutSlot.ALL.indexOf(it) }.joinToString(" · ") { it.blockName },
+                color = inkMuted,
+                fontSize = TINY,
+                fontFamily = theme.font,
+                maxLines = 1,
+                softWrap = false,
+                modifier = Modifier.fillMaxWidth().horizontalScroll(rememberScrollState()),
+            )
         }
     }
 }
@@ -452,6 +511,19 @@ private fun ActivityChip(activity: ModuleActivity) {
 /** The 1.4.13 firmware-mismatch marker: the module is reporting a version different from the one
  *  stored at install, so its stored contract may be stale and UPDATE is offered in the top bar when
  *  the card is selected. */
+/** Marks the main module (roadmap 1.6.11) — neutral, since it is a choice and not a status. */
+@Composable
+private fun MainChip() {
+    val ink = LocalDashTheme.current.textColourSecondary
+    Box(
+        modifier = Modifier
+            .background(ink.copy(alpha = 0.14f), RoundedCornerShape(4.dp))
+            .padding(horizontal = 8.dp, vertical = 3.dp)
+    ) {
+        Text("MAIN", color = ink, fontSize = TINY, fontFamily = LocalDashTheme.current.font, letterSpacing = 1.sp)
+    }
+}
+
 @Composable
 private fun MismatchChip() {
     Box(
