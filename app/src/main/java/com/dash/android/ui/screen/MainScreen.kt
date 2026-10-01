@@ -417,7 +417,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                     screenWidth = screenWidth,
                     screenHeight = maxHeight,
                     barThickness = barThickness,
-                    tabThickness = modulePanelConfig.tabThicknessDp.dp,
+                    tabThickness = modulePanelConfig.tabBarDp.dp,
                     fontScale = LocalDensity.current.fontScale,
                     canDraw = { size ->
                         selectedModule?.canFill(slotFor(size, panelEdge)) == true
@@ -451,7 +451,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
             // It is measured here, above the panel's own geometry, because compacting has to know
             // what the bar has already taken before it can say what is left for the panel.
             val tabThickness =
-                if (panelDocument == null) 0.dp else modulePanelConfig.tabThicknessDp.dp
+                if (panelDocument == null) 0.dp else modulePanelConfig.tabBarDp.dp
 
             /*
              * **What the assembly has to grow into, perpendicular to the docked edge.** The bar is
@@ -878,12 +878,17 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 val tabX by animateDpAsState(tabTargetX, moveSpec, label = "moduleTabsX")
                 val tabY by animateDpAsState(tabTargetY, moveSpec, label = "moduleTabsY")
 
-                ModuleTabs(
+                // Hidden is hidden — no bar, and [ModulePanelConfig.tabBarDp] has already handed its
+                // thickness back to the viewport.
+                if (modulePanelConfig.tabShown) ModuleTabs(
                     modules = panelCandidates,
                     selectedId = panelDocument.moduleId,
                     horizontal = panelEdge.horizontal,
                     width = tabW,
                     height = tabH,
+                    style = modulePanelConfig.tabStyle,
+                    spread = modulePanelConfig.tabSpread,
+                    colour = modulePanelConfig.tabColour,
                     modifier = Modifier.align(Alignment.TopStart).offset(x = tabX, y = tabY),
                     onSelect = { id ->
                         /*

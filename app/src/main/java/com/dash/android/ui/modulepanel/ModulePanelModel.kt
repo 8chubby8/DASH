@@ -99,6 +99,39 @@ enum class PanelVisibility(val label: String) {
     val expands: Boolean get() = this == RETRACTED || this == SHRUNK
 }
 
+/** What each tab carries (roadmap 1.6.9). The 1.6.8 bar showed names only, so that is the default. */
+@Serializable
+enum class TabStyle(val label: String) {
+    NAME("Names"),
+    PIPS("Pips"),
+    BOTH("Both"),
+}
+
+/**
+ * How the tabs sit along the bar (roadmap 1.6.9 — *Spread*, Roger's word). [FILL] shares the whole
+ * edge between the tabs, which is the 1.6.8 behaviour; the other three size each tab to what it
+ * carries and gather them at the start, the middle or the end of the edge. Start is left on a
+ * horizontal bar and top on a vertical one.
+ */
+@Serializable
+enum class TabSpread(val label: String) {
+    FILL("Fill"),
+    START("Start"),
+    CENTRE("Centre"),
+    END("End"),
+}
+
+/**
+ * Which theme surface the bar takes (roadmap 1.6.9). Both are the theme's own pairings, never a
+ * free colour: [LIGHT] is the primary surface with a dark selected pill — the 2026-08-26 pairing —
+ * and [DARK] swaps them. The tokens themselves stay the user's, in Appearance.
+ */
+@Serializable
+enum class TabColour(val label: String) {
+    LIGHT("Light"),
+    DARK("Dark"),
+}
+
 /** How long the panel stays expanded before folding back. Seconds, on a stepper like every other size in DASH. */
 object PanelDwellSpec {
     const val DEFAULT_SECONDS = 10
@@ -142,7 +175,28 @@ data class ModulePanelConfig(
      * reinterpret every config already written to disk without that value.
      */
     val tabThicknessDp: Int = 36,
+    /**
+     * Whether the tab bar is drawn at all (roadmap 1.6.9). **Hidden is a plain preference and needs
+     * no guarding** — rule 2 already guarantees settings can open whatever the panel is doing, so
+     * Layout › Module Panel is reachable from any configuration and the bar can always be brought
+     * back. What hiding costs is the user's to judge: no switching, and under
+     * [PanelVisibility.RETRACTED] nothing to pull the panel out with.
+     */
+    val tabShown: Boolean = true,
+    /** What a tab shows — the module's name, a pip, or both. */
+    val tabStyle: TabStyle = TabStyle.NAME,
+    /** Whether the tabs share the whole edge or gather at one end or the middle of it. */
+    val tabSpread: TabSpread = TabSpread.FILL,
+    /** Which way round the bar takes the theme's two surfaces. */
+    val tabColour: TabColour = TabColour.LIGHT,
 ) {
+    /**
+     * The bar's thickness as the layout pays for it — zero when hidden. Every measurement of the
+     * assembly goes through this rather than [tabThicknessDp], so a hidden bar gives its space
+     * back to the viewport and rule 2 measures the screen that is really there.
+     */
+    val tabBarDp: Int get() = if (tabShown) tabThicknessDp else 0
+
     /**
      * The size the panel **rests** at, or null when nothing rests — [PanelVisibility.OFF] has no
      * panel and [PanelVisibility.RETRACTED] rests off screen behind its edge.

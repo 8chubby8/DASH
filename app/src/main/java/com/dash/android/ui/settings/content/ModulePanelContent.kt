@@ -40,6 +40,9 @@ import com.dash.android.ui.modulepanel.PanelSize
 import com.dash.android.ui.modulepanel.PanelDwellSpec
 import com.dash.android.ui.modulepanel.PanelVisibility
 import com.dash.android.ui.modulepanel.PanelEdge
+import com.dash.android.ui.modulepanel.TabColour
+import com.dash.android.ui.modulepanel.TabSpread
+import com.dash.android.ui.modulepanel.TabStyle
 import com.dash.android.ui.modulepanel.effectiveEdge
 import com.dash.android.ui.systembar.BarPosition
 import com.dash.android.ui.systembar.SystemBarConfig
@@ -260,6 +263,16 @@ fun ModulePanelContent() {
         // nothing until there are two modules to switch between, so it earns the bottom.
         SettingsSectionHeader("Selector")
 
+        // **Shown or hidden first** — like Visibility above, the rest of the section is built from
+        // it. Hiding needs no guard (roadmap 1.6.9): rule 2 guarantees this page can always be
+        // reached, so the bar can always be brought back from here.
+        ChoiceRow(
+            choices = listOf(true to "Shown", false to "Hidden"),
+            selected = config.tabShown,
+        ) { v -> scope.launch { prefs.saveModulePanelConfig(config.copy(tabShown = v)) } }
+
+        if (!config.tabShown) return@Column
+
         SettingBlock(
             name = "Selector size",
             help = "How thick the module tab bar is. It sits outside the panel, so its thickness " +
@@ -283,6 +296,47 @@ fun ModulePanelContent() {
                 )
             },
         )
+
+        SettingsSectionHeader("Tab style")
+        ChoiceRow(
+            choices = TabStyle.entries.map { it to it.label },
+            selected = config.tabStyle,
+        ) { v -> scope.launch { prefs.saveModulePanelConfig(config.copy(tabStyle = v)) } }
+
+        // Start and End are named for the bar as it is actually drawn — left and right on a
+        // horizontal bar, top and bottom on a vertical one — so the words match what moves.
+        SettingsSectionHeader("Spread")
+        ChoiceRow(
+            choices = TabSpread.entries.map { spread ->
+                spread to when (spread) {
+                    TabSpread.START -> if (drawnNow.horizontal) "Left" else "Top"
+                    TabSpread.END -> if (drawnNow.horizontal) "Right" else "Bottom"
+                    else -> spread.label
+                }
+            },
+            selected = config.tabSpread,
+        ) { v -> scope.launch { prefs.saveModulePanelConfig(config.copy(tabSpread = v)) } }
+
+        SettingsSectionHeader("Colour")
+        ChoiceRow(
+            choices = TabColour.entries.map { it to it.label },
+            selected = config.tabColour,
+        ) { v -> scope.launch { prefs.saveModulePanelConfig(config.copy(tabColour = v)) } }
+    }
+}
+
+/** A row of plain labelled tiles, one per choice — the same tile Visibility uses. */
+@Composable
+private fun <T> ChoiceRow(choices: List<Pair<T, String>>, selected: T, onPick: (T) -> Unit) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(TILE_GAP),
+    ) {
+        choices.forEach { (value, label) ->
+            VisibilityTile(label = label, selected = value == selected, modifier = Modifier.weight(1f)) {
+                onPick(value)
+            }
+        }
     }
 }
 

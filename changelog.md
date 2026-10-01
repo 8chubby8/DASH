@@ -49,9 +49,10 @@ Each version entry follows this structure:
 
 ## Version 1.6.9
 
-**Status:** In Progress — the reachability rule, the whole visibility / expansion model and
-compacting are built and hardware-verified. The tab bar's own customisation (style, spread, chosen
-colours, whether it shows at all) is all that remains.
+**Status:** Complete — 2026-10-01. The reachability rule, the whole visibility / expansion model,
+compacting, and the tab bar's own customisation are all built and hardware-verified.
+*(Was "In Progress — the tab bar's own customisation is all that remains" until the last piece
+landed on 2026-10-01.)*
 
 **Scope:** The trap this version exists for. **Whatever the user configures, the settings panel must
 stay usable** — because the module panel's own setting lives inside it, and a panel large enough to
@@ -319,6 +320,33 @@ to exist than a board nobody has yet.
   without deriving the scale from a known quantity first — here, a tab pill plus its padding coming
   to exactly 96px at a 32dp setting.
 
+**Built 2026-10-01 — the tab bar's own settings, the last of 1.6.9**
+
+- **Settings › Layout › Module Panel › Selector now holds the whole bar.** In page order: **Shown /
+  Hidden**, then Selector size (1.6.8), **Tab style**, **Spread** and **Colour**. Built from the
+  first choice, as Visibility is above it — hide the bar and the other four controls are not drawn.
+- **Shown / Hidden** — `ModulePanelConfig.tabShown`. A hidden bar is not drawn and **gives its
+  thickness back to the viewport**: every measurement of the assembly (layout, compacting, rule 2's
+  yield, the settings inset) now goes through `tabBarDp`, which is zero when hidden, rather than
+  through `tabThicknessDp`. Built as a plain preference with no guard, exactly as the Outstanding
+  note below argued it could be. **Known and left as the user's choice:** hidden *and* Retracted
+  leaves nothing on screen to draw the panel out with. Settings still reaches the switch, so nobody
+  is stranded — the combination is simply one that shows no panel.
+- **Tab style** — `TabStyle`: **Names** (the 1.6.8 bar, and the default), **Pips**, or **Both**. A pip
+  is an 8dp dot in the tab's own ink. On a vertical bar the pip and the name turn together, so Both
+  reads the same way round on either bar.
+- **Spread** — `TabSpread`: **Fill** (the 1.6.8 behaviour, default) shares the edge between the tabs;
+  **Start / Centre / End** size each tab to what it carries, never shorter than the bar is thick, and
+  gather them. The settings labels follow the bar actually drawn — Left / Right on a horizontal bar,
+  Top / Bottom on a vertical one — so the word names what moves.
+- **Colour** — `TabColour`: **Light** (the 2026-08-26 pairing, default) or **Dark**, which swaps the
+  two theme surfaces. Still only theme tokens, never a free colour — the tokens themselves stay the
+  user's in Appearance, and both pairings keep `DashTheme`'s ink rule.
+- **Defaults reproduce the 1.6.8 bar exactly**, so an existing install looks unchanged until the user
+  touches something. The new fields are serialised with literal defaults, the same discipline as
+  `tabThicknessDp`.
+- **Hardware-verified by Roger on the Pixel 8 Pro, 2026-10-01** — "all working".
+
 **Regressions:**
 
 - **None found.** Tab membership, the cross-fade, the press predictions and the module selection all
@@ -330,8 +358,9 @@ to exist than a board nobody has yet.
 
 **Outstanding:**
 
-- **The tab bar's own customisation is still to come** — Style (pips / name / both), Spread (fill the
-  edge or gather to one end), the chosen colour pairing, and whether it shows at all.
+- ~~**The tab bar's own customisation is still to come** — Style (pips / name / both), Spread (fill the
+  edge or gather to one end), the chosen colour pairing, and whether it shows at all.~~ **Done
+  2026-10-01** — see "Built 2026-10-01" above.
 - **"Whether the bar shows at all" no longer carries this version's trap, and the reason should not
   have to be re-derived.** The roadmap warns that hiding the only switch a user has strands them on
   one module with no way off it. **Rule 2 already answers it.** The system bar can never be hidden,

@@ -8,6 +8,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -17,6 +20,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.layout.layout
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
@@ -48,9 +52,9 @@ import com.dash.android.ui.theme.LocalDashTheme
  * the state of its board. Two boards running the same firmware are two modules and get two identical
  * tabs *(Roger)*.
  *
- * **Style is deliberately plain here.** Thickness, tab style, alignment, colour and whether the bar
- * shows at all become the user's at **1.6.9**, where the bar also picks up its second job as the
- * floating panel's peek strip. What is built here is only enough to switch panels.
+ * **Its dress is the user's** — thickness since 1.6.8, and at **1.6.9** tab style, spread, colour
+ * pairing and whether the bar shows at all, alongside its second job as the floating panel's peek
+ * strip. All of it is DASH's own surface outside the castle walls, which is why it may be dressed.
  */
 object ModuleTabsSpec {
     /**
@@ -97,6 +101,10 @@ object ModuleTabsSpec {
  * [horizontal] follows the *panel's* orientation rather than the bar's own reading direction: a
  * panel docked top or bottom gives a wide bar with tabs side by side, and a panel docked left or
  * right gives a tall one with tabs stacked and their labels turned to read bottom-to-top.
+ *
+ * [style], [spread] and [colour] are the user's since 1.6.9. **Under [TabSpread.FILL] every tab is
+ * a share of the edge; under the other three each tab is as long as what it carries**, with the
+ * bar's own thickness as a minimum so a pip-only tab is never thinner than it is deep.
  */
 @Composable
 fun ModuleTabs(
@@ -106,25 +114,39 @@ fun ModuleTabs(
     width: Dp,
     height: Dp,
     modifier: Modifier = Modifier,
+    style: TabStyle = TabStyle.NAME,
+    spread: TabSpread = TabSpread.FILL,
+    colour: TabColour = TabColour.LIGHT,
     onSelect: (String) -> Unit = {},
 ) {
-    val theme = LocalDashTheme.current
+    val palette = tabPalette(colour)
+    val fill = spread == TabSpread.FILL
+    // The tab's minimum length along the bar is the bar's own inner thickness — square at least.
+    val minLength = ((if (horizontal) height else width) - TAB_INSET * 2).coerceAtLeast(0.dp)
+    val gather = when (spread) {
+        TabSpread.FILL, TabSpread.START -> Arrangement.spacedBy(TAB_GAP, Alignment.Start)
+        TabSpread.CENTRE -> Arrangement.spacedBy(TAB_GAP, Alignment.CenterHorizontally)
+        TabSpread.END -> Arrangement.spacedBy(TAB_GAP, Alignment.End)
+    }
+    val gatherVertical = when (spread) {
+        TabSpread.FILL, TabSpread.START -> Arrangement.spacedBy(TAB_GAP, Alignment.Top)
+        TabSpread.CENTRE -> Arrangement.spacedBy(TAB_GAP, Alignment.CenterVertically)
+        TabSpread.END -> Arrangement.spacedBy(TAB_GAP, Alignment.Bottom)
+    }
     Box(
         modifier = modifier
             .size(width.coerceAtLeast(0.dp), height.coerceAtLeast(0.dp))
-            // The bar takes the *primary* surface, the light one (Roger, 2026-08-26 — the pairing
-            // was the other way round when the bar was first drawn at 1.6.8). It matches the panel's
-            // own floor, which is the same token: where a module leaves its floor bare the bar and
-            // the panel read as one surface, and where a module fills its box — Climate does — the
-            // join never shows. The selection is what carries the contrast now, not the bar.
-            .background(theme.backgroundColourPrimary)
+            // The bar takes one of the theme's two surfaces, whichever way round the user chose.
+            // Under [TabColour.LIGHT] it matches the panel's own floor, which is the same token:
+            // where a module leaves its floor bare the bar and the panel read as one surface.
+            .background(palette.bar)
             .clipToBounds()
             .padding(TAB_INSET)
     ) {
         if (horizontal) {
             Row(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                horizontalArrangement = Arrangement.spacedBy(TAB_GAP),
+                horizontalArrangement = gather,
                 verticalAlignment = Alignment.CenterVertically,
             ) {
                 modules.forEach { module ->
@@ -132,7 +154,10 @@ fun ModuleTabs(
                         module = module,
                         selected = module.id == selectedId,
                         horizontal = true,
-                        modifier = Modifier.weight(1f).fillMaxHeight(),
+                        style = style,
+                        palette = palette,
+                        modifier = (if (fill) Modifier.weight(1f) else Modifier.widthIn(min = minLength))
+                            .fillMaxHeight(),
                         onClick = { onSelect(module.id) },
                     )
                 }
@@ -140,7 +165,7 @@ fun ModuleTabs(
         } else {
             Column(
                 modifier = Modifier.fillMaxWidth().fillMaxHeight(),
-                verticalArrangement = Arrangement.spacedBy(TAB_GAP),
+                verticalArrangement = gatherVertical,
                 horizontalAlignment = Alignment.CenterHorizontally,
             ) {
                 modules.forEach { module ->
@@ -148,7 +173,10 @@ fun ModuleTabs(
                         module = module,
                         selected = module.id == selectedId,
                         horizontal = false,
-                        modifier = Modifier.weight(1f).fillMaxWidth(),
+                        style = style,
+                        palette = palette,
+                        modifier = (if (fill) Modifier.weight(1f) else Modifier.heightIn(min = minLength))
+                            .fillMaxWidth(),
                         onClick = { onSelect(module.id) },
                     )
                 }
@@ -157,46 +185,81 @@ fun ModuleTabs(
     }
 }
 
+/** The four colours a tab bar uses, all theme tokens. */
+private class TabPalette(val bar: Color, val barInk: Color, val pill: Color, val pillInk: Color)
+
+/**
+ * The two pairings, each following `DashTheme`'s own stated rule rather than eye — the primary
+ * surface carries black ink, the secondary surface carries light grey. The mid-grey accent is
+ * deliberately not used: on the light surface it is far too close to the background to read.
+ */
+@Composable
+private fun tabPalette(colour: TabColour): TabPalette {
+    val theme = LocalDashTheme.current
+    return when (colour) {
+        TabColour.LIGHT -> TabPalette(
+            bar = theme.backgroundColourPrimary, barInk = theme.textColourPrimary,
+            pill = theme.backgroundColourSecondary, pillInk = theme.textColourSecondary,
+        )
+        TabColour.DARK -> TabPalette(
+            bar = theme.backgroundColourSecondary, barInk = theme.textColourSecondary,
+            pill = theme.backgroundColourPrimary, pillInk = theme.textColourPrimary,
+        )
+    }
+}
+
 /**
  * One tab.
  *
- * Selected is a filled *dark* pill carrying light text; unselected is the bar's own light surface
- * carrying black. Both are the theme's own documented pairings rather than a choice made by eye —
- * `DashTheme` states the rule plainly: the primary surface carries black ink, the secondary surface
- * carries light-grey ink. Selected runs 11.1:1 and unselected 13.9:1 on the default palette.
- * The mid-grey accent is deliberately not used for either: it was the ink here until 2026-08-26,
- * and on the light surface it is far too close to the background to be read at a glance.
+ * Selected is a filled pill in the opposite surface to the bar, carrying that surface's ink. Under
+ * the default palette that is 11.1:1 selected and 13.9:1 unselected.
  *
- * **A tab is a full-height target, not just its text.** The whole cell is clickable, so a tab is as
- * easy to hit as the bar is thick — which is the entire reason for spending viewport on a bar rather
- * than hiding the switch in a gesture.
+ * **A tab is a full-thickness target, not just its text or its pip.** The whole cell is clickable,
+ * so a tab is as easy to hit as the bar is thick — which is the entire reason for spending viewport
+ * on a bar rather than hiding the switch in a gesture.
  */
 @Composable
 private fun ModuleTab(
     module: InstalledModule,
     selected: Boolean,
     horizontal: Boolean,
+    style: TabStyle,
+    palette: TabPalette,
     modifier: Modifier = Modifier,
     onClick: () -> Unit,
 ) {
+    val ink = if (selected) palette.pillInk else palette.barInk
     val theme = LocalDashTheme.current
     Box(
         modifier = modifier
             .clip(RoundedCornerShape(6.dp))
-            .background(if (selected) theme.backgroundColourSecondary else theme.backgroundColourPrimary)
+            .background(if (selected) palette.pill else palette.bar)
             .clickable { onClick() },
         contentAlignment = Alignment.Center,
     ) {
-        Text(
-            text = module.name,
-            color = if (selected) theme.textColourSecondary else theme.textColourPrimary,
-            fontFamily = theme.font,
-            fontSize = 12.sp,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis,
-            textAlign = TextAlign.Center,
-            modifier = if (horizontal) Modifier.padding(horizontal = 6.dp) else Modifier.readingUpwards(),
-        )
+        // Labels on a vertical bar are turned as a whole, pip and name together, so "Both" reads
+        // the same way round on either bar.
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(PIP_GAP),
+            modifier = if (horizontal) Modifier.padding(horizontal = 6.dp)
+                else Modifier.readingUpwards().padding(horizontal = 6.dp),
+        ) {
+            if (style != TabStyle.NAME) {
+                Box(Modifier.size(PIP_SIZE).clip(CircleShape).background(ink))
+            }
+            if (style != TabStyle.PIPS) {
+                Text(
+                    text = module.name,
+                    color = ink,
+                    fontFamily = theme.font,
+                    fontSize = 12.sp,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis,
+                    textAlign = TextAlign.Center,
+                )
+            }
+        }
     }
 }
 
@@ -230,3 +293,5 @@ private fun Modifier.readingUpwards(): Modifier = this.layout { measurable, cons
 
 private val TAB_INSET = 3.dp
 private val TAB_GAP = 3.dp
+private val PIP_SIZE = 8.dp
+private val PIP_GAP = 6.dp
