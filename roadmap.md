@@ -344,8 +344,10 @@ where nothing works and the app takes the screen — needs no version of its own
 - **1.7.2** — **Draw on top, made properly usable.** The app runs full screen; DASH's bar and panel
   float over it, and DASH comes forward whenever it needs its whole screen (settings, Home), handing
   back to the app afterwards. The swap between the two must be seamless; the floating chrome must
-  follow rotation and layout changes; the panel must be able to expand while floating; and a way to
-  open an app is needed until the launcher arrives. *This rung is Passive mode by nature — see the
+  follow rotation and layout changes; and the panel must be able to expand while floating. Apps are
+  opened from a **throwaway stand-in**, not the launcher *(Roger, 2026-10-01: the launcher was offered
+  for 1.7.x and declined — the viewport is finished first, then the launcher is built properly at
+  1.8.x; the stand-in is removed when it arrives)*. *This rung is Passive mode by nature — see the
   interface.md conflict recorded in the 1.7.1 changelog.*
 - **1.7.3** — **Windowed.** Samsung-style: the app opens in the viewport's rectangle. Open problems
   carried from 1.7.1: settings rolls out underneath a windowed app, and an app cannot be moved once

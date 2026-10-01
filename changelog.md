@@ -128,7 +128,10 @@ capability-detection pattern, applied to the viewport.
   viewport extends underneath floating bars"), and it can honestly offer nothing else. Whether
   interface.md is amended, or Flush and Dominant are offered only on the rungs that can deliver them,
   is a Bible conversation still to have.
-- **Each rung version needs a way to open an app.** The launcher is 1.8.x; 1.7.2 will need a stand-in.
+- **Each rung version needs a way to open an app.** *(Settled the same day, Roger:)* a **throwaway
+  stand-in** for the whole of 1.7.x, not the launcher. Bringing the launcher's core forward into 1.7.x
+  was offered and declined — the viewport is finished first, then the launcher is built properly at
+  1.8.x, and the stand-in goes when it arrives.
 - **The System app rung cannot be checked on any hardware DASH has.** It waits for the Orange Pi.
 - The throwaway probe app (`dash.probe`) is still installed on the Tab S9 Ultra and the Pixel.
 - DASH is set as the home app on the Tab S9 Ultra (it was the Samsung launcher before testing).
