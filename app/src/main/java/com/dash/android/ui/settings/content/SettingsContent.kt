@@ -29,6 +29,7 @@ fun SettingsContent(sub: SettingsSub) {
         "layout.rotation" -> RotationContent()
         "layout.systembar" -> SystemBarContent()
         "layout.modulepanel" -> ModulePanelContent()
+        "layout.viewport" -> ViewportContent()
         "modules.management" -> ModulesContent()
         "modules.transport" -> TransportManagerContent()
         "modules.serial" -> SerialMonitorContent()

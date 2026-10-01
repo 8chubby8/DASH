@@ -43,6 +43,14 @@
     <uses-permission android:name="android.permission.REBOOT" />
     <uses-permission android:name="android.permission.SHUTDOWN" />
 
+    <!-- Viewport ladder, top rung (1.7.1). Signature|privileged like the two above: granted to DASH
+         as a system app, never to a sideload. Declared so the viewport test can detect the grant. -->
+    <uses-permission android:name="android.permission.MANAGE_ACTIVITY_TASKS" />
+
+    <!-- Viewport ladder, Draw on top (1.7.1). "Display over other apps" — the user switches it on in
+         Android's settings; DASH never can. Without it the rung simply reports unavailable. -->
+    <uses-permission android:name="android.permission.SYSTEM_ALERT_WINDOW" />
+
     <!-- Package visibility for the About DASH links (1.5.14). Since Android 11, an app targeting SDK
          30+ cannot see which other apps can handle an intent unless it declares the query first —
          `resolveActivity` returns null even when a browser is sitting right there. Without this DASH
@@ -57,6 +65,14 @@
             <action android:name="android.intent.action.VIEW" />
             <data android:scheme="https" />
         </intent>
+        <!-- The viewport test launcher (1.7.1, test build) lists launchable apps to open in the
+             viewport — the same narrow question the App Launcher will ask at 1.8.x. -->
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
+        <!-- Viewport ladder detection: is Shizuku installed. -->
+        <package android:name="moe.shizuku.privileged.api" />
     </queries>
 
     <application
@@ -96,6 +112,18 @@
                 android:name="android.hardware.usb.action.USB_DEVICE_ATTACHED"
                 android:resource="@xml/device_filter" />
         </activity>
+
+        <!-- The viewport's windowed-rung test (1.7.1): a blank window opened at the viewport's
+             bounds that reports where Android really put it. Its own affinity keeps it out of
+             DASH's home task, where a bounded launch would be ignored. -->
+        <activity
+            android:name=".viewport.ViewportProbeActivity"
+            android:exported="false"
+            android:taskAffinity="com.dash.android.viewport.probe"
+            android:excludeFromRecents="true"
+            android:noHistory="true"
+            android:resizeableActivity="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar" />
 
         <receiver
             android:name=".launcher.BootReceiver"

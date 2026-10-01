@@ -4,6 +4,7 @@ import android.app.Application
 import com.dash.android.density.DensityManager
 import com.dash.android.transport.DashController
 import com.dash.android.transport.TransportManager
+import com.dash.android.viewport.ViewportHost
 
 /**
  * The DASH application object — and the owner of the transport stack (roadmap 1.5.11).
@@ -55,6 +56,11 @@ class DashApplication : Application() {
      * About asking the question in passing must never disturb a density the user has set.
      */
     val densityCapable: Boolean by lazy { DensityManager(this).checkCapability() }
+
+    /** The viewport (roadmap 1.7.1, test build): where it is, which way of putting an app in it
+     *  works on this hardware, and which app is in it. Process-scoped like the bus, because DASH is
+     *  backgrounded by design whenever an app is in front of it. */
+    val viewport: ViewportHost by lazy { ViewportHost(this) }
 
     override fun onCreate() {
         super.onCreate()

@@ -15,11 +15,16 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.WindowInsetsControllerCompat
 import com.dash.android.density.DensityManager
 import com.dash.android.ui.screen.MainScreen
+import com.dash.android.ui.viewport.OverlayChrome
+import com.dash.android.viewport.ViewportHost
 import kotlin.system.exitProcess
 
 class MainActivity : ComponentActivity() {
 
     var pendingWakeSplash = false
+
+    private val viewport get() = (application as DashApplication).viewport
+    private val overlay by lazy { OverlayChrome(this, viewport) }
 
     override fun attachBaseContext(newBase: Context) {
         val config = Configuration(newBase.resources.configuration)
@@ -35,6 +40,31 @@ class MainActivity : ComponentActivity() {
         setContent {
             MainScreen(activity = this, isColdBoot = isColdBoot)
         }
+    }
+
+    /**
+     * **Draw on top follows DASH's own screen** (roadmap 1.7.1, test build). When an app DASH opened
+     * covers it, the chrome floats over that app; when DASH is back in front, it draws its chrome
+     * itself and the floating copy goes. Returning is also when a "Display over other apps" grant
+     * made in Android's settings is picked up.
+     */
+    override fun onStart() {
+        super.onStart()
+        overlay.hide()
+        viewport.refresh()
+    }
+
+    override fun onStop() {
+        super.onStop()
+        overlay.show()
+    }
+
+    /** The Home key reaches a launcher as a new HOME intent; DASH bringing itself forward from the
+     *  floating bar is marked, and so is told apart from it. */
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        val ownReturn = intent.getBooleanExtra(ViewportHost.EXTRA_FROM_APP, false)
+        if (!ownReturn && intent.hasCategory(Intent.CATEGORY_HOME)) viewport.wentHome()
     }
 
     override fun onWindowFocusChanged(hasFocus: Boolean) {

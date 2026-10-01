@@ -60,6 +60,9 @@ val DASH_SETTINGS_TREE: List<SettingsCategory> = listOf(
             SettingsSub("layout.rotation", "Rotation", SettingsStatus.LIVE),
             SettingsSub("layout.systembar", "System Bar", SettingsStatus.LIVE),
             SettingsSub("layout.modulepanel", "Module Panel", SettingsStatus.LIVE),
+            // Test build (roadmap 1.7.1) — reports the viewport ladder; the real controls follow
+            // once Roger has seen a viewport working.
+            SettingsSub("layout.viewport", "Viewport", SettingsStatus.LIVE),
             wip("layout.launcher", "App Launcher", "1.8.x"),
             wip("layout.elements", "Elements", "1.9.x"),
             wip("layout.overlays", "Overlays", "v2"),

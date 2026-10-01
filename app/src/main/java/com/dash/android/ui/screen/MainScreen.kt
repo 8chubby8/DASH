@@ -56,6 +56,9 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.clipToBounds
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import androidx.compose.ui.layout.boundsInWindow
+import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -96,6 +99,7 @@ import com.dash.android.ui.modulepanel.slotFor
 import com.dash.android.ui.modulepanel.rememberPanelPresses
 import com.dash.android.ui.settings.SettingsShell
 import com.dash.android.ui.theme.DashTheme
+import com.dash.android.ui.viewport.ViewportTestLauncher
 import com.dash.android.ui.theme.LocalDashTheme
 import com.dash.android.ui.theme.SPLASH_BACKGROUND_COLOUR_DEFAULT
 import com.dash.android.ui.splash.LocalSplashPreview
@@ -111,8 +115,14 @@ import com.dash.android.ui.systembar.SystemBarConfig
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
+/**
+ * DASH's screen. [floating] is the same screen drawn as Draw on top's floating chrome over an app
+ * (roadmap 1.7.1, see [com.dash.android.ui.viewport.OverlayChrome]): it draws the bar and the panel
+ * exactly as here, but owns none of the screen's jobs — no splash, no settings blind, no rotation, no
+ * permission prompts — and its settings button calls the real screen forward instead.
+ */
 @Composable
-fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
+fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean, floating: Boolean = false) {
     val context = LocalContext.current
     val mainActivity = activity as MainActivity
     val prefs = remember { DashPreferences(context) }
@@ -137,7 +147,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val btPermissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { /* result handled by the transport's next sweep — nothing to do here */ }
-    LaunchedEffect(Unit) {
+    if (!floating) LaunchedEffect(Unit) {
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S &&
             ContextCompat.checkSelfPermission(context, Manifest.permission.BLUETOOTH_CONNECT) !=
             PackageManager.PERMISSION_GRANTED
@@ -167,7 +177,9 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     // Opening settings refreshes the landing weather in the background (never gating the open); closing
     // is a plain toggle. Both settings-button sites route through this so the behaviour is identical.
     val toggleSettings: () -> Unit = {
-        if (showSettings) {
+        if (floating) {
+            dashApp.viewport.settingsFromApp()
+        } else if (showSettings) {
             showSettings = false
         } else {
             showSettings = true
@@ -175,7 +187,24 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         }
     }
 
-    DisposableEffect(activity.lifecycle) {
+    // The floating bar's settings button arrives here once DASH is in front again; and settings that
+    // were opened from an app hand the screen back to it when they close (roadmap 1.7.1).
+    if (!floating) {
+        val settingsRequest by dashApp.viewport.settingsRequest.collectAsState()
+        LaunchedEffect(settingsRequest) {
+            if (settingsRequest) {
+                if (!showSettings) toggleSettings()
+                dashApp.viewport.settingsRequestHandled()
+            }
+        }
+        var settingsWasOpen by remember { mutableStateOf(false) }
+        LaunchedEffect(showSettings) {
+            if (settingsWasOpen && !showSettings) dashApp.viewport.settingsClosed()
+            settingsWasOpen = showSettings
+        }
+    }
+
+    if (!floating) DisposableEffect(activity.lifecycle) {
         val observer = LifecycleEventObserver { _, event ->
             if (event == Lifecycle.Event.ON_RESUME) {
                 if (mainActivity.pendingWakeSplash) {
@@ -188,7 +217,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
         onDispose { activity.lifecycle.removeObserver(observer) }
     }
 
-    DisposableEffect(activity) {
+    if (!floating) DisposableEffect(activity) {
         val receiver = object : BroadcastReceiver() {
             override fun onReceive(context: Context, intent: Intent) {
                 if (intent.action == Intent.ACTION_SCREEN_ON && mainActivity.isDefaultLauncher()) {
@@ -215,7 +244,7 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
     val barConfig by prefs.systemBarConfig.collectAsState(initial = SystemBarConfig.default())
     val modulePanelConfig by prefs.modulePanelConfig.collectAsState(initial = ModulePanelConfig.default())
 
-    LaunchedEffect(autoRotate, lockedOrientation) {
+    if (!floating) LaunchedEffect(autoRotate, lockedOrientation) {
         activity.requestedOrientation = if (autoRotate) {
             // FULL_SENSOR, not SENSOR (roadmap 1.5.15). Plain SENSOR deliberately refuses to rotate
             // into reverse portrait on most devices — so with Layout › Rotation offering all four
@@ -584,6 +613,43 @@ fun MainScreen(activity: ComponentActivity, isColdBoot: Boolean) {
                 (if (!barIsTop) barThickness else 0.dp) + (if (panelEdge == PanelEdge.BOTTOM) panelVerticalInset else 0.dp)
             val settingsStartInset = if (panelEdge == PanelEdge.LEFT) assemblyThickness else 0.dp
             val settingsEndInset = if (panelEdge == PanelEdge.RIGHT) assemblyThickness else 0.dp
+            /*
+             * **The viewport** (roadmap 1.7.1, test build) — the space the bar and the resting panel
+             * assembly leave over. It is exactly the rectangle the settings blind rolls into, which
+             * is no coincidence: both are "what DASH's chrome has not claimed", measured against the
+             * *resting* assembly so an expanding panel never resizes the running app.
+             *
+             * Measured in screen pixels and handed to [com.dash.android.viewport.ViewportHost],
+             * which is what asks Android to put an app there. The stand-in launcher drawn inside it
+             * exists only so the box has something to open — the real launcher is 1.8.x.
+             */
+            val viewport = dashApp.viewport
+            val hostView = LocalView.current
+            if (!editMode && !floating) {
+                ViewportTestLauncher(
+                    host = viewport,
+                    modifier = Modifier
+                        .align(Alignment.TopStart)
+                        .fillMaxSize()
+                        .padding(
+                            top = settingsTopInset,
+                            bottom = settingsBottomInset,
+                            start = settingsStartInset,
+                            end = settingsEndInset,
+                        )
+                        .onGloballyPositioned { coords ->
+                            val b = coords.boundsInWindow()
+                            val origin = IntArray(2).also { hostView.getLocationOnScreen(it) }
+                            viewport.updateRect(
+                                android.graphics.Rect(
+                                    origin[0] + b.left.toInt(), origin[1] + b.top.toInt(),
+                                    origin[0] + b.right.toInt(), origin[1] + b.bottom.toInt(),
+                                )
+                            )
+                        },
+                )
+            }
+
             BoxWithConstraints(
                 modifier = Modifier
                     .align(Alignment.TopStart)
