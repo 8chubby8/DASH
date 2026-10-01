@@ -2,6 +2,9 @@
    DASH Module — Tank Gauge (USB)         |  module type: ACCESSORY
    Board: Espressif ESP32 DevKitC (WROOM-32, classic)  |  transport: USB serial
           or Arduino Uno R4 WiFi / Minima — builds unchanged (2026-10-01)
+   PREFER A NATIVE-USB BOARD (Uno R4, ESP32-S2/S3/C3/C6 native port) for a USB
+   module — a classic ESP32's converter chip damages large installs; DASH repairs
+   them, but slower. See hardware.md, "Module Boards — USB Compatibility".
    Built on the DashModule library.       |  roadmap 1.6.6
    ---------------------------------------------------------------------------
    THE THIRD PIPE. Same panel as GaugeWifi and GaugeBt, same artwork, same
@@ -51,7 +54,7 @@
 // being drawn from the layout already on the tablet's disk. Bumping it is what makes DASH
 // quarantine the stale record and offer the update that re-runs the handshake.
 DashAccessory dash("0000DA58AC03", "Tank Gauge USB",
-                        "Air-ride tank pressure panel over USB serial", "v1.2");
+                        "Air-ride tank pressure panel over USB serial", "v1.3");
 
 /* -------- this board's own pretend tank --------------------------------------- */
 // No sensor wired up, so the value is held rather than measured. It moves only when
@@ -101,7 +104,7 @@ void setup() {
   // **57600 was tried and rejected** (2026-08-13, roadmap 1.6.6). An 88 KB panel payload arrives
   // corrupt over USB roughly two installs in five; halving the rate changed nothing measurable —
   // one failure in four against two in five, the same coin. So the cause is neither throughput nor
-  // bit time, and the remedy is a per-block retry (designed for 1.6.10, deferred), not a slower wire. Recorded so nobody
+  // bit time, and the remedy is a per-block retry (RESEND, built at 1.6.12), not a slower wire. Recorded so nobody
   // spends the afternoon trying it again.
   Serial.begin(115200);
   dash.onAction(onPanelAction);  // a button on the panel was pressed

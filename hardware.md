@@ -461,6 +461,27 @@ For installs where CAN or RS485 is needed permanently wired rather than via USB 
 
 ---
 
+## Module Boards — USB Compatibility
+
+*(Added 2026-10-01, roadmap 1.6.12.)*
+
+A module that talks to DASH **over a USB cable** should use a board with **native USB** — one that
+shows up on the head unit as a USB CDC device (`ttyACM`). Good choices: **Arduino Uno R4** (WiFi or
+Minima), **ESP32-S2 / S3 / C3 / C6** on their native USB port, Raspberry Pi **Pico**, Arduino
+**Leonardo / Micro**.
+
+A **classic ESP32** (ESP32-WROOM DevKitC and lookalikes) talks to USB through a separate
+converter chip (CP2102 / CH340, shows as `ttyUSB`). In testing it damaged a large panel picture in
+9 of 20 installs; an Uno R4 damaged none in 22. DASH repairs damaged pieces automatically (the
+`RESEND` message, `module-sdk.md` §8), so it still works — but the occasional install will need a
+second press. **A classic ESP32 is a perfectly good module over WiFi or Bluetooth**, which repair
+damage on their own.
+
+This is a recommendation, not a requirement. Installs happen once per firmware version, not every
+journey.
+
+---
+
 ## Device-Specific Notes
 
 Notes on specific devices encountered during development or testing, covering quirks, confirmed working configurations, and anything that would not be obvious from the hardware spec alone.

@@ -38,7 +38,9 @@ import java.util.zip.CRC32
  *    instant the device carrying it leaves the bus (board unplugged, socket dropped), rather than
  *    waiting out the idle timeout.
  *  - **[FailReason.CORRUPT]** — an asset block whose CRC or length does not match (was the one
- *    unavoidable abort since 1.4.4; now it wears a designed fail state like the others).
+ *    unavoidable abort since 1.4.4; now it wears a designed fail state like the others). **Since
+ *    1.6.12 only after a repair round**: a damaged piece is noted, the install runs to its end, and
+ *    DASH asks for each damaged piece again with `RESEND`, up to five times, before failing.
  *  - **[FailReason.OVERSIZE]** — an asset block bigger than DASH will hold in memory at once
  *    (roadmap 1.6.5). The transport reads and discards the payload so the stream stays framed; this
  *    desk then says why, rather than leaving the session to die of the idle timeout wearing
@@ -174,18 +176,67 @@ class Install(
         val crcOk = declaredCrc != null && declaredCrc == actualCrc
 
         if (!lengthOk || !crcOk) {
-            // A corrupt asset ends the install — now with a designed fail state, not a silent revert.
-            Log.w(TAG, "block '$name' failed validation (lengthOk=$lengthOk crcOk=$crcOk) — install aborted for $id")
+            Log.w(TAG, "block '$name' failed validation (lengthOk=$lengthOk crcOk=$crcOk) for $id")
             if (crcOk.not()) Log.w(TAG, "  ${characteriseCorruption(block.bytes)}")
-            fail(id, session, FailReason.CORRUPT)
+            session.inFlightBytes = 0                  // thrown away — the bar gives the ground back
+            /*
+             * **A damaged piece is noted, not fatal** (roadmap 1.6.12, module-sdk.md §8). Before the
+             * end of the install it joins the repair list and the install carries on — the module is
+             * mid-monologue and cannot be interrupted. During the repair round it is the piece just
+             * asked for, arriving damaged again: ask once more, up to [MAX_RESENDS] times, then fail
+             * exactly as an install failed before there was a repair round at all.
+             */
+            if (!session.repairing) {
+                if (name.isNotEmpty() && name !in session.damaged) session.damaged[name] = 0
+                emitProgress(session)
+            } else if (name == session.repairingName) {
+                val tries = (session.damaged[name] ?: 0)
+                if (tries >= MAX_RESENDS) {
+                    Log.w(TAG, "block '$name' still damaged after $tries resends — install aborted for $id")
+                    fail(id, session, FailReason.CORRUPT)
+                } else {
+                    requestResend(id, session, name)
+                }
+            }
             return
         }
 
+        session.assets.removeAll { it.name == name }   // a repaired piece replaces nothing, but be sure
         session.assets += InstalledAsset(name = name, bytes = block.bytes.size, crcOk = true)
         session.payloads += block.bytes
         session.receivedBytes += block.bytes.size
         session.inFlightBytes = 0                      // committed now; the estimate has done its job
         emitProgress(session)
+
+        if (session.repairing && session.damaged.remove(name) != null) {
+            Log.i(TAG, "block '$name' repaired for $id")
+            repairNextOrCommit(id, session)
+        }
+    }
+
+    /**
+     * The repair round (roadmap 1.6.12). Ask for the next damaged piece, or — with none left —
+     * commit the install exactly as a clean one would have been.
+     */
+    private fun repairNextOrCommit(id: String, session: InstallSession) {
+        val next = session.damaged.keys.firstOrNull()
+        if (next == null) {
+            sessions.remove(id)
+            session.watchdog?.cancel()
+            _states.value = _states.value - id
+            commit(session.record(), session.payloads)
+            return
+        }
+        requestResend(id, session, next)
+    }
+
+    /** `RESEND|id|name` — ask the module for one piece again, counting the attempt. */
+    private fun requestResend(id: String, session: InstallSession, name: String) {
+        session.repairingName = name
+        session.damaged[name] = (session.damaged[name] ?: 0) + 1
+        session.lastActivity = System.currentTimeMillis()   // the wait for an answer starts now
+        Log.i(TAG, "asking $id to resend '$name' (attempt ${session.damaged[name]} of $MAX_RESENDS)")
+        send("$RESEND|$id|$name")
     }
 
     /**
@@ -265,14 +316,27 @@ class Install(
         fail(id, session, FailReason.OVERSIZE)
     }
 
-    /** `INSTALL_END|id` — hand the accumulated session to the database and close it here. */
+    /**
+     * `INSTALL_END|id` — hand the accumulated session to the database and close it here.
+     *
+     * **Unless something arrived damaged** (roadmap 1.6.12). Then the session stays open and the
+     * repair round begins: the module has finished talking and is back in its normal loop, listening,
+     * so DASH can now ask for each damaged piece again. A module that does not know `RESEND` simply
+     * never answers, the watchdog runs out, and the install fails as CORRUPT — exactly what happened
+     * before this round existed.
+     */
     @Synchronized
     fun onInstallEnd(line: String) {
         val id = idOf(line) ?: return
-        val session = sessions.remove(id) ?: return
-        session.watchdog?.cancel()
-        _states.value = _states.value - id
-        commit(session.record(), session.payloads)
+        val session = sessions[id] ?: return
+        if (session.repairing) return                  // a second INSTALL_END is noise
+        if (session.damaged.isNotEmpty()) {
+            Log.i(TAG, "install for $id ended with ${session.damaged.size} damaged piece(s) — repairing")
+            session.repairing = true
+            repairNextOrCommit(id, session)
+            return
+        }
+        repairNextOrCommit(id, session)                // nothing damaged: commits at once
     }
 
     /**
@@ -286,7 +350,10 @@ class Install(
             while (isActive) {
                 val remaining = IDLE_TIMEOUT_MS - (System.currentTimeMillis() - session.lastActivity)
                 if (remaining <= 0) {
-                    fail(id, session, FailReason.STALLED)
+                    // Silence during the repair round means the module did not answer RESEND — an
+                    // older module, or a piece that will not come. The honest reason is still the
+                    // damage, not a stall: it is the failure the install would have had anyway.
+                    fail(id, session, if (session.repairing) FailReason.CORRUPT else FailReason.STALLED)
                     return@launch
                 }
                 delay(remaining)
@@ -333,6 +400,12 @@ class Install(
 
     private companion object {
         const val INSTALL = "INSTALL"
+        const val RESEND = "RESEND"
+
+        /** How many times one damaged piece is asked for again before the install fails (1.6.12).
+         *  Five, not three (Roger, after a 20-install ESP32 test): a picture that arrives damaged
+         *  about half the time fails three asks in a row about 1 install in 25, five about 1 in 150. */
+        const val MAX_RESENDS = 5
         const val TAG = "DashInstall"
 
         /** How much of a failed payload's tail to scan for a following message. A block header is
@@ -383,6 +456,18 @@ private class InstallSession(val seed: DiscoveredModule) {
      * given back.
      */
     var inFlightBytes: Int = 0
+
+    /**
+     * Pieces that arrived damaged, by name, with how many times each has been asked for again
+     * (roadmap 1.6.12). Filled during the install; worked through after `INSTALL_END`.
+     */
+    val damaged = linkedMapOf<String, Int>()
+
+    /** True once `INSTALL_END` has arrived with damage outstanding and DASH is asking for it again. */
+    var repairing: Boolean = false
+
+    /** The piece most recently asked for. */
+    var repairingName: String? = null
 
     /** Where this install's declarations arrive from (roadmap 1.4.14) — captured on the first one,
      *  used to fail the session if that device leaves the bus. Null until the first declaration lands. */

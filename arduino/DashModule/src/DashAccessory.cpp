@@ -74,11 +74,28 @@ void DashAccessory::onTick(unsigned long now) {
   }
 }
 
-// ACTION|id|control[|value] — the base has already checked the id.
+// ACTION|id|control[|value] and RESEND|id|name — the base has already checked the id.
 void DashAccessory::onCommand(int argc, char** argv) {
-  if (strcmp(argv[0], "ACTION") != 0) return;
   if (argc < 3) return;
-  handleAction(argv[2], argc > 3 ? argv[3] : "");
+  if (strcmp(argv[0], "ACTION") == 0) {
+    handleAction(argv[2], argc > 3 ? argv[3] : "");
+  } else if (strcmp(argv[0], "RESEND") == 0) {
+    resend(argv[2]);
+  }
+}
+
+/* RESEND|id|name — one install piece arrived damaged; send it again (module-sdk.md §8,
+   roadmap 1.6.12). DASH asks only after INSTALL_END, when this module is back in its
+   normal loop and listening. A name this module never shipped is ignored in silence —
+   DASH times out and fails the install, which is the honest outcome. Not gated on
+   ACTIVE: an install happens before activation. */
+void DashAccessory::resend(const char* name) {
+  for (uint8_t i = 0; i < _assetCount; i++) {
+    if (strcmp(_assets[i].name, name) == 0) {
+      sendBlock(_assets[i]);
+      return;
+    }
+  }
 }
 
 void DashAccessory::report(const char* variable, const char* value) {

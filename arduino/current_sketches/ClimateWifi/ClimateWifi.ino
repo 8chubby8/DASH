@@ -77,7 +77,7 @@ WiFiClient client;
    a module whose panel has moved on while its version stands still keeps being
    drawn from the copy already on the tablet's disk. */
 ClimateModule dash("0000DA58AC04", "Climate",
-                   "Single-zone cabin climate", "v1.9");
+                   "Single-zone cabin climate", "v2.0");
 
 unsigned long lastLinkTry = 0;
 const unsigned long LINK_RETRY_MS = 3000;

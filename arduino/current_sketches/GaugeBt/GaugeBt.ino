@@ -73,7 +73,7 @@ BluetoothSerial SerialBT;
 // being drawn from the layout already on the tablet's disk. Bumping it is what makes DASH
 // quarantine the stale record and offer the update that re-runs the handshake.
 DashAccessory dash("0000DA58AC02", "Tank Gauge BT",
-                        "Air-ride tank pressure panel over Bluetooth", "v1.2");
+                        "Air-ride tank pressure panel over Bluetooth", "v1.3");
 
 /* -------- this board's own pretend tank --------------------------------------- */
 // No sensor wired up, so the value is held rather than measured. It moves only when

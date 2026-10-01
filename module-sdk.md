@@ -74,6 +74,7 @@ where there is no MAC, §3).
 | `MANIFEST\|id\|blocks\|bytes` | mod→DASH | ACCESSORY asset table-of-contents + total size. |
 | `BLOCK\|id\|name\|length\|crc` + raw bytes | mod→DASH | ACCESSORY one asset (icon/panel), length-prefixed, CRC-checked. |
 | `INSTALL_END\|id` | mod→DASH | Ends the handshake. |
+| `RESEND\|id\|name` | DASH→mod | After `INSTALL_END` only: one block arrived damaged — send that `BLOCK` again (§8). *Added 1.6.12.* |
 
 Pairings: `SYSTEM_SIGNAL`→`BROADCAST` and `SUBSCRIBE`→`LISTEN` are each "declare at
 install → message at runtime"; `REPORT`↔`ACTION` are the two halves of one private
@@ -144,6 +145,7 @@ TYPE | id | function | value1 | value2 | value3
 | `DEACTIVATE\|id` | Stop sending. |
 | `LISTEN\|id\|function\|value` | A standard signal you subscribed to — 5 s heartbeat, immediately on change, once on activation; event-only signals arrive with no value, on fire only (§4c). |
 | `ACTION\|id\|control\|value` | A user operated one of **your panel's** controls — agnostic input. |
+| `RESEND\|id\|name` | One of your install blocks arrived damaged — send that `BLOCK` again. Sent only after your `INSTALL_END` (§8). *Added 2026-10-01, roadmap 1.6.12.* |
 
 **module → DASH:**
 
@@ -479,6 +481,31 @@ ride inside the bounded install handshake as length-prefixed, checksummed blocks
 - On a CRC/length mismatch DASH aborts the bounded handshake cleanly; nothing
   half-corrupted reaches disk.
 
+> **Amended — 2026-10-01, roadmap 1.6.12 (Roger's express decision).** The bullet above is
+> superseded in one respect only: **a damaged block no longer ends the install at once.** It is
+> repaired first.
+>
+> 1. **The install runs to its end, untouched.** The module's monologue rule does not change —
+>    DASH still never interrupts a module mid-install. A block that fails its CRC or length is
+>    noted and the install carries on.
+> 2. **After `INSTALL_END`, DASH asks for each damaged block again**: `RESEND|id|name`, one at a
+>    time. The module is back in its normal loop by then and listening.
+> 3. **The module answers with that one block** — the same `BLOCK|id|name|length|crc` header and
+>    bytes it sent the first time. Nothing else; no `INSTALL_END` follows.
+> 4. **Up to five requests per block** *(three as first written; raised to five the same day after
+>    a 20-install hardware test — see §12, USB serial)*. A block still damaged after five, or a module that does
+>    not answer within the install's idle timeout, fails the install exactly as before — and still
+>    nothing half-corrupted reaches disk.
+>
+> **Purely additive.** A module built before this does not recognise `RESEND`, ignores it as it
+> ignores any unknown command, and so behaves exactly as it always did. A module ignores a `RESEND`
+> for a name it never shipped. The `DashAccessory` library (1.2.0) answers it automatically; a
+> builder writes nothing.
+>
+> *Why:* USB serial delivered large payloads damaged about two installs in five — the right number
+> of bytes, some of them wrong. WiFi and Bluetooth repair this underneath; a bare serial line does
+> not. Asking for one block again costs a tenth of re-running the whole install.
+
 **Capability tiering:** a rich ACCESSORY is realistic on ESP32+ (megabytes of flash). A
 classic Uno R3 (32 KB) builds SYSTEM modules (no payload).
 
@@ -584,6 +611,23 @@ The board presents as a **USB CDC serial device** (native on every ESP32; via th
 on-board bridge on the Arduino Uno R4 WiFi). **DASH is the host** — it enumerates and
 opens you at **115200 8N1**. You do nothing but `Serial.begin(115200)`. Wired, so DASH
 treats a silent USB module as a potential **fault** (§6).
+
+> **Added 2026-10-01, roadmap 1.6.12 — choose a board with native USB for a USB module.** The
+> paragraph above is wrong in one respect: a *classic* ESP32 board (ESP32-WROOM DevKitC and
+> similar) does **not** have native USB. It reaches the cable through a separate USB-to-serial
+> converter chip (CP2102 / CH340), and shows up as `ttyUSB` rather than `ttyACM`.
+>
+> **That converter is where large installs get damaged.** Measured on the Tab S9 Ultra, the Tank
+> Gauge's 78 KB picture arrived damaged in **9 of 20 installs** from a classic ESP32 over USB, and
+> in **0 of 22** from an Arduino Uno R4 WiFi. `RESEND` (§8) repaired all 9, but a board that
+> damages about half of every large send leans on it hard.
+>
+> **Recommendation, not a rule:** for a module that talks to DASH over USB, use a board that
+> presents itself as a USB CDC device — the Uno R4, or an ESP32-S2 / S3 / C3 / C6 on its native
+> USB port, a Pico, a Leonardo. A classic ESP32 is an excellent module over **WiFi or Bluetooth**,
+> which repair damage underneath. A classic ESP32 over USB still works — DASH repairs what it can —
+> but expect the occasional install to need a second press. Installs happen once per firmware
+> version, not every drive, so this is an inconvenience and never a fault in the car.
 
 ### WiFi (TCP)
 

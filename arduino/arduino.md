@@ -1110,6 +1110,18 @@ Still to settle before the SDK is fully locked:
 > Per-trigger and per-tab icons: **deferred to version 3** (Roger). The layout spec locked the
 > same day, and `DashAccessory` joined the library, extracted from the draft class the three
 > Gauge sketches carried.
+>
+> **2026-10-01, later the same day — roadmap 1.6.12.** Roger reversed the deferral: mismatch
+> recovery is now **re-request one block**. A damaged block is noted, the install runs to its
+> end, then DASH sends `RESEND|id|name` for each, up to five times *(three as first written, raised after testing)*. Additive — a module that
+> does not know `RESEND` ignores it and the install fails as before. Normative text in
+> `module-sdk.md` §8; the library answers it for the builder.
+>
+> **Tested the same afternoon.** 20 installs from a classic ESP32 over USB: 9 arrived damaged, all 9
+> repaired. 22 from an Uno R4 WiFi over USB: none damaged. The damage is the classic ESP32's
+> USB-to-serial converter chip, not USB itself — so the SDK now *recommends* a native-USB board for
+> USB modules (`module-sdk.md` §12). Roger: installs are rare, once per firmware version, so an
+> occasional failed install on a less compatible board is acceptable.
 
 ### Future additions (DASH-side — roadmap 1.4.x, not the module SDK)
 

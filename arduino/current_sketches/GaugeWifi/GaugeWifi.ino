@@ -92,7 +92,7 @@ WiFiClient client;
 // being drawn from the layout already on the tablet's disk. Bumping it is what makes DASH
 // quarantine the stale record and offer the update that re-runs the handshake.
 DashAccessory dash("0000DA58AC01", "Tank Gauge",
-                        "Air-ride tank pressure panel over WiFi", "v1.4");
+                        "Air-ride tank pressure panel over WiFi", "v1.5");
 
 /* -------- this board's own pretend tank --------------------------------------- */
 // No sensor wired up (the roadmap here is about the path, not the plumbing), so the

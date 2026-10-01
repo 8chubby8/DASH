@@ -47,6 +47,62 @@ Each version entry follows this structure:
 
 ---
 
+## Version 1.6.12
+
+**Status:** Complete — 2026-10-01. Hardware-verified on the Tab S9 Ultra: 20 installs from a classic
+ESP32 over USB, all succeeding, 9 of them repaired by `RESEND`; 22 from an Uno R4 WiFi over USB,
+none damaged.
+
+**Scope:** Finishing off and cleaning up 1.6.x. First item: the USB repair round.
+
+**Implemented — `RESEND`, the per-block repair** *(Roger, 2026-10-01: "let's add the message as
+you've described, the procedure as you've described")*
+
+- **The problem, plainly:** over a USB serial cable a large panel install arrived damaged about two
+  times in five — the right number of bytes, some of them wrong. DASH's checksum caught it every
+  time and refused the install, so nothing broken was ever drawn, but the user had to press
+  install again. WiFi and Bluetooth repair this underneath; a bare serial line does not.
+- **DASH (`Install.kt`):** a damaged block no longer ends the install. It is noted and the install
+  runs to its end. After `INSTALL_END`, DASH sends `RESEND|id|name` for each damaged block in
+  turn, up to **five** times each *(three as first built; raised after the test below)*. Repaired, the install commits exactly as a clean one would.
+  Still damaged after three, or no answer within the existing 10 s idle watchdog, and it fails as
+  **CORRUPT** — the same failure as before, never mislabelled as a stall. The progress bar gives
+  back a damaged block's bytes and moves again as the repair arrives.
+- **Module library (`DashAccessory`, 1.2.0):** answers `RESEND` by sending that one block again
+  from flash. Ignores a name it never shipped. Not gated on ACTIVE, since an install happens first.
+  The builder writes nothing.
+- **Sketches:** every panel sketch picks it up through the library. Versions bumped so DASH offers
+  the update — Climate v2.0 (all three), Gauge WiFi v1.5, Gauge BT / USB v1.3. All eight board
+  builds compile (Gauge USB and WiFi for both the R4 and the ESP32). Stale "retry deferred" notes in
+  the USB sketches corrected.
+- **Documents:** `module-sdk.md` — `RESEND` added to the cheat sheet and §4, and §8 amended with a
+  dated note (the old abort rule kept and marked superseded in one respect). `arduino.md` — dated
+  note reversing the 1.6.10 deferral. Roadmap — 1.6.12 added; 1.6.10's retry paragraph marked built.
+  `transport.md` carries no install detail and needed nothing.
+- `versionCode` 45 → 46.
+
+**Tested — 2026-10-01, Tab S9 Ultra, driven by Claude over wireless adb**
+
+- **Uno R4 WiFi over USB, 22 installs:** all clean. Not one damaged piece, so no repair ran.
+- **Classic ESP32 over USB, 20 installs:** all succeeded. **9 arrived damaged** — always the
+  78 KB `dial.png`, always the right length with altered bytes — and **all 9 were repaired**:
+  three needed one resend, five needed two, one needed three. The damaged copy is about half of
+  all sends, so three attempts would still fail roughly 1 install in 25; **raised to five**
+  (Roger), roughly 1 in 150.
+- **The finding:** the damage is the classic ESP32's USB-to-serial converter chip, not USB itself.
+  `module-sdk.md` §12 (USB serial) now **recommends a native-USB board** for USB modules, and
+  corrects its claim that every ESP32 has native USB; `hardware.md` gains a *Module Boards — USB
+  Compatibility* section; both USB sketch headers point there. *Roger:* installs happen once per
+  firmware version, so an occasional failed install on a less compatible board is acceptable —
+  a recommendation, not a rule.
+
+**Outstanding:**
+
+- None from this version. 1.6.12 stays open as the home for any further 1.6.x clean-up Roger
+  brings to it; this entry closes the `RESEND` work.
+
+---
+
 ## Version 1.6.11
 
 **Status:** Complete — 2026-10-01. Hardware-verified by Roger on the Pixel 8 Pro with the Tank

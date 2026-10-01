@@ -29,6 +29,10 @@
    DashAccessory and override handleAction() / reportAll() instead of passing
    callbacks — the Climate sketches do exactly that.
 
+   DAMAGED PIECES ARE REPAIRED FOR YOU (1.6.12). If a piece of the install arrives
+   damaged, DASH asks for it again with RESEND once the install has finished; the
+   library sends that one piece again from flash. The builder writes nothing.
+
    A MODULE NEVER PARSES ITS OWN LAYOUT. It copies bytes from flash to a Stream
    and understands none of them; making sense of the payload is DASH's job.
    =========================================================================== */
@@ -106,6 +110,7 @@ class DashAccessory : public DashModule {
   unsigned long _lastHeartbeat = 0;
 
   void sendBlock(const DashAsset& asset);
+  void resend(const char* name);
 };
 
 #endif  // DASH_ACCESSORY_H
